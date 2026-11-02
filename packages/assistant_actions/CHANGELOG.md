@@ -1,3 +1,11 @@
+## 0.0.9
+
+* Docs: bump the app's build number whenever the generated actions or
+  entities change. Siri caches App Intents per build number, so an app
+  rebuilt with the same number can keep failing with "Flow tool not found in
+  database" (`ToolDiscoveryError`). `dart run assistant_actions:install` now
+  says so too.
+
 ## 0.0.8
 
 * `AssistantPredicate` and `AssistantComparison`: Siri's entity property
