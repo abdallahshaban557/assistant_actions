@@ -48,6 +48,7 @@ public enum AssistantSnapshot {
   static func write(collection: String, json: String) throws {
     let url = try fileURL(collection, create: true)
     try Data(json.utf8).write(to: url, options: .atomic)
+    AssistantSpotlight.update(collection)
   }
 
   private static func published(_ collection: String) -> [AssistantRecord] {

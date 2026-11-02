@@ -57,6 +57,18 @@ check(
 check(AssistantQuery.render("a[ b {x}] c[ d {y}]", ["x": "", "y": 2]), "a c d 2", "optional segments")
 check(AssistantQuery.render("{n|item|items}", ["n": 1]), "item", "plural one")
 
+// Spotlight: what a reindex removes.
+func plan(_ previous: [String]?, _ current: [String]) -> String {
+  let p = AssistantSpotlight.plan(previous: previous, current: current)
+  return p.clearFirst ? "clear" : p.removed.joined(separator: ",")
+}
+check(plan(nil, ["a"]), "clear", "first run clears what earlier installs indexed")
+check(plan(["a", "b", "c"], ["c", "a"]), "b", "removes ids no longer published")
+check(plan(["a"], ["a", "new"]), "", "adds without removing")
+check(plan(["a", "b"], []), "a,b", "an empty collection removes everything")
+check(AssistantSpotlight.indexer() == nil ? "none" : "found", "none",
+  "no generated indexer here, so updates are no-ops")
+
 if failures > 0 {
   print("\(failures) failed")
   exit(1)

@@ -35,6 +35,7 @@ class SwiftWriter {
       _snapshotAction(a);
     }
     if (app.schemaEntities.isNotEmpty) _schemas();
+    _spotlight();
     body.write(_out);
 
     return [
@@ -42,6 +43,7 @@ class SwiftWriter {
       '// Source: lib/assistant_actions.dart',
       '',
       'import AppIntents',
+      'import CoreSpotlight',
       'import Foundation',
       if (_usesPlaces) 'import GeoToolbox',
       'import assistant_actions',
@@ -199,6 +201,121 @@ public struct ${name}Query: EntityStringQuery {
   }
 }
 ''');
+  }
+
+  // ── Spotlight ─────────────────────────────────────────────────────────
+
+  /// Spotlight attributes the generator can fill from a schema member's
+  /// `indexingKey`, with the Swift type they take.
+  static const _spotlightKeys = {
+    'title': 'String',
+    'displayName': 'String',
+    'textContent': 'String',
+    'contentDescription': 'String',
+    'dueDate': 'Date',
+    'completionDate': 'Date',
+    'contentCreationDate': 'Date',
+    'contentModificationDate': 'Date',
+  };
+
+  /// `IndexedEntity` conformances, so Siri's planner finds the entities in
+  /// Spotlight's semantic index, and the indexer the runtime calls on publish
+  /// and on Siri's inbox changes.
+  void _spotlight() {
+    for (final e in app.entities) {
+      _out.writeln('''
+@available(iOS 18.0, macOS 15.0, *)
+extension ${e.swiftName}: IndexedEntity {
+  public var attributeSet: CSSearchableItemAttributeSet {
+    let attributes = defaultAttributeSet
+    attributes.title = title
+    attributes.displayName = title
+    attributes.contentDescription = subtitle
+    return attributes
+  }
+}
+''');
+    }
+    for (final s in app.schemaEntities) {
+      _out
+        ..writeln(_availability(s.schema.availability))
+        ..writeln('extension ${s.swiftName}: IndexedEntity {')
+        ..writeln('  var attributeSet: CSSearchableItemAttributeSet {')
+        ..writeln('    let attributes = defaultAttributeSet');
+      for (final p in s.schema.properties) {
+        final key = p.indexingKey;
+        final want = _spotlightKeys[key];
+        if (key == null || want == null) continue;
+        final value = _spotlightValue(p, want);
+        if (value != null) _out.writeln('    attributes.$key = $value');
+      }
+      _out
+        ..writeln('    return attributes')
+        ..writeln('  }')
+        ..writeln('}')
+        ..writeln();
+    }
+
+    _out
+      ..writeln('/// Found by name by `AssistantSpotlight` in the runtime; apps register nothing.')
+      ..writeln('@objc(AssistantActionsAppSpotlight)')
+      ..writeln('public final class AssistantActionsAppSpotlight: NSObject, AssistantSpotlightIndexer {')
+      ..writeln('  public func index(collection: String, removedIDs: [String], clearFirst: Bool) async throws {')
+      ..writeln('    guard #available(iOS 18.0, macOS 15.0, *) else { return }')
+      ..writeln('    switch collection {');
+    for (final e in app.entities) {
+      _out
+        ..writeln('    case "${e.className}":')
+        ..writeln('      try await Self.update(')
+        ..writeln('        AssistantSnapshot.records("${e.className}").map(${e.swiftName}.init(record:)),')
+        ..writeln('        removed: removedIDs, clearFirst: clearFirst)');
+    }
+    for (final s in app.schemaEntities) {
+      final v = s.schema.availability;
+      _out
+        ..writeln('    case "${s.collection}":')
+        ..writeln('      if #available(iOS ${(v['iOS'] ?? 27).toInt()}.0, macOS ${(v['macOS'] ?? 27).toInt()}.0, *) {')
+        ..writeln('        try await Self.update(')
+        ..writeln('          AssistantSnapshot.records("${s.collection}").map(${s.swiftName}.init(record:)),')
+        ..writeln('          removed: removedIDs, clearFirst: clearFirst)')
+        ..writeln('      }');
+    }
+    _out.writeln('''
+    default:
+      break
+    }
+  }
+
+  @available(iOS 18.0, macOS 15.0, *)
+  private static func update<E: IndexedEntity>(_ entities: [E], removed: [String], clearFirst: Bool) async throws
+  where E.ID == String {
+    let index = CSSearchableIndex.default()
+    if clearFirst {
+      try await index.deleteAppEntities(ofType: E.self)
+    } else if !removed.isEmpty {
+      try await index.deleteAppEntities(identifiedBy: removed, ofType: E.self)
+    }
+    if !entities.isEmpty {
+      try await index.indexAppEntities(entities)
+    }
+  }
+}
+''');
+  }
+
+  /// A Swift expression of type [want] (`String?` / `Date?`) for member [p],
+  /// or null when its type doesn't fit.
+  String? _spotlightValue(SchemaMember p, String want) {
+    final optional = p.type.isOptional;
+    final name = p.name;
+    return switch ((p.type.base.kind, want)) {
+      ('string', 'String') => name,
+      ('attributedString', 'String') => optional ? '$name.map { String(\$0.characters) }' : 'String($name.characters)',
+      ('date', 'Date') => name,
+      ('dateComponents', 'Date') =>
+        optional ? '$name.flatMap { Calendar.current.date(from: \$0) }' : 'Calendar.current.date(from: $name)',
+      _ => null,
+    };
   }
 
   /// A Swift string literal for [template], with `{param}` interpolated.

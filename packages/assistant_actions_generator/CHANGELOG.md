@@ -1,3 +1,13 @@
+## 0.0.5
+
+* Generated entities conform to `IndexedEntity` (iOS 18+ / macOS 15+). Schema
+  entities fill Spotlight attributes from the catalog's indexing keys (title,
+  display name, text content, due, completion, creation and modification
+  dates); `@AssistantEntity` types use their title and subtitle.
+* Generates `AssistantActionsAppSpotlight`, which assistant_actions 0.0.6
+  calls to index each collection.
+* Needs assistant_actions 0.0.6 or later.
+
 ## 0.0.4
 
 * Generated Swift compiles without warnings:
