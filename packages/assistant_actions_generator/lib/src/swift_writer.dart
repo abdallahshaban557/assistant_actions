@@ -35,7 +35,7 @@ class SwiftWriter {
       _snapshotAction(a);
     }
     if (app.schemaEntities.isNotEmpty) _schemas();
-    _spotlight();
+    if (app.spotlight) _spotlight();
     body.write(_out);
 
     return [

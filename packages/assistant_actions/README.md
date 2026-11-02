@@ -143,6 +143,7 @@ AssistantActions.publish(tasks);
   in Swift.
 - Published entities are also indexed in Spotlight (iOS 18+ / macOS 15+), and
   kept in step with Siri's changes, so Siri can find "my reminders in App".
+  `@AssistantActionsApp(name: ..., spotlight: false)` turns that off.
 - Dart and Swift call each other directly over FFI (Pigeon native interop,
   `pigeons/assistant_api.dart`), with no platform channels.
 

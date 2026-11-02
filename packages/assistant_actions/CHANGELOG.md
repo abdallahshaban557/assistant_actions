@@ -1,3 +1,11 @@
+## 0.0.9
+
+* `@AssistantActionsApp(spotlight: false)` turns off Spotlight indexing: no
+  `IndexedEntity` conformances, no indexing on publish. Entities are then
+  reached through their queries only, and Siri doesn't treat them as
+  Spotlight-backed. Indexing stays on by default. Already-indexed items aren't
+  removed when it's turned off.
+
 ## 0.0.8
 
 * `AssistantPredicate` and `AssistantComparison`: Siri's entity property

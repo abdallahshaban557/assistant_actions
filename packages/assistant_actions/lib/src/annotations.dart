@@ -9,10 +9,16 @@ library;
 /// library;
 /// ```
 class AssistantActionsApp {
-  const AssistantActionsApp({required this.name});
+  const AssistantActionsApp({required this.name, this.spotlight = true});
 
   /// The app's name, as used by `{app}` in shortcut phrases.
   final String name;
+
+  /// Index published entities in Spotlight (`IndexedEntity`, iOS 18+ /
+  /// macOS 15+), so Siri can find them through its semantic index. Turn it
+  /// off and entities are reached through their queries only; Siri then
+  /// doesn't treat them as Spotlight-backed.
+  final bool spotlight;
 }
 
 /// Where an action's Dart function runs.

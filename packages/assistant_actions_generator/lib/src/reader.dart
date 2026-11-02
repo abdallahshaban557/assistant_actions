@@ -62,6 +62,7 @@ class ModelReader {
     }
     return AppModel(
       appName: app.read('name').stringValue,
+      spotlight: app.peek('spotlight')?.boolValue ?? true,
       actions: actions,
       entities: entities,
       schemaEntities: schemaEntities,

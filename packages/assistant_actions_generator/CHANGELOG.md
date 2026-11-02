@@ -1,3 +1,8 @@
+## 0.0.8
+
+* Honours `@AssistantActionsApp(spotlight: false)`: leaves out the
+  `IndexedEntity` conformances and the Spotlight indexer.
+
 ## 0.0.7
 
 * Generated entity queries are also `EntityPropertyQuery`, modelled on Apple's

@@ -274,9 +274,13 @@ class AppModel {
     required this.entities,
     required this.schemaEntities,
     this.snapshotActions = const [],
+    this.spotlight = true,
   });
 
   final String appName;
+
+  /// Generate `IndexedEntity` conformances and the Spotlight indexer.
+  final bool spotlight;
   final List<ActionModel> actions;
   final List<SnapshotActionModel> snapshotActions;
   final List<EntityModel> entities;

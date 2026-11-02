@@ -124,6 +124,22 @@ void main() {
       expect(swift, contains('import CoreSpotlight'));
     });
 
+    test('spotlight: false leaves out IndexedEntity and the indexer', () {
+      final base = _app();
+      final app = AppModel(
+        appName: base.appName,
+        actions: base.actions,
+        entities: base.entities,
+        schemaEntities: base.schemaEntities,
+        snapshotActions: base.snapshotActions,
+        spotlight: false,
+      );
+      final swift = SwiftWriter(app).write();
+      expect(swift, isNot(contains('IndexedEntity {')));
+      expect(swift, isNot(contains('AssistantActionsAppSpotlight')));
+      expect(swift, contains('struct TaskItemEntityQuery'), reason: 'queries are unaffected');
+    });
+
     test('the runtime finds a generated indexer covering each collection', () {
       final swift = SwiftWriter(_app()).write();
       expect(swift, contains('@objc(AssistantActionsAppSpotlight)'));
