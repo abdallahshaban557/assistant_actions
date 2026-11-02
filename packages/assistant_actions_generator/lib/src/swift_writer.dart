@@ -73,6 +73,7 @@ class SwiftWriter {
 
   void _entity(EntityModel e) {
     final name = e.swiftName;
+    final fields = _plainQueryables(e);
     _out.writeln('''
 /// `${e.className}`, published from Dart with `AssistantActions.publish`.
 public struct $name: AppEntity {
@@ -80,9 +81,10 @@ public struct $name: AppEntity {
   public static let defaultQuery = ${name}Query()
 
   public let id: String
-  public let title: String
+  @Property(title: "Title")
+  public var title: String
   public let subtitle: String?
-
+${[for (final q in fields) '  @Property(title: "${_escape(q.title)}")\n  public var ${q.member}: ${q.swiftType}\n'].join()}
   public var displayRepresentation: DisplayRepresentation {
     if let subtitle { return DisplayRepresentation(title: "\\(title)", subtitle: "\\(subtitle)") }
     return DisplayRepresentation(title: "\\(title)")
@@ -90,12 +92,14 @@ public struct $name: AppEntity {
 
   init(record: AssistantRecord) {
     id = record.id
-    title = record.title
     subtitle = record.subtitle
-  }
+    // `@Property` members last: setting one needs every stored property set.
+    title = record.title
+${[for (final f in e.fields)
+      if (fields.any((q) => q.member == f.name)) '    ${f.name} = AssistantValues.${f.type.swiftDecoder}(record.fields["${f.name}"])\n'].join()}  }
 }
 
-public struct ${name}Query: EntityStringQuery, EnumerableEntityQuery {
+public struct ${name}Query: EntityStringQuery, EnumerableEntityQuery, EntityPropertyQuery {
   /// Words that only name the type or app, so they never narrow a search.
   static let typeWords: Set<String> = ${_typeWords([e.className, e.title])}
 
@@ -120,8 +124,114 @@ public struct ${name}Query: EntityStringQuery, EnumerableEntityQuery {
   public func allEntities() async throws -> [$name] {
     AssistantSnapshot.records("${e.className}").map($name.init(record:))
   }
-}
+
+${_propertyQuery(name, [const _Queryable('title', 'Title', 'string', optional: false, isTitle: true), ...fields], 'AssistantSnapshot.records("${e.className}").map($name.init(record:))', 'public ')}}
 ''');
+  }
+
+  /// The fields of a plain entity Siri can filter and sort by, beyond its title.
+  List<_Queryable> _plainQueryables(EntityModel e) => [
+    for (final f in e.fields)
+      if (!const {'id', 'title', 'subtitle', 'displayRepresentation'}.contains(f.name) &&
+          f.name != e.titleGetter &&
+          !f.name.contains(r'$'))
+        if (switch (f.type.kind) {
+              ValueKind.string => 'string',
+              ValueKind.integer => 'int',
+              ValueKind.decimal => 'double',
+              ValueKind.boolean => 'bool',
+              ValueKind.dateTime => 'date',
+              ValueKind.uri => null,
+            }
+            case final kind?)
+          _Queryable(
+            f.name,
+            _words(f.name),
+            kind,
+            optional: true,
+            swiftType: ValueType(f.type.kind, nullable: true).swift,
+          ),
+  ];
+
+  /// `dueDate` → `Due Date`.
+  static String _words(String name) =>
+      pascal(name.replaceAllMapped(RegExp('([a-z0-9])([A-Z])'), (m) => '${m[1]} ${m[2]}'));
+
+  /// Comparators Siri can use on a property of schema kind [kind], as
+  /// (App Intents comparator, `AssistantComparison.Operator`).
+  static List<(String, String)>? _comparators(String kind) => switch (kind) {
+    'bool' => const [('EqualToComparator', 'equal')],
+    'date' || 'dateComponents' || 'int' || 'double' => const [
+      ('EqualToComparator', 'equal'),
+      ('NotEqualToComparator', 'notEqual'),
+      ('LessThanComparator', 'less'),
+      ('LessThanOrEqualToComparator', 'lessOrEqual'),
+      ('GreaterThanComparator', 'greater'),
+      ('GreaterThanOrEqualToComparator', 'greaterOrEqual'),
+      ('IsBetweenComparator', 'between'),
+    ],
+    'string' || 'attributedString' => const [('ContainsComparator', 'contains')],
+    _ => null,
+  };
+
+  /// The `EntityPropertyQuery` members of [entity]'s query, so Siri can ask
+  /// for "open reminders" or "notes from yesterday". Comparators are
+  /// evaluated in Swift by the runtime's `AssistantPredicate` over [all].
+  String _propertyQuery(String entity, List<_Queryable> props, String all, [String access = '']) {
+    final out = StringBuffer()
+      ..writeln('  ${access}typealias ComparatorMappingType = AssistantPredicate<$entity>')
+      ..writeln()
+      ..writeln('  /// EntityPropertyQuery and EnumerableEntityQuery both provide a default.')
+      ..writeln('  ${access}static var findIntentDescription: IntentDescription? { nil }')
+      ..writeln()
+      ..writeln('  ${access}static let properties = QueryProperties {');
+    for (final q in props) {
+      out.writeln('    Property(\\$entity.\$${q.member}) {');
+      for (final (comparator, op) in _comparators(q.kind)!) {
+        out.writeln(
+          op == 'between'
+              ? '      $comparator { low, high in AssistantPredicate({ \$0.${q.member} }, .between, low, high) }'
+              : '      $comparator { value in AssistantPredicate({ \$0.${q.member} }, .$op, value) }',
+        );
+      }
+      out.writeln('    }');
+    }
+    final sortable = [
+      for (final q in props)
+        if (q.sortable) q,
+    ];
+    out
+      ..writeln('  }')
+      ..writeln()
+      ..writeln('  ${access}static let sortingOptions = SortingOptions {');
+    for (final q in sortable) {
+      out.writeln('    SortableBy(\\$entity.\$${q.member})');
+    }
+    out
+      ..writeln('  }')
+      ..writeln()
+      ..writeln('  ${access}func entities(')
+      ..writeln('    matching comparators: [AssistantPredicate<$entity>], mode: ComparatorMode,')
+      ..writeln('    sortedBy: [EntityQuerySort<$entity>], limit: Int?')
+      ..writeln('  ) async throws -> [$entity] {')
+      ..writeln('    let sorts = sortedBy.compactMap { sort in')
+      ..writeln('      Self.sortKey(sort.by).map { (key: \$0, ascending: sort.order == .ascending) }')
+      ..writeln('    }')
+      ..writeln(
+        '    return AssistantPredicate.apply(comparators, all: mode == .and, to: $all, sortedBy: sorts, limit: limit)',
+      )
+      ..writeln('  }')
+      ..writeln()
+      ..writeln('  private static func sortKey(_ path: PartialKeyPath<$entity>) -> (($entity) -> AssistantKey?)? {')
+      ..writeln('    switch path {');
+    for (final q in sortable) {
+      out.writeln('    case \\$entity.\$${q.member}: return { \$0.${q.member}${q.optional ? '?' : ''}.assistantKey }');
+    }
+    out
+      ..writeln('    default: return nil')
+      ..writeln('    }')
+      ..writeln('  }');
+    return out.toString();
   }
 
   void _action(ActionModel a) {
@@ -603,7 +713,10 @@ struct ${name}Query: EntityStringQuery {
       ..writeln('  static let defaultQuery = ${name}Query()')
       ..writeln()
       ..writeln('  let id: String');
+    final queryables = _schemaQueryables(s);
     for (final p in schema.properties) {
+      // Queryable members need a title for Apple's metadata.
+      if (queryables.any((q) => q.member == p.name)) _out.writeln('  @Property(title: "${_escape(p.title)}")');
       _out.writeln('  var ${p.name}: ${_swiftType(p.type)}');
     }
     _out
@@ -626,7 +739,7 @@ struct ${name}Query: EntityStringQuery {
 }
 
 ${_availability(schema.availability)}
-struct ${name}Query: EntityStringQuery, EnumerableEntityQuery {
+struct ${name}Query: EntityStringQuery, EnumerableEntityQuery${queryables.isEmpty ? '' : ', EntityPropertyQuery'} {
   /// Words that only name the type, schema or app, so they never narrow a search.
   static let typeWords: Set<String> = ${_typeWords([s.className, schema.title, schema.name, schema.domain])}
 
@@ -647,9 +760,23 @@ struct ${name}Query: EntityStringQuery, EnumerableEntityQuery {
   /// Everything published, plus Siri's pending changes, for general requests
   /// like "do I have any ${schema.name}s".
   func allEntities() async throws -> [$name] { all() }
-}
+${queryables.isEmpty ? '' : '\n${_propertyQuery(name, queryables, 'all()')}'}}
 ''');
   }
+
+  /// The mapped members of [s] Siri can filter and sort by.
+  List<_Queryable> _schemaQueryables(SchemaEntityModel s) => [
+    for (final p in s.schema.properties)
+      if (s.mapping.containsKey(p.name) &&
+          _comparators(p.type.base.kind) != null)
+        _Queryable(
+          p.name,
+          p.title,
+          p.type.base.kind,
+          optional: p.type.isOptional,
+          isTitle: p.name == s.schema.titleProperty?.name,
+        ),
+  ];
 
   void _schemaIntent(SchemaEntityModel s, IntentSchema intent, IntentKind kind) {
     final entity = s.swiftName;
@@ -768,4 +895,34 @@ struct ${name}Query: EntityStringQuery, EnumerableEntityQuery {
   }
 
   static String _escape(String s) => s.replaceAll(r'\', r'\\').replaceAll('"', r'\"').replaceAll('\n', r'\n');
+}
+
+/// An entity property Siri can filter, and maybe sort, by.
+class _Queryable {
+  const _Queryable(
+    this.member,
+    this.title,
+    this.kind, {
+    required this.optional,
+    this.isTitle = false,
+    this.swiftType = '',
+  });
+
+  /// The Swift member.
+  final String member;
+  final String title;
+
+  /// Its schema kind without `optional`: `bool`, `date`, `string`, ….
+  final String kind;
+  final bool optional;
+
+  /// The member Siri shows as the entity's title.
+  final bool isTitle;
+
+  /// Its Swift type, for members the writer declares itself.
+  final String swiftType;
+
+  /// Like Apple's Notes: sorted by title, dates and numbers, not by other
+  /// text or bools.
+  bool get sortable => kind != 'bool' && (isTitle || (kind != 'string' && kind != 'attributedString'));
 }

@@ -1,3 +1,16 @@
+## 0.0.8
+
+* `AssistantPredicate` and `AssistantComparison`: Siri's entity property
+  comparisons ("open reminders", "reminders due today", "notes containing
+  milk"), evaluated in Swift over the published snapshot plus Siri's pending
+  changes, with sorting and limits. Text compares ignoring case and accents; a
+  date naming a whole day covers all of it, so "due today" matches any time
+  today, "before Friday" means before Friday starts and "after Friday" after
+  it ends.
+* `DateComponents` is `Comparable` (by the date it names), which App Intents'
+  ordering comparators need for schema dates such as a reminder's due date.
+* Needs assistant_actions_generator 0.0.7.
+
 ## 0.0.7
 
 * `AssistantMatch`: forgiving search for generated entity queries. Searches

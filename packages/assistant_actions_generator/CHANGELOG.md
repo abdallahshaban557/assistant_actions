@@ -1,3 +1,17 @@
+## 0.0.7
+
+* Generated entity queries are also `EntityPropertyQuery`, modelled on Apple's
+  Notes, so Siri can filter and sort entities:
+  * schema entities, for mapped members: bools take equal; dates and date
+    components take `==`, `!=`, `<`, `<=`, `>`, `>=` and between; strings and
+    attributed strings take contains. They sort by the title member and dates.
+    Queryable members get `@Property(title:)` from the catalog, which Apple's
+    metadata needs.
+  * `@AssistantEntity` types: the title takes contains, and published bool,
+    number, date and string fields become properties with the same
+    comparators. They sort by title, numbers and dates.
+* Needs assistant_actions 0.0.8 or later.
+
 ## 0.0.6
 
 * Generated entity queries also conform to `EnumerableEntityQuery`

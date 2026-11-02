@@ -17,8 +17,11 @@ public struct RecipeEntity: AppEntity {
   public static let defaultQuery = RecipeEntityQuery()
 
   public let id: String
-  public let title: String
+  @Property(title: "Title")
+  public var title: String
   public let subtitle: String?
+  @Property(title: "Minutes")
+  public var minutes: Int?
 
   public var displayRepresentation: DisplayRepresentation {
     if let subtitle { return DisplayRepresentation(title: "\(title)", subtitle: "\(subtitle)") }
@@ -27,12 +30,14 @@ public struct RecipeEntity: AppEntity {
 
   init(record: AssistantRecord) {
     id = record.id
-    title = record.title
     subtitle = record.subtitle
+    // `@Property` members last: setting one needs every stored property set.
+    title = record.title
+    minutes = AssistantValues.int(record.fields["minutes"])
   }
 }
 
-public struct RecipeEntityQuery: EntityStringQuery, EnumerableEntityQuery {
+public struct RecipeEntityQuery: EntityStringQuery, EnumerableEntityQuery, EntityPropertyQuery {
   /// Words that only name the type or app, so they never narrow a search.
   static let typeWords: Set<String> = ["actions", "assistant", "assistantactionsexample", "example", "recipe"]
 
@@ -56,6 +61,49 @@ public struct RecipeEntityQuery: EntityStringQuery, EnumerableEntityQuery {
   /// "do I have any recipes".
   public func allEntities() async throws -> [RecipeEntity] {
     AssistantSnapshot.records("Recipe").map(RecipeEntity.init(record:))
+  }
+
+  public typealias ComparatorMappingType = AssistantPredicate<RecipeEntity>
+
+  /// EntityPropertyQuery and EnumerableEntityQuery both provide a default.
+  public static var findIntentDescription: IntentDescription? { nil }
+
+  public static let properties = QueryProperties {
+    Property(\RecipeEntity.$title) {
+      ContainsComparator { value in AssistantPredicate({ $0.title }, .contains, value) }
+    }
+    Property(\RecipeEntity.$minutes) {
+      EqualToComparator { value in AssistantPredicate({ $0.minutes }, .equal, value) }
+      NotEqualToComparator { value in AssistantPredicate({ $0.minutes }, .notEqual, value) }
+      LessThanComparator { value in AssistantPredicate({ $0.minutes }, .less, value) }
+      LessThanOrEqualToComparator { value in AssistantPredicate({ $0.minutes }, .lessOrEqual, value) }
+      GreaterThanComparator { value in AssistantPredicate({ $0.minutes }, .greater, value) }
+      GreaterThanOrEqualToComparator { value in AssistantPredicate({ $0.minutes }, .greaterOrEqual, value) }
+      IsBetweenComparator { low, high in AssistantPredicate({ $0.minutes }, .between, low, high) }
+    }
+  }
+
+  public static let sortingOptions = SortingOptions {
+    SortableBy(\RecipeEntity.$title)
+    SortableBy(\RecipeEntity.$minutes)
+  }
+
+  public func entities(
+    matching comparators: [AssistantPredicate<RecipeEntity>], mode: ComparatorMode,
+    sortedBy: [EntityQuerySort<RecipeEntity>], limit: Int?
+  ) async throws -> [RecipeEntity] {
+    let sorts = sortedBy.compactMap { sort in
+      Self.sortKey(sort.by).map { (key: $0, ascending: sort.order == .ascending) }
+    }
+    return AssistantPredicate.apply(comparators, all: mode == .and, to: AssistantSnapshot.records("Recipe").map(RecipeEntity.init(record:)), sortedBy: sorts, limit: limit)
+  }
+
+  private static func sortKey(_ path: PartialKeyPath<RecipeEntity>) -> ((RecipeEntity) -> AssistantKey?)? {
+    switch path {
+    case \RecipeEntity.$title: return { $0.title.assistantKey }
+    case \RecipeEntity.$minutes: return { $0.minutes?.assistantKey }
+    default: return nil
+    }
   }
 }
 
@@ -182,12 +230,15 @@ struct TaskItemEntity {
   static let defaultQuery = TaskItemEntityQuery()
 
   let id: String
+  @Property(title: "Title")
   var title: String
   var note: AttributedString?
   var tags: Set<String>
   var urls: [URL]
+  @Property(title: "Due Date")
   var dueDate: DateComponents?
   var recurrence: Calendar.RecurrenceRule?
+  @Property(title: "Is Completed")
   var isCompleted: Bool
   var isFlagged: Bool?
   var creationDate: Date?
@@ -215,7 +266,7 @@ struct TaskItemEntity {
 }
 
 @available(iOS 27.0, macOS 27.0, *)
-struct TaskItemEntityQuery: EntityStringQuery, EnumerableEntityQuery {
+struct TaskItemEntityQuery: EntityStringQuery, EnumerableEntityQuery, EntityPropertyQuery {
   /// Words that only name the type, schema or app, so they never narrow a search.
   static let typeWords: Set<String> = ["actions", "assistant", "assistantactionsexample", "example", "item", "reminder", "reminders", "task", "taskitem"]
 
@@ -236,6 +287,52 @@ struct TaskItemEntityQuery: EntityStringQuery, EnumerableEntityQuery {
   /// Everything published, plus Siri's pending changes, for general requests
   /// like "do I have any reminders".
   func allEntities() async throws -> [TaskItemEntity] { all() }
+
+  typealias ComparatorMappingType = AssistantPredicate<TaskItemEntity>
+
+  /// EntityPropertyQuery and EnumerableEntityQuery both provide a default.
+  static var findIntentDescription: IntentDescription? { nil }
+
+  static let properties = QueryProperties {
+    Property(\TaskItemEntity.$title) {
+      ContainsComparator { value in AssistantPredicate({ $0.title }, .contains, value) }
+    }
+    Property(\TaskItemEntity.$dueDate) {
+      EqualToComparator { value in AssistantPredicate({ $0.dueDate }, .equal, value) }
+      NotEqualToComparator { value in AssistantPredicate({ $0.dueDate }, .notEqual, value) }
+      LessThanComparator { value in AssistantPredicate({ $0.dueDate }, .less, value) }
+      LessThanOrEqualToComparator { value in AssistantPredicate({ $0.dueDate }, .lessOrEqual, value) }
+      GreaterThanComparator { value in AssistantPredicate({ $0.dueDate }, .greater, value) }
+      GreaterThanOrEqualToComparator { value in AssistantPredicate({ $0.dueDate }, .greaterOrEqual, value) }
+      IsBetweenComparator { low, high in AssistantPredicate({ $0.dueDate }, .between, low, high) }
+    }
+    Property(\TaskItemEntity.$isCompleted) {
+      EqualToComparator { value in AssistantPredicate({ $0.isCompleted }, .equal, value) }
+    }
+  }
+
+  static let sortingOptions = SortingOptions {
+    SortableBy(\TaskItemEntity.$title)
+    SortableBy(\TaskItemEntity.$dueDate)
+  }
+
+  func entities(
+    matching comparators: [AssistantPredicate<TaskItemEntity>], mode: ComparatorMode,
+    sortedBy: [EntityQuerySort<TaskItemEntity>], limit: Int?
+  ) async throws -> [TaskItemEntity] {
+    let sorts = sortedBy.compactMap { sort in
+      Self.sortKey(sort.by).map { (key: $0, ascending: sort.order == .ascending) }
+    }
+    return AssistantPredicate.apply(comparators, all: mode == .and, to: all(), sortedBy: sorts, limit: limit)
+  }
+
+  private static func sortKey(_ path: PartialKeyPath<TaskItemEntity>) -> ((TaskItemEntity) -> AssistantKey?)? {
+    switch path {
+    case \TaskItemEntity.$title: return { $0.title.assistantKey }
+    case \TaskItemEntity.$dueDate: return { $0.dueDate?.assistantKey }
+    default: return nil
+    }
+  }
 }
 
 /// `reminders.list`, required by the adopted schemas. One fixed instance.
@@ -324,9 +421,12 @@ struct MemoryItemEntity {
   static let defaultQuery = MemoryItemEntityQuery()
 
   let id: String
+  @Property(title: "Name")
   var name: AttributedString
+  @Property(title: "Content")
   var content: AttributedString?
   var attachments: [IntentFile]
+  @Property(title: "Is Pinned")
   var isPinned: Bool
   var creationDate: Date?
   var modificationDate: Date?
@@ -347,7 +447,7 @@ struct MemoryItemEntity {
 }
 
 @available(iOS 27.0, macOS 27.0, *)
-struct MemoryItemEntityQuery: EntityStringQuery, EnumerableEntityQuery {
+struct MemoryItemEntityQuery: EntityStringQuery, EnumerableEntityQuery, EntityPropertyQuery {
   /// Words that only name the type, schema or app, so they never narrow a search.
   static let typeWords: Set<String> = ["actions", "assistant", "assistantactionsexample", "example", "item", "memory", "memoryitem", "note", "notes"]
 
@@ -368,6 +468,44 @@ struct MemoryItemEntityQuery: EntityStringQuery, EnumerableEntityQuery {
   /// Everything published, plus Siri's pending changes, for general requests
   /// like "do I have any notes".
   func allEntities() async throws -> [MemoryItemEntity] { all() }
+
+  typealias ComparatorMappingType = AssistantPredicate<MemoryItemEntity>
+
+  /// EntityPropertyQuery and EnumerableEntityQuery both provide a default.
+  static var findIntentDescription: IntentDescription? { nil }
+
+  static let properties = QueryProperties {
+    Property(\MemoryItemEntity.$name) {
+      ContainsComparator { value in AssistantPredicate({ $0.name }, .contains, value) }
+    }
+    Property(\MemoryItemEntity.$content) {
+      ContainsComparator { value in AssistantPredicate({ $0.content }, .contains, value) }
+    }
+    Property(\MemoryItemEntity.$isPinned) {
+      EqualToComparator { value in AssistantPredicate({ $0.isPinned }, .equal, value) }
+    }
+  }
+
+  static let sortingOptions = SortingOptions {
+    SortableBy(\MemoryItemEntity.$name)
+  }
+
+  func entities(
+    matching comparators: [AssistantPredicate<MemoryItemEntity>], mode: ComparatorMode,
+    sortedBy: [EntityQuerySort<MemoryItemEntity>], limit: Int?
+  ) async throws -> [MemoryItemEntity] {
+    let sorts = sortedBy.compactMap { sort in
+      Self.sortKey(sort.by).map { (key: $0, ascending: sort.order == .ascending) }
+    }
+    return AssistantPredicate.apply(comparators, all: mode == .and, to: all(), sortedBy: sorts, limit: limit)
+  }
+
+  private static func sortKey(_ path: PartialKeyPath<MemoryItemEntity>) -> ((MemoryItemEntity) -> AssistantKey?)? {
+    switch path {
+    case \MemoryItemEntity.$name: return { $0.name.assistantKey }
+    default: return nil
+    }
+  }
 }
 
 /// `notes.folder`, required by the adopted schemas. One fixed instance.

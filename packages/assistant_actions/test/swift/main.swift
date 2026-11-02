@@ -85,6 +85,53 @@ check(ids("zoe cafe"), "2", "ignores case and accents, reads fields when the tit
 check(ids("laundry zoe"), "1,2", "falls back to any word when no item has all of them")
 check(ids("groceries"), "", "an unrelated word finds nothing")
 
+// Entity property queries: Siri's comparators ("open tasks", "due today").
+struct TaskEntity {
+  let id: String
+  var title: String
+  var note: AttributedString?
+  var due: DateComponents?
+  var done: Bool
+  var minutes: Int?
+}
+func day(_ d: Int, hour: Int? = nil) -> DateComponents {
+  hour == nil ? DateComponents(year: 2026, month: 11, day: d) : DateComponents(year: 2026, month: 11, day: d, hour: hour)
+}
+let entityTasks = [
+  TaskEntity(id: "a", title: "Buy milk", note: AttributedString("Oat, not cow"), due: day(3), done: false, minutes: 10),
+  TaskEntity(id: "b", title: "Call Zoë", note: nil, due: day(3, hour: 17), done: false, minutes: 30),
+  TaskEntity(id: "c", title: "Pay rent", note: nil, due: day(5, hour: 9), done: true, minutes: nil),
+  TaskEntity(id: "d", title: "Laundry", note: nil, due: nil, done: false, minutes: 45),
+]
+typealias P = AssistantPredicate<TaskEntity>
+func found(_ predicates: [P], all: Bool = true,
+  sortedBy sorts: [(key: (TaskEntity) -> AssistantKey?, ascending: Bool)] = [], limit: Int? = nil) -> String {
+  P.apply(predicates, all: all, to: entityTasks, sortedBy: sorts, limit: limit).map(\.id).joined(separator: ",")
+}
+check(found([P({ $0.done }, .equal, false)]), "a,b,d", "open tasks: bool equal")
+check(found([P({ $0.done }, .notEqual, false)]), "c", "bool not equal")
+check(found([P({ $0.due }, .equal, day(3))]), "a,b", "due today: a whole day equals any time that day")
+check(found([P({ $0.due }, .equal, day(3, hour: 17))]), "b", "a timed date equals that time")
+check(found([P({ $0.due }, .equal, nil)]), "d", "equal to nil finds items with no value")
+check(found([P({ $0.due }, .notEqual, day(3))]), "c,d", "not equal to a day")
+check(found([P({ $0.due }, .less, day(5))]), "a,b", "before a day means before it starts; missing values never match")
+check(found([P({ $0.due }, .lessOrEqual, day(5))]), "a,b,c", "on or before a day includes all of it")
+check(found([P({ $0.due }, .greater, day(3))]), "c", "after a day means after it ends")
+check(found([P({ $0.due }, .greaterOrEqual, day(3, hour: 12))]), "b,c", "on or after a time")
+check(found([P({ $0.due }, .between, day(3), day(4))]), "a,b", "between two days includes both whole days")
+check(found([P({ $0.due }, .between, day(3, hour: 12), day(5, hour: 9))]), "b,c", "between two times is inclusive")
+check(found([P({ $0.title }, .contains, "zoe")]), "b", "contains ignores case and accents")
+check(found([P({ $0.note }, .contains, AttributedString("OAT"))]), "a", "contains on attributed strings")
+check(found([P({ $0.minutes }, .less, 30)]), "a", "numbers compare")
+check(found([P({ $0.done }, .equal, false), P({ $0.due }, .equal, day(3))]), "a,b", "all comparators must pass")
+check(found([P({ $0.done }, .equal, true), P({ $0.title }, .contains, "milk")], all: false), "a,c", "or mode: any passes")
+check(found([]), "a,b,c,d", "no comparators lists everything")
+check(found([], sortedBy: [({ $0.due?.assistantKey }, false)]), "c,b,a,d", "sorts descending, missing values last")
+check(found([], sortedBy: [({ $0.title.assistantKey }, true)], limit: 2), "a,b", "sorts by text and limits")
+check(found([], sortedBy: [({ $0.done.assistantKey }, true), ({ $0.minutes?.assistantKey }, false)]), "d,b,a,c",
+  "sorts by each key in turn")
+check(day(3) < day(3, hour: 17) ? "yes" : "no", "yes", "DateComponents are Comparable by the date they name")
+
 if failures > 0 {
   print("\(failures) failed")
   exit(1)
