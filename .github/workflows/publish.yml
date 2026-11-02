@@ -1,0 +1,68 @@
+# Publishes a package to pub.dev when its release tag is pushed:
+#
+#   git tag assistant_actions-v0.0.3 && git push origin assistant_actions-v0.0.3
+#
+# Authentication is pub.dev's automated publishing (a short-lived GitHub OIDC
+# token, no stored secret). Each package must have automated publishing
+# enabled on pub.dev for this repository with its tag pattern, and the job
+# runs in the `pub.dev` environment so a release can require approval.
+name: Publish
+
+on:
+  push:
+    tags:
+      - 'assistant_actions-v[0-9]+.[0-9]+.[0-9]+*'
+      - 'assistant_actions_generator-v[0-9]+.[0-9]+.[0-9]+*'
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    name: Publish ${{ github.ref_name }}
+    runs-on: ubuntu-latest
+    environment: pub.dev
+    permissions:
+      contents: read
+      id-token: write # pub.dev's OIDC token
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Match the tag to a package and its version
+        id: tag
+        run: |
+          tag="$GITHUB_REF_NAME"
+          package="${tag%-v*}"
+          version="${tag##*-v}"
+          pubspec="packages/$package/pubspec.yaml"
+          if [ ! -f "$pubspec" ]; then
+            echo "::error::No package '$package' for tag $tag."
+            exit 1
+          fi
+          actual="$(sed -n 's/^version:[[:space:]]*//p' "$pubspec")"
+          if [ "$actual" != "$version" ]; then
+            echo "::error::Tag $tag says $version, but $pubspec says $actual."
+            exit 1
+          fi
+          if grep -q '^  plugin:' "$pubspec"; then flutter=true; else flutter=false; fi
+          echo "package=$package" >> "$GITHUB_OUTPUT"
+          echo "flutter=$flutter" >> "$GITHUB_OUTPUT"
+
+      # Sets up the pub.dev OIDC token for this job.
+      - uses: dart-lang/setup-dart@v1
+
+      - if: steps.tag.outputs.flutter == 'true'
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - name: Publish
+        working-directory: packages/${{ steps.tag.outputs.package }}
+        run: |
+          if [ "${{ steps.tag.outputs.flutter }}" = true ]; then
+            flutter pub get
+            flutter pub publish --force
+          else
+            dart pub get
+            dart pub publish --force
+          fi
