@@ -13,7 +13,7 @@ const _package = 'assistant_actions';
 
 /// The `api` this generator needs in assistant_actions'
 /// `lib/src/catalog/generator_api.json`.
-const _runtimeApi = 4;
+const _runtimeApi = 5;
 
 /// Reads the app's annotations from the definitions library and everything
 /// it imports from the app's own package.
@@ -70,7 +70,7 @@ class ModelReader {
   }
 
   /// The generated Swift and Dart use runtime APIs added in assistant_actions
-  /// 0.0.7 (forgiving entity matching), marked by `lib/src/catalog/generator_api.json`.
+  /// 0.0.8 (entity property queries), marked by `lib/src/catalog/generator_api.json`.
   Future<void> _checkRuntime(LibraryElement library) async {
     final marker = AssetId(_package, 'lib/src/catalog/generator_api.json');
     final api = await step.canRead(marker)
@@ -78,7 +78,7 @@ class ModelReader {
         : 0;
     if (api < _runtimeApi) {
       throw InvalidGenerationSourceError(
-          'This version of assistant_actions_generator needs assistant_actions 0.0.7 or later. '
+          'This version of assistant_actions_generator needs assistant_actions 0.0.8 or later. '
           'Run `flutter pub upgrade assistant_actions`.',
           element: library);
     }
