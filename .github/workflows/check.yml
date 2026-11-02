@@ -68,9 +68,11 @@ jobs:
           cache: true
       - run: flutter pub get
       - run: dart run build_runner build
+      # pubspec.lock records the path packages' versions, which change with
+      # every release, so only generated code is compared.
       - name: Generated files match the commit
         run: |
-          git diff --exit-code -- . || {
+          git diff --exit-code -- . ':(exclude)pubspec.lock' || {
             echo "::error::Generated code in example/ is stale. Run 'dart run build_runner build' in example/ and commit."
             exit 1
           }
