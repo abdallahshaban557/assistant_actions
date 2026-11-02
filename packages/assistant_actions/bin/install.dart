@@ -36,6 +36,10 @@ void main(List<String> args) {
 Next:
   flutter pub get
   dart run build_runner build
+
+Whenever the generated actions or entities change, bump the build number
+(the +N in pubspec.yaml's version) before running the app: Siri caches App
+Intents per build number.
 ''');
 }
 

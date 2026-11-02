@@ -31,7 +31,7 @@ packages:
       path: "../packages/assistant_actions"
       relative: true
     source: path
-    version: "0.0.7"
+    version: "0.0.9"
   assistant_actions_app:
     dependency: "direct main"
     description:
@@ -45,7 +45,7 @@ packages:
       path: "../packages/assistant_actions_generator"
       relative: true
     source: path
-    version: "0.0.6"
+    version: "0.0.7"
   async:
     dependency: transitive
     description:
