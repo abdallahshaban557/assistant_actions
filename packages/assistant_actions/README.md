@@ -139,6 +139,8 @@ AssistantActions.publish(tasks);
   it just created before Dart has run.
 - Entity queries read the snapshot Dart publishes, overlaid with pending inbox
   changes.
+- Published entities are also indexed in Spotlight (iOS 18+ / macOS 15+), and
+  kept in step with Siri's changes, so Siri can find "my reminders in App".
 - Dart and Swift call each other directly over FFI (Pigeon native interop,
   `pigeons/assistant_api.dart`), with no platform channels.
 

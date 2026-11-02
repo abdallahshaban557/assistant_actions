@@ -1,3 +1,12 @@
+## 0.0.6
+
+* Spotlight indexing: published entities are indexed with Core Spotlight
+  (`indexAppEntities`, iOS 18+ / macOS 15+) whenever Dart publishes a
+  collection or Siri creates, updates or deletes an item, and removed ones are
+  deleted. Siri's planner finds "my reminders in App" through Spotlight, not
+  only through entity queries. No app code is needed: the runtime finds the
+  generated indexer by name. Needs assistant_actions_generator 0.0.5.
+
 ## 0.0.5
 
 * `SnapshotAnswer<T>`: put `@AssistantAction` on a `const SnapshotAnswer<T>`

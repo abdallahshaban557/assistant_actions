@@ -56,6 +56,8 @@ public enum AssistantInbox {
       let json = String(data: data, encoding: .utf8)
     else { return }
     UserDefaults.standard.set(stored() + [json], forKey: key)
+    // Siri's own changes show in Spotlight before Dart applies them.
+    if let collection = item["collection"] as? String { AssistantSpotlight.update(collection) }
   }
 
   private static func stored() -> [String] {

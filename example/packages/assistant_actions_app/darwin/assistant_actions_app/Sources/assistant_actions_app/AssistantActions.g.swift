@@ -2,6 +2,7 @@
 // Source: lib/assistant_actions.dart
 
 import AppIntents
+import CoreSpotlight
 import Foundation
 import GeoToolbox
 import assistant_actions
@@ -571,6 +572,84 @@ struct MemoryItemAppendTextIntent {
       updated.content = nil
     }
     return .result(value: updated)
+  }
+}
+
+@available(iOS 18.0, macOS 15.0, *)
+extension RecipeEntity: IndexedEntity {
+  public var attributeSet: CSSearchableItemAttributeSet {
+    let attributes = defaultAttributeSet
+    attributes.title = title
+    attributes.displayName = title
+    attributes.contentDescription = subtitle
+    return attributes
+  }
+}
+
+@available(iOS 27.0, macOS 27.0, *)
+extension TaskItemEntity: IndexedEntity {
+  var attributeSet: CSSearchableItemAttributeSet {
+    let attributes = defaultAttributeSet
+    attributes.title = title
+    attributes.textContent = note.map { String($0.characters) }
+    attributes.dueDate = dueDate.flatMap { Calendar.current.date(from: $0) }
+    attributes.contentCreationDate = creationDate
+    attributes.completionDate = completionDate
+    return attributes
+  }
+}
+
+@available(iOS 27.0, macOS 27.0, *)
+extension MemoryItemEntity: IndexedEntity {
+  var attributeSet: CSSearchableItemAttributeSet {
+    let attributes = defaultAttributeSet
+    attributes.displayName = String(name.characters)
+    attributes.textContent = content.map { String($0.characters) }
+    attributes.contentCreationDate = creationDate
+    attributes.contentModificationDate = modificationDate
+    return attributes
+  }
+}
+
+/// Found by name by `AssistantSpotlight` in the runtime; apps register nothing.
+@objc(AssistantActionsAppSpotlight)
+public final class AssistantActionsAppSpotlight: NSObject, AssistantSpotlightIndexer {
+  public func index(collection: String, removedIDs: [String], clearFirst: Bool) async throws {
+    guard #available(iOS 18.0, macOS 15.0, *) else { return }
+    switch collection {
+    case "Recipe":
+      try await Self.update(
+        AssistantSnapshot.records("Recipe").map(RecipeEntity.init(record:)),
+        removed: removedIDs, clearFirst: clearFirst)
+    case "TaskItem":
+      if #available(iOS 27.0, macOS 27.0, *) {
+        try await Self.update(
+          AssistantSnapshot.records("TaskItem").map(TaskItemEntity.init(record:)),
+          removed: removedIDs, clearFirst: clearFirst)
+      }
+    case "MemoryItem":
+      if #available(iOS 27.0, macOS 27.0, *) {
+        try await Self.update(
+          AssistantSnapshot.records("MemoryItem").map(MemoryItemEntity.init(record:)),
+          removed: removedIDs, clearFirst: clearFirst)
+      }
+    default:
+      break
+    }
+  }
+
+  @available(iOS 18.0, macOS 15.0, *)
+  private static func update<E: IndexedEntity>(_ entities: [E], removed: [String], clearFirst: Bool) async throws
+  where E.ID == String {
+    let index = CSSearchableIndex.default()
+    if clearFirst {
+      try await index.deleteAppEntities(ofType: E.self)
+    } else if !removed.isEmpty {
+      try await index.deleteAppEntities(identifiedBy: removed, ofType: E.self)
+    }
+    if !entities.isEmpty {
+      try await index.indexAppEntities(entities)
+    }
   }
 }
 

@@ -81,6 +81,24 @@ void main() {
     });
   });
 
+  group('Spotlight', () {
+    test('schema entities are IndexedEntity, with attributes from the catalog indexing keys', () {
+      final swift = SwiftWriter(_app()).write();
+      final ext = swift.substring(swift.indexOf('extension TaskItemEntity: IndexedEntity {'));
+      expect(ext, contains('attributes.title = title'));
+      expect(ext, contains(r'attributes.dueDate = dueDate.flatMap { Calendar.current.date(from: $0) }'));
+      expect(swift, contains('import CoreSpotlight'));
+    });
+
+    test('the runtime finds a generated indexer covering each collection', () {
+      final swift = SwiftWriter(_app()).write();
+      expect(swift, contains('@objc(AssistantActionsAppSpotlight)'));
+      expect(swift, contains('public final class AssistantActionsAppSpotlight: NSObject, AssistantSpotlightIndexer'));
+      expect(swift, contains('case "TaskItem":'));
+      expect(swift, contains('try await index.deleteAppEntities(identifiedBy: removed, ofType: E.self)'));
+    });
+  });
+
   group('snapshot answers', () {
     test('become App Intents answered by AssistantQuery, with no Flutter call', () {
       final swift = SwiftWriter(_app()).write();
