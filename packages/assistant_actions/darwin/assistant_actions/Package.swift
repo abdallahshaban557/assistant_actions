@@ -7,8 +7,17 @@ let package = Package(
   products: [.library(name: "assistant-actions", targets: ["assistant_actions"])],
   dependencies: [.package(name: "FlutterFramework", path: "../FlutterFramework")],
   targets: [
+    // Pigeon's FFI bridge (FFIgen trampolines). SwiftPM can't mix Objective-C
+    // and Swift in one target, so it gets its own.
+    .target(
+      name: "assistant_actions_objc_gen",
+      dependencies: [],
+      publicHeadersPath: "."),
     .target(
       name: "assistant_actions",
-      dependencies: [.product(name: "FlutterFramework", package: "FlutterFramework")])
+      dependencies: [
+        "assistant_actions_objc_gen",
+        .product(name: "FlutterFramework", package: "FlutterFramework"),
+      ]),
   ]
 )

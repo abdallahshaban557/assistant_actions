@@ -4,43 +4,32 @@
   import FlutterMacOS
 #endif
 
-/// Connects the generated App Intents to Dart over the `assistant_actions`
-/// method channel. Flutter registers it with the engine; intents that run
-/// before that (or with no engine at all) go through [AssistantInbox].
+/// Registers the Swift end of the Dart ↔ Swift bridge, which runs over FFI
+/// (Pigeon native interop, schema in `pigeons/assistant_api.dart`), not
+/// platform channels. Flutter calls `register` when it sets up the engine;
+/// intents that run before that (or with no engine at all) go through
+/// [AssistantInbox].
 public final class AssistantActionsPlugin: NSObject, FlutterPlugin {
   public static func register(with registrar: FlutterPluginRegistrar) {
-    #if os(iOS)
-      let messenger = registrar.messenger()
-    #else
-      let messenger = registrar.messenger
-    #endif
-    let channel = FlutterMethodChannel(name: "assistant_actions", binaryMessenger: messenger)
-    let instance = AssistantActionsPlugin()
-    registrar.addMethodCallDelegate(instance, channel: channel)
-    MainActor.assumeIsolated { AssistantBridge.shared.attach(channel) }
+    MainActor.assumeIsolated { AssistantBridge.shared.engineStarted() }
+    // Registering also keeps the linker from stripping the generated setup class.
+    AssistantHostApiSetup.register(api: AssistantHostApiImpl())
+  }
+}
+
+/// The Pigeon host API Dart calls. Native interop calls arrive on the thread of
+/// the calling Dart isolate; `AssistantActions` only calls from the root
+/// isolate, which runs on the main thread.
+private final class AssistantHostApiImpl: AssistantHostApi {
+  func markReady() throws {
+    MainActor.assumeIsolated { AssistantBridge.shared.markReady() }
   }
 
-  public func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
-    let args = call.arguments as? [String: Any] ?? [:]
-    switch call.method {
-    case "markReady":
-      MainActor.assumeIsolated { AssistantBridge.shared.markReady() }
-      result(nil)
-    case "drainInbox":
-      result(AssistantInbox.drain())
-    case "publish":
-      guard let collection = args["collection"] as? String, let json = args["json"] as? String else {
-        result(FlutterError(code: "bad-args", message: "publish needs collection and json", details: nil))
-        return
-      }
-      do {
-        try AssistantSnapshot.write(collection: collection, json: json)
-        result(nil)
-      } catch {
-        result(FlutterError(code: "write-failed", message: "\(error)", details: nil))
-      }
-    default:
-      result(FlutterMethodNotImplemented)
-    }
+  func drainInbox() throws -> [String] {
+    AssistantInbox.drain()
+  }
+
+  func publish(collection: String, json: String) throws {
+    try AssistantSnapshot.write(collection: collection, json: json)
   }
 }

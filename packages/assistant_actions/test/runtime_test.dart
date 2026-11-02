@@ -1,8 +1,7 @@
 import 'dart:convert';
-import 'dart:io';
 
 import 'package:assistant_actions/assistant_actions.dart';
-import 'package:flutter/services.dart';
+import 'package:assistant_actions/src/host.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 class _Item {
@@ -12,45 +11,77 @@ class _Item {
   final DateTime? due;
 }
 
+/// Stands in for the Swift side of the FFI bridge.
+class _FakeHost implements AssistantHost {
+  _FakeHost(this.inbox);
+
+  List<String> inbox;
+  final calls = <String>[];
+  final published = <String, String>{};
+
+  @override
+  Future<List<String>> drainInbox() async {
+    calls.add('drainInbox');
+    final items = inbox;
+    inbox = [];
+    return items;
+  }
+
+  @override
+  Future<void> markReady() async => calls.add('markReady');
+
+  @override
+  Future<void> publish(String collection, String json) async {
+    calls.add('publish');
+    published[collection] = json;
+  }
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
-  const channel = MethodChannel('assistant_actions');
-  final messenger = TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
-
-  late List<String> inbox;
-  late List<MethodCall> calls;
-
-  setUp(() {
-    calls = [];
-    messenger.setMockMethodCallHandler(channel, (call) async {
-      calls.add(call);
-      if (call.method == 'drainInbox') {
-        final items = inbox;
-        inbox = [];
-        return items;
-      }
-      return null;
-    });
-  });
-
-  tearDown(() {
-    messenger.setMockMethodCallHandler(channel, null);
-  });
 
   test('start applies queued calls and changes in order, then marks ready', () async {
     final applied = <String>[];
-    inbox = [
+    final host = _FakeHost([
       jsonEncode({'kind': 'call', 'action': 'add', 'args': {'n': 2}}),
       jsonEncode({'kind': 'create', 'collection': 'Item', 'id': 'a', 'fields': {'name': 'x'}}),
       jsonEncode({'kind': 'delete', 'collection': 'Item', 'id': 'a'}),
-    ];
-    await AssistantActions.start(AssistantActionsRegistry(
-      actions: {'add': (args) async => (applied..add('add ${args['n']}')).last},
-      collections: {'Item': (change) async => applied.add('${change.kind} ${change.id} ${change.fields}')},
-    ));
+    ]);
+    await AssistantActions.start(
+      AssistantActionsRegistry(
+        actions: {'add': (args) async => (applied..add('add ${args['n']}')).last},
+        collections: {'Item': (change) async => applied.add('${change.kind} ${change.id} ${change.fields}')},
+      ),
+      host: host,
+    );
     expect(applied, ['add 2', 'create a {name: x}', 'delete a {}']);
-    expect(calls.map((c) => c.method), ['drainInbox', 'markReady']);
-  }, skip: Platform.isMacOS ? false : 'AssistantActions only talks to Swift on iOS and macOS');
+    expect(host.calls, ['drainInbox', 'markReady']);
+  });
+
+  test('perform runs a live action with the arguments Swift sent', () async {
+    await AssistantActions.start(
+      AssistantActionsRegistry(actions: {'count': (args) async => 'You have ${args['n']}.'}),
+      host: _FakeHost([]),
+    );
+    expect(await AssistantActions.perform('count', jsonEncode({'n': 3})), 'You have 3.');
+    expect(() => AssistantActions.perform('missing', '{}'), throwsArgumentError);
+  });
+
+  test('publish sends the encoded snapshot for the entity collection', () async {
+    final host = _FakeHost([]);
+    await AssistantActions.start(
+      AssistantActionsRegistry(codecs: {
+        _Item: EntityCodec<_Item>('Item', id: (e) => e.id, title: (e) => e.name, fields: (e) => const {}),
+      }),
+      host: host,
+    );
+    await AssistantActions.publish([const _Item('1', 'Milk', null)]);
+    expect(jsonDecode(host.published['Item']!), {
+      'records': [
+        {'id': '1', 'title': 'Milk', 'fields': {}},
+      ],
+    });
+  });
 
   test('EntityCodec encodes id, title, subtitle and fields', () {
     final codec = EntityCodec<_Item>(

@@ -16,10 +16,10 @@ write the App Intents Swift.
 
 ```yaml
 dependencies:
-  assistant_actions: ^0.0.2
+  assistant_actions: ^0.0.3
 dev_dependencies:
   build_runner: ^2.15.0
-  assistant_actions_generator: ^0.0.2
+  assistant_actions_generator: ^0.0.3
 ```
 
 Then, once, from the app's root:
@@ -120,6 +120,8 @@ AssistantActions.publish(tasks);
   it just created before Dart has run.
 - Entity queries read the snapshot Dart publishes, overlaid with pending inbox
   changes.
+- Dart and Swift call each other directly over FFI (Pigeon native interop,
+  `pigeons/assistant_api.dart`), with no platform channels.
 
 ## macOS notes
 

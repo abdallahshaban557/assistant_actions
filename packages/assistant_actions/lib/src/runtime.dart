@@ -3,21 +3,24 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
+import 'bridge/assistant_api.g.dart';
+import 'host.dart';
 import 'registry.dart';
 
 /// Connects the generated App Intents to the app.
+///
+/// Dart and Swift call each other directly over FFI (Pigeon native interop);
+/// no platform channels are involved.
 ///
 /// ```dart
 /// await AssistantActions.start(assistantActionsRegistry(...));
 /// AssistantActions.publish(recipes);
 /// ```
 abstract final class AssistantActions {
-  static const _channel = MethodChannel('assistant_actions');
-
   static AssistantActionsRegistry? _registry;
+  static AssistantHost? _host;
   static AppLifecycleListener? _lifecycle;
   static Future<void>? _draining;
 
@@ -25,13 +28,16 @@ abstract final class AssistantActions {
 
   /// Applies what Siri queued while the app wasn't running, then starts
   /// answering live actions. Call once, after `WidgetsFlutterBinding.ensureInitialized()`.
-  static Future<void> start(AssistantActionsRegistry registry) async {
+  ///
+  /// [host] is for tests; apps leave it out.
+  static Future<void> start(AssistantActionsRegistry registry, {@visibleForTesting AssistantHost? host}) async {
     _registry = registry;
-    if (!_supported) return;
-    _channel.setMethodCallHandler(_handle);
+    if (host == null && !_supported) return;
+    _host = host ?? FfiAssistantHost();
+    if (host == null) AssistantFlutterApi.setUp(_FlutterApi());
     _lifecycle ??= AppLifecycleListener(onResume: () => unawaited(drain()));
     await drain();
-    await _channel.invokeMethod<void>('markReady');
+    await _host!.markReady();
   }
 
   /// Publishes the current [items] of an `@AssistantEntity` or schema entity
@@ -42,9 +48,10 @@ abstract final class AssistantActions {
     if (codec == null) {
       throw StateError('No entity codec for $T. Is it annotated, and was start() called?');
     }
-    if (!_supported) return;
+    final host = _host;
+    if (host == null) return;
     final json = jsonEncode({'records': [for (final item in items) codec.encode(item)]});
-    await _channel.invokeMethod<void>('publish', {'collection': codec.collection, 'json': json});
+    await host.publish(codec.collection, json);
   }
 
   /// Applies queued calls and changes now. [start] and app resumes do this
@@ -56,9 +63,9 @@ abstract final class AssistantActions {
 
   static Future<void> _drain() async {
     final registry = _registry;
-    if (registry == null || !_supported) return;
-    final items = await _channel.invokeListMethod<String>('drainInbox') ?? const [];
-    for (final raw in items) {
+    final host = _host;
+    if (registry == null || host == null) return;
+    for (final raw in await host.drainInbox()) {
       final item = (jsonDecode(raw) as Map).cast<String, Object?>();
       try {
         if (item['kind'] == 'call') {
@@ -79,20 +86,20 @@ abstract final class AssistantActions {
     }
   }
 
-  static Future<Object?> _handle(MethodCall call) async {
-    switch (call.method) {
-      case 'inboxChanged':
-        await drain();
-        return null;
-      case 'perform':
-        final args = (call.arguments as Map).cast<String, Object?>();
-        final handler = _registry?.actions[args['action']];
-        if (handler == null) {
-          throw PlatformException(code: 'unknown-action', message: '${args['action']}');
-        }
-        return handler((args['args'] as Map?)?.cast<String, Object?>() ?? const {});
-      default:
-        throw MissingPluginException(call.method);
-    }
+  /// Runs a `Runs.withFlutter` action for Swift.
+  @visibleForTesting
+  static Future<String?> perform(String action, String argsJson) async {
+    final handler = _registry?.actions[action];
+    if (handler == null) throw ArgumentError.value(action, 'action', 'Unknown action');
+    return handler((jsonDecode(argsJson) as Map).cast<String, Object?>());
   }
+}
+
+/// The Pigeon Flutter API Swift calls over FFI.
+class _FlutterApi implements AssistantFlutterApi {
+  @override
+  Future<String?> perform(String action, String argsJson) => AssistantActions.perform(action, argsJson);
+
+  @override
+  void inboxChanged() => unawaited(AssistantActions.drain());
 }

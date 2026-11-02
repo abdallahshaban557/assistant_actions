@@ -1,12 +1,7 @@
 import Foundation
 
-#if os(iOS)
-  import Flutter
-#else
-  import FlutterMacOS
-#endif
-
-/// The live path into Dart, for actions declared with `Runs.withFlutter`.
+/// The live path into Dart, for actions declared with `Runs.withFlutter`,
+/// over FFI through the Pigeon-generated `AssistantFlutterApi`.
 ///
 /// On iOS the Flutter engine only exists once a scene has connected, so the
 /// generated intents bring the app to the foreground first when it isn't
@@ -15,14 +10,12 @@ import Foundation
 public final class AssistantBridge {
   public static let shared = AssistantBridge()
 
-  private var channel: FlutterMethodChannel?
-
   /// Set once Dart's `AssistantActions.start` has finished, so `perform`
   /// calls can be answered.
   public private(set) var isReady = false
 
-  func attach(_ channel: FlutterMethodChannel) {
-    self.channel = channel
+  /// A (new) engine registered the plugin; Dart isn't ready until it says so.
+  func engineStarted() {
     isReady = false
   }
 
@@ -42,26 +35,21 @@ public final class AssistantBridge {
   /// Runs the Dart function behind [action] and returns what it said, if
   /// anything.
   public func perform(_ action: String, args: [String: Any]) async throws -> String? {
-    guard await waitUntilReady(timeout: 60), let channel else {
+    guard await waitUntilReady(timeout: 60), let dart = AssistantFlutterApi.getInstance() else {
       throw AssistantActionError.notRunning
     }
-    return try await withCheckedThrowingContinuation { continuation in
-      channel.invokeMethod("perform", arguments: ["action": action, "args": args]) { reply in
-        if let error = reply as? FlutterError {
-          continuation.resume(throwing: AssistantActionError.failed(error.message ?? error.code))
-        } else if reply as? NSObject === FlutterMethodNotImplemented {
-          continuation.resume(throwing: AssistantActionError.notRunning)
-        } else {
-          continuation.resume(returning: reply as? String)
-        }
-      }
+    let data = try JSONSerialization.data(withJSONObject: args)
+    do {
+      return try await dart.perform(action: action, argsJson: String(decoding: data, as: UTF8.self))
+    } catch let error as PigeonError {
+      throw AssistantActionError.failed(error.message ?? error.code ?? "No answer")
     }
   }
 
   /// Lets a running app apply what an intent just queued.
   public func inboxChanged() {
     guard isReady else { return }
-    channel?.invokeMethod("inboxChanged", arguments: nil)
+    try? AssistantFlutterApi.getInstance()?.inboxChanged()
   }
 }
 
