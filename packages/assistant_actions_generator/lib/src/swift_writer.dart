@@ -537,15 +537,19 @@ struct ${name}Query: EntityStringQuery {
     AssistantBridge.shared.inboxChanged()
     return .result(value: $entity(record: AssistantRecord(id: id, title: "", fields: fields)))''');
       case IntentKind.update || IntentKind.append:
+        bool clearable(List<SchemaMember> params) =>
+            kind == IntentKind.update &&
+            params.length == 1 &&
+            params.single.type.isOptional &&
+            s.mapping[params.single.name]!.type.nullable;
         _out
           ..writeln('    var fields: [String: Any] = [:]')
-          ..writeln('    var cleared: [String] = []');
+          // Only intents that can clear a field append to `cleared`.
+          ..writeln(byField.values.any(clearable)
+              ? '    var cleared: [String] = []'
+              : '    let cleared: [String] = []');
         for (final MapEntry(key: field, value: params) in byField.entries) {
-          final clearable = kind == IntentKind.update &&
-              params.length == 1 &&
-              params.single.type.isOptional &&
-              s.mapping[params.single.name]!.type.nullable;
-          if (clearable) {
+          if (clearable(params)) {
             // Three states: not given (unchanged), given as nil (cleared), or a value.
             final p = params.single.name;
             _out.writeln('''
@@ -553,6 +557,7 @@ struct ${name}Query: EntityStringQuery {
     case .unset: break
     case .set(let value?): fields["$field"] = AssistantValues.encode(value)
     case .set(nil): cleared.append("$field")
+    @unknown default: break
     }''');
           } else if (kind == IntentKind.append) {
             final p = params.first;

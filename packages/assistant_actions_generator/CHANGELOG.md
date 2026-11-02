@@ -1,3 +1,10 @@
+## 0.0.4
+
+* Generated Swift compiles without warnings:
+  * `valueState` switches handle `@unknown default` (treated as unchanged),
+    which Swift 6 mode would otherwise reject;
+  * update intents with no clearable field declare `cleared` as a constant.
+
 ## 0.0.3
 
 * Generates snapshot-answer actions (`@AssistantAction` on a
