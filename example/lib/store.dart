@@ -41,7 +41,7 @@ class TaskHandler implements TaskItemAssistantHandler {
     for (final t in _store.tasks.where((t) => t.id == id)) {
       t
         ..title = changes.title ?? t.title
-        ..due = changes.due ?? t.due
+        ..due = changes.dueCleared ? null : changes.due ?? t.due
         ..done = changes.done ?? t.done;
     }
     _store.changed();

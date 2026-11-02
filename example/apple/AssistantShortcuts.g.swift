@@ -11,5 +11,10 @@ struct AssistantShortcuts: AppShortcutsProvider {
       phrases: ["How many tasks in \(.applicationName)", "Count my \(.applicationName) tasks"],
       shortTitle: "Open Tasks",
       systemImageName: "checklist")
+    AppShortcut(
+      intent: ShowOpenTasksAction(),
+      phrases: ["What's on my \(.applicationName) list", "Show my \(.applicationName) tasks"],
+      shortTitle: "My Tasks",
+      systemImageName: "list.bullet")
   }
 }

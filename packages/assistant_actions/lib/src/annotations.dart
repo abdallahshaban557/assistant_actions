@@ -30,6 +30,10 @@ enum Runs {
 
 /// Exposes a top-level function to Siri, Shortcuts and Spotlight as an App
 /// Intent. Its parameters become the intent's parameters.
+///
+/// On a top-level `const` [SnapshotAnswer] instead, the action answers from
+/// published data in Swift, without starting Flutter; [runs] and [dialog]
+/// don't apply there.
 class AssistantAction {
   const AssistantAction({
     required this.title,
@@ -98,4 +102,62 @@ class DisplayTitle {
 /// The field or getter Siri shows under an entity's title.
 class DisplaySubtitle {
   const DisplaySubtitle();
+}
+
+/// An action Siri answers from the items of [T] last published with
+/// `AssistantActions.publish` (plus changes Siri queued since), without
+/// starting Flutter, on iOS and macOS. [T] is an `@AssistantEntity` or schema
+/// entity class.
+///
+/// ```dart
+/// @AssistantAction(title: 'Show Tasks', shortcut: AppShortcut(...))
+/// const showTasks = SnapshotAnswer<TaskItem>(
+///   where: {'done': false},
+///   sortBy: 'due',
+///   item: '{title}[ ({due})]',
+///   dialog: 'You have {count} {count|task|tasks}: {items}[, and {rest} more].',
+///   empty: 'Your list is clear.',
+/// );
+/// ```
+///
+/// Templates:
+/// * `{field}` is a field of [T] (`{title}` is its display title). Dates read
+///   like "Nov 3, 2026 at 9:00 AM", or just the date at midnight.
+/// * [dialog] takes `{count}` (matching items), `{items}` (the first [limit],
+///   each formatted with [item], joined by [separator]) and `{rest}` (how
+///   many more there are).
+/// * `{count|one|many}` (or `{rest|…}`) picks a word by number.
+/// * Text in `[…]` is left out when a placeholder inside it is empty, null
+///   or 0.
+///
+/// The generator checks field names and value types at build time.
+class SnapshotAnswer<T> {
+  const SnapshotAnswer({
+    required this.item,
+    required this.dialog,
+    required this.empty,
+    this.where = const {},
+    this.sortBy,
+    this.descending = false,
+    this.limit = 5,
+    this.separator = ', ',
+  });
+
+  /// Only items whose field equals the value (a `bool`, `String` or `int`).
+  final Map<String, Object> where;
+
+  /// The field to order by; items without a value come last.
+  final String? sortBy;
+  final bool descending;
+
+  /// How many items `{items}` lists.
+  final int limit;
+
+  final String item;
+  final String dialog;
+
+  /// What Siri says when nothing matches.
+  final String empty;
+
+  final String separator;
 }

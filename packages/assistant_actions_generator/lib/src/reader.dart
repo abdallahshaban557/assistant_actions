@@ -11,6 +11,10 @@ import 'model.dart';
 
 const _package = 'assistant_actions';
 
+/// The `api` this generator needs in assistant_actions'
+/// `lib/src/catalog/generator_api.json`.
+const _runtimeApi = 2;
+
 /// Reads the app's annotations from the definitions library and everything
 /// it imports from the app's own package.
 class ModelReader {
@@ -26,6 +30,7 @@ class ModelReader {
           'nothing generated.');
       return null;
     }
+    await _checkRuntime(library);
     final libraries = _ownLibraries(library);
     final entities = <EntityModel>[];
     final schemaEntities = <SchemaEntityModel>[];
@@ -41,10 +46,18 @@ class ModelReader {
         if (_annotation(fn, 'AssistantAction') case final a?) actions.add(_action(fn, a, entities));
       }
     }
+    final snapshotActions = <SnapshotActionModel>[];
+    for (final lib in libraries) {
+      for (final variable in lib.topLevelVariables) {
+        if (_annotation(variable, 'AssistantAction') case final a?) {
+          snapshotActions.add(_snapshotAction(variable, a, entities, schemaEntities));
+        }
+      }
+    }
     final ids = <String>{};
-    for (final a in actions) {
-      if (!ids.add(a.id)) {
-        throw InvalidGenerationSourceError('Two @AssistantAction functions are named ${a.id}.');
+    for (final id in [for (final a in actions) a.id, for (final a in snapshotActions) a.id]) {
+      if (!ids.add(id)) {
+        throw InvalidGenerationSourceError('Two @AssistantAction declarations are named $id.');
       }
     }
     return AppModel(
@@ -52,7 +65,23 @@ class ModelReader {
       actions: actions,
       entities: entities,
       schemaEntities: schemaEntities,
+      snapshotActions: snapshotActions,
     );
+  }
+
+  /// The generated Swift and Dart use runtime APIs added in assistant_actions
+  /// 0.0.5, which marks them with `lib/src/catalog/generator_api.json`.
+  Future<void> _checkRuntime(LibraryElement library) async {
+    final marker = AssetId(_package, 'lib/src/catalog/generator_api.json');
+    final api = await step.canRead(marker)
+        ? ((jsonDecode(await step.readAsString(marker)) as Map)['api'] as num?)?.toInt() ?? 0
+        : 0;
+    if (api < _runtimeApi) {
+      throw InvalidGenerationSourceError(
+          'This version of assistant_actions_generator needs assistant_actions 0.0.5 or later. '
+          'Run `flutter pub upgrade assistant_actions`.',
+          element: library);
+    }
   }
 
   /// [root] plus the libraries of the same package it imports, transitively.
@@ -103,6 +132,11 @@ class ModelReader {
       idField: id.$1.displayName,
       titleGetter: title.$1.displayName,
       subtitleGetter: subtitle?.$1.displayName,
+      fields: [
+        for (final f in cls.fields)
+          if (!f.isStatic && f.isOriginDeclaration && f.displayName != id.$1.displayName)
+            if (_valueType(f.type) case final type?) FieldModel(f.displayName, type),
+      ],
     );
   }
 
@@ -250,25 +284,7 @@ class ModelReader {
         }
       }
     }
-    ShortcutModel? shortcut;
-    if (annotation.peek('shortcut') case final s? when !s.isNull) {
-      final phrases = [for (final p in s.read('phrases').listValue) p.toStringValue()!];
-      for (final phrase in phrases) {
-        if (!phrase.contains('{app}')) {
-          throw InvalidGenerationSourceError('Shortcut phrase "$phrase" must contain {app}.', element: fn);
-        }
-        final other = RegExp(r'\{(\w+)\}').allMatches(phrase).map((m) => m.group(1)).where((n) => n != 'app');
-        if (other.isNotEmpty) {
-          throw InvalidGenerationSourceError(
-              'Shortcut phrase "$phrase": only {app} is supported in phrases for now.', element: fn);
-        }
-      }
-      shortcut = ShortcutModel(
-        phrases: phrases,
-        shortTitle: s.read('shortTitle').stringValue,
-        systemImage: s.read('systemImage').stringValue,
-      );
-    }
+    final shortcut = _shortcut(annotation, fn);
 
     var result = fn.returnType;
     if (result.isDartAsyncFuture || result.isDartAsyncFutureOr) {
@@ -319,6 +335,109 @@ class ModelReader {
     }
     return ParamModel(name: name, title: title, prompt: prompt, named: p.isNamed, value: value);
   }
+
+  ShortcutModel? _shortcut(ConstantReader annotation, Element element) {
+    final s = annotation.peek('shortcut');
+    if (s == null || s.isNull) return null;
+    final phrases = [for (final p in s.read('phrases').listValue) p.toStringValue()!];
+    for (final phrase in phrases) {
+      if (!phrase.contains('{app}')) {
+        throw InvalidGenerationSourceError('Shortcut phrase "$phrase" must contain {app}.', element: element);
+      }
+      final other = RegExp(r'\{(\w+)\}').allMatches(phrase).map((m) => m.group(1)).where((n) => n != 'app');
+      if (other.isNotEmpty) {
+        throw InvalidGenerationSourceError(
+            'Shortcut phrase "$phrase": only {app} is supported in phrases for now.', element: element);
+      }
+    }
+    return ShortcutModel(
+      phrases: phrases,
+      shortTitle: s.read('shortTitle').stringValue,
+      systemImage: s.read('systemImage').stringValue,
+    );
+  }
+
+  // ── Snapshot answers ──────────────────────────────────────────────────
+
+  SnapshotActionModel _snapshotAction(TopLevelVariableElement variable, ConstantReader annotation,
+      List<EntityModel> entities, List<SchemaEntityModel> schemaEntities) {
+    InvalidGenerationSourceError error(String message) =>
+        InvalidGenerationSourceError('${variable.displayName}: $message', element: variable);
+
+    final value = variable.isConst ? variable.computeConstantValue() : null;
+    final type = value?.type;
+    if (value == null || type is! InterfaceType || !_isFrom(type, 'SnapshotAnswer', exact: true)) {
+      throw error('@AssistantAction on a variable needs a top-level `const` SnapshotAnswer<T>.');
+    }
+    final target = type.typeArguments.single;
+    final name = target is InterfaceType ? target.element.displayName : null;
+    final entity = entities.where((e) => e.className == name).firstOrNull;
+    final schemaEntity = schemaEntities.where((e) => e.className == name).firstOrNull;
+    if (entity == null && schemaEntity == null) {
+      throw error('SnapshotAnswer<${target.getDisplayString()}> needs an @AssistantEntity or schema entity class.');
+    }
+    final fields = entity?.fields ?? schemaEntity!.fields;
+    FieldModel field(String key, String use) =>
+        fields.where((f) => f.name == key).firstOrNull ??
+        (throw error('$use "$key" is not a published field of $name '
+            '(${fields.map((f) => f.name).join(', ')}).'));
+
+    final answer = ConstantReader(value);
+    final where = <String, String>{};
+    for (final MapEntry(:key, value: expected) in answer.read('where').mapValue.entries) {
+      final fieldName = key!.toStringValue()!;
+      final f = field(fieldName, 'where');
+      final literal = switch (f.type.kind) {
+        ValueKind.boolean when expected?.toBoolValue() != null => '${expected!.toBoolValue()}',
+        ValueKind.string when expected?.toStringValue() != null => _swiftLiteral(expected!.toStringValue()!),
+        ValueKind.integer when expected?.toIntValue() != null => '${expected!.toIntValue()}',
+        _ => throw error('where "$fieldName" is ${f.type.dart}; compare it with a matching bool, String or int.'),
+      };
+      where[fieldName] = literal;
+    }
+    final sortBy = answer.peek('sortBy')?.stringValue;
+    if (sortBy != null && field(sortBy, 'sortBy').type.kind == ValueKind.uri) {
+      throw error('sortBy "$sortBy" is a Uri, which has no order.');
+    }
+    final limit = answer.read('limit').intValue;
+    if (limit < 1) throw error('limit must be at least 1.');
+
+    final item = answer.read('item').stringValue;
+    final dialog = answer.read('dialog').stringValue;
+    for (final placeholder in _placeholders(item)) {
+      if (placeholder != 'title') field(placeholder, 'item uses {$placeholder}, but');
+    }
+    for (final placeholder in _placeholders(dialog)) {
+      if (!const {'count', 'items', 'rest'}.contains(placeholder)) {
+        throw error('dialog can use {count}, {items} and {rest}, not {$placeholder}.');
+      }
+    }
+    final titleProperty = schemaEntity?.schema.titleProperty;
+    return SnapshotActionModel(
+      name: variable.displayName,
+      title: annotation.read('title').stringValue,
+      description: annotation.peek('description')?.stringValue,
+      shortcut: _shortcut(annotation, variable),
+      collection: entity?.className ?? schemaEntity!.collection,
+      fields: fields,
+      titleField: titleProperty == null ? null : schemaEntity!.mapping[titleProperty.name]?.name,
+      where: where,
+      sortBy: sortBy,
+      descending: answer.read('descending').boolValue,
+      limit: limit,
+      item: item,
+      dialog: dialog,
+      empty: answer.read('empty').stringValue,
+      separator: answer.read('separator').stringValue,
+    );
+  }
+
+  /// Placeholder names in a snapshot template: `{name}` and `{name|one|many}`.
+  static Iterable<String> _placeholders(String template) =>
+      RegExp(r'\{(\w+)(\|[^}]*)?\}').allMatches(template).map((m) => m.group(1)!);
+
+  static String _swiftLiteral(String s) =>
+      '"${s.replaceAll(r'\', r'\\').replaceAll('"', r'\"').replaceAll('\n', r'\n')}"';
 
   // ── Helpers ───────────────────────────────────────────────────────────
 

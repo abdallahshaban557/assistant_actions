@@ -1,3 +1,16 @@
+## 0.0.5
+
+* `SnapshotAnswer<T>`: put `@AssistantAction` on a `const SnapshotAnswer<T>`
+  and Siri answers from the items of `T` last published (plus changes Siri
+  queued since), in Swift, without starting Flutter. Filter with `where`, order
+  with `sortBy`, and format with `item` / `dialog` templates. Needs
+  assistant_actions_generator 0.0.3.
+* Schema updates can now clear optional fields: the generated `…Values` classes
+  have `cleared` and a `<field>Cleared` getter per nullable field (for example
+  `TaskItemValues.dueCleared` when Siri removes a due date).
+* `AssistantHost` is exported, so tests can pass a fake to
+  `AssistantActions.start(registry, host: ...)`.
+
 ## 0.0.4
 
 * README: install with `flutter pub add` instead of pinned versions, which

@@ -8,18 +8,28 @@ import 'package:assistant_actions/assistant_actions.dart';
 import 'package:assistant_actions_example/assistant_actions.dart' as a0;
 import 'package:assistant_actions_example/models/models.dart' as a1;
 
-/// Siri's values for a `TaskItem` (`reminders.reminder`); null means unchanged.
+/// Siri's values for a `TaskItem` (`reminders.reminder`).
+///
+/// A null field is unchanged, unless its `…Cleared` getter says Siri removed
+/// the value.
 class TaskItemValues {
-  const TaskItemValues({this.title, this.due, this.done});
+  const TaskItemValues({this.title, this.due, this.done, this.cleared = const {}});
 
   final String? title;
   final DateTime? due;
   final bool? done;
 
-  static TaskItemValues _from(Map<String, Object?> f) => TaskItemValues(
+  /// Fields Siri cleared (set to no value), by Dart field name.
+  final Set<String> cleared;
+
+  /// Siri removed `due` (for example, took a due date off a reminder).
+  bool get dueCleared => cleared.contains('due');
+
+  static TaskItemValues _from(Map<String, Object?> f, List<String> cleared) => TaskItemValues(
     title: AssistantValue.string(f['title']),
     due: AssistantValue.date(f['due']),
     done: AssistantValue.boolean(f['done']),
+    cleared: {...cleared},
   );
 }
 
@@ -32,16 +42,23 @@ abstract interface class TaskItemAssistantHandler {
   Future<void> update(String id, TaskItemValues changes);
 }
 
-/// Siri's values for a `MemoryItem` (`notes.note`); null means unchanged.
+/// Siri's values for a `MemoryItem` (`notes.note`).
+///
+/// A null field is unchanged, unless its `…Cleared` getter says Siri removed
+/// the value.
 class MemoryItemValues {
-  const MemoryItemValues({this.text, this.pinned});
+  const MemoryItemValues({this.text, this.pinned, this.cleared = const {}});
 
   final String? text;
   final bool? pinned;
 
-  static MemoryItemValues _from(Map<String, Object?> f) => MemoryItemValues(
+  /// Fields Siri cleared (set to no value), by Dart field name.
+  final Set<String> cleared;
+
+  static MemoryItemValues _from(Map<String, Object?> f, List<String> cleared) => MemoryItemValues(
     text: AssistantValue.string(f['text']),
     pinned: AssistantValue.boolean(f['pinned']),
+    cleared: {...cleared},
   );
 }
 
@@ -77,7 +94,7 @@ AssistantActionsRegistry assistantActionsRegistry({
       id: (e) => e.id,
       title: (e) => e.name,
       subtitle: (e) => e.subtitle,
-      fields: (e) => const {},
+      fields: (e) => {'name': e.name, 'minutes': e.minutes},
     ),
     a1.TaskItem: EntityCodec<a1.TaskItem>(
       'TaskItem',
@@ -94,7 +111,7 @@ AssistantActionsRegistry assistantActionsRegistry({
   },
   collections: {
     'TaskItem': (change) async {
-      final values = TaskItemValues._from(change.fields);
+      final values = TaskItemValues._from(change.fields, change.cleared);
       switch (change.kind) {
         case 'create':
           await taskItem.create(change.id, values);
@@ -105,7 +122,7 @@ AssistantActionsRegistry assistantActionsRegistry({
       }
     },
     'MemoryItem': (change) async {
-      final values = MemoryItemValues._from(change.fields);
+      final values = MemoryItemValues._from(change.fields, change.cleared);
       switch (change.kind) {
         case 'create':
           await memoryItem.create(change.id, values);
