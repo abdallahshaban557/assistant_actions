@@ -1,0 +1,10 @@
+/// Siri, Shortcuts, Spotlight and Apple Intelligence for Flutter apps on iOS
+/// and macOS: declare actions and entities in Dart, adopt Apple's App Schemas
+/// with typed annotations, and let `assistant_actions_generator` write the
+/// Swift.
+library;
+
+export 'src/annotations.dart';
+export 'src/registry.dart';
+export 'src/runtime.dart';
+export 'src/schema.dart';

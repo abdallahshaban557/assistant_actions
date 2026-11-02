@@ -1,0 +1,321 @@
+{
+  "domain": "notes",
+  "hash": "c2d369abe24cd220fff14cee83825fd529f2ccfa53c02763b34418f1e3b04803",
+  "xcode": "27B52",
+  "entities": {
+    "note": {
+      "title": "Note",
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "properties": [
+        {
+          "name": "name",
+          "title": "Name",
+          "type": {
+            "kind": "attributedString"
+          },
+          "updatable": false,
+          "indexingKey": "displayName"
+        },
+        {
+          "name": "content",
+          "title": "Content",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "attributedString"
+            }
+          },
+          "updatable": false,
+          "indexingKey": "textContent"
+        },
+        {
+          "name": "attachments",
+          "title": "Attachments",
+          "type": {
+            "kind": "array",
+            "of": {
+              "kind": "file"
+            }
+          },
+          "updatable": false
+        },
+        {
+          "name": "isPinned",
+          "title": "Is Pinned",
+          "type": {
+            "kind": "bool"
+          },
+          "updatable": false
+        },
+        {
+          "name": "creationDate",
+          "title": "Creation Date",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "date"
+            }
+          },
+          "updatable": false,
+          "indexingKey": "contentCreationDate"
+        },
+        {
+          "name": "modificationDate",
+          "title": "Modification Date",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "date"
+            }
+          },
+          "updatable": false,
+          "indexingKey": "contentModificationDate"
+        },
+        {
+          "name": "folder",
+          "title": "Folder",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "entity",
+              "ref": "notes.folder"
+            }
+          },
+          "updatable": false
+        }
+      ]
+    },
+    "account": {
+      "title": "Account",
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "properties": [
+        {
+          "name": "name",
+          "title": "Name",
+          "type": {
+            "kind": "string"
+          },
+          "updatable": false,
+          "indexingKey": "displayName"
+        }
+      ]
+    },
+    "folder": {
+      "title": "Folder",
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "properties": [
+        {
+          "name": "name",
+          "title": "Name",
+          "type": {
+            "kind": "string"
+          },
+          "updatable": false,
+          "indexingKey": "displayName"
+        },
+        {
+          "name": "parentFolder",
+          "title": "Parent Folder",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "entity",
+              "ref": "notes.folder"
+            }
+          },
+          "updatable": false
+        },
+        {
+          "name": "account",
+          "title": "Account",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "entity",
+              "ref": "notes.account"
+            }
+          },
+          "updatable": false
+        }
+      ]
+    }
+  },
+  "enums": {},
+  "intents": {
+    "createNote": {
+      "title": "Create Note",
+      "description": "Creates a new note.",
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "parameters": [
+        {
+          "name": "name",
+          "title": "Name",
+          "type": {
+            "kind": "attributedString"
+          },
+          "description": "Title of the new note."
+        },
+        {
+          "name": "content",
+          "title": "Content",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "attributedString"
+            }
+          },
+          "description": "The content of the new note."
+        },
+        {
+          "name": "attachments",
+          "title": "Attachments",
+          "type": {
+            "kind": "array",
+            "of": {
+              "kind": "file"
+            }
+          },
+          "description": "Attachments to add to the new note."
+        },
+        {
+          "name": "isPinned",
+          "title": "Is Pinned",
+          "type": {
+            "kind": "bool"
+          },
+          "description": "Whether the new note is pinned to the top of the person’s list of notes."
+        },
+        {
+          "name": "folder",
+          "title": "Folder",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "entity",
+              "ref": "notes.folder"
+            }
+          },
+          "description": "Folder in which to create the new note."
+        }
+      ],
+      "result": {
+        "kind": "entity",
+        "ref": "notes.note"
+      }
+    },
+    "updateNote": {
+      "title": "Update Note",
+      "description": "Updates a note.",
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "parameters": [
+        {
+          "name": "target",
+          "title": "Target",
+          "type": {
+            "kind": "entity",
+            "ref": "notes.note"
+          },
+          "description": "The note to edit."
+        },
+        {
+          "name": "name",
+          "title": "Name",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "attributedString"
+            }
+          },
+          "description": "The updated name of the note."
+        },
+        {
+          "name": "attachments",
+          "title": "Attachments",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "array",
+              "of": {
+                "kind": "file"
+              }
+            }
+          },
+          "description": "The updated list of attachments for the note."
+        },
+        {
+          "name": "isPinned",
+          "title": "Is Pinned",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "bool"
+            }
+          },
+          "description": "Whether the note is pinned."
+        },
+        {
+          "name": "folder",
+          "title": "Folder",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "entity",
+              "ref": "notes.folder"
+            }
+          },
+          "description": "The destination folder for the note."
+        }
+      ],
+      "result": {
+        "kind": "entity",
+        "ref": "notes.note"
+      }
+    },
+    "appendText": {
+      "title": "Append Text to Note",
+      "description": "Adds text to the end of an existing note.",
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "parameters": [
+        {
+          "name": "content",
+          "title": "Content",
+          "type": {
+            "kind": "attributedString"
+          },
+          "description": "The text context to append."
+        },
+        {
+          "name": "target",
+          "title": "Target",
+          "type": {
+            "kind": "entity",
+            "ref": "notes.note"
+          },
+          "description": "The note to edit."
+        }
+      ],
+      "result": {
+        "kind": "entity",
+        "ref": "notes.note"
+      }
+    }
+  }
+}

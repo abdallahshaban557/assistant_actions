@@ -1,0 +1,32 @@
+name: assistant_actions
+description: >-
+  Siri, Shortcuts, Spotlight and Apple Intelligence for Flutter on iOS and
+  macOS. Declare actions and entities in Dart and adopt Apple's App Schemas
+  with typed annotations.
+version: 0.0.2
+repository: https://github.com/abdallahshaban557/assistant_actions/tree/main/packages/assistant_actions
+issue_tracker: https://github.com/abdallahshaban557/assistant_actions/issues
+topics: [siri, app-intents, shortcuts, apple-intelligence, codegen]
+
+environment:
+  sdk: ^3.6.0
+  flutter: '>=3.27.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  plugin:
+    platforms:
+      ios:
+        pluginClass: AssistantActionsPlugin
+        sharedDarwinSource: true
+      macos:
+        pluginClass: AssistantActionsPlugin
+        sharedDarwinSource: true

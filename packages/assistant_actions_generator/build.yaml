@@ -1,0 +1,11 @@
+builders:
+  assistant_actions:
+    import: package:assistant_actions_generator/builder.dart
+    builder_factories: [assistantActionsBuilder]
+    build_extensions:
+      '^lib/assistant_actions.dart':
+        - lib/assistant_actions.g.dart
+        - packages/assistant_actions_app/darwin/assistant_actions_app/Sources/assistant_actions_app/AssistantActions.g.swift
+        - apple/AssistantShortcuts.g.swift
+    auto_apply: dependents
+    build_to: source

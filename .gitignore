@@ -1,0 +1,9 @@
+# Build output and tool caches (each package also has its own .gitignore).
+build/
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+**/Flutter/ephemeral/
+*.iml
+.idea/
+.DS_Store

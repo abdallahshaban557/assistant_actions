@@ -1,0 +1,26 @@
+name: assistant_actions_example
+description: Example app for assistant_actions.
+publish_to: none
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.9.0
+
+dependencies:
+  assistant_actions_app:
+    path: packages/assistant_actions_app
+  flutter:
+    sdk: flutter
+  assistant_actions:
+    path: ../packages/assistant_actions
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+  build_runner: ^2.15.0
+  assistant_actions_generator:
+    path: ../packages/assistant_actions_generator
+
+flutter:
+  uses-material-design: true

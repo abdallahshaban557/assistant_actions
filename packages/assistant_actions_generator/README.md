@@ -1,0 +1,26 @@
+# assistant_actions_generator
+
+The `build_runner` generator for
+[`assistant_actions`](https://pub.dev/packages/assistant_actions). It reads
+`@AssistantAction`, `@AssistantEntity` and App Schema annotations from
+`lib/assistant_actions.dart` and writes:
+
+- `lib/assistant_actions.g.dart` — the registry for `AssistantActions.start` and
+  a typed handler interface per schema entity;
+- `packages/assistant_actions_app/.../AssistantActions.g.swift` — the App
+  Intents, entities, queries and schema containers;
+- `apple/AssistantShortcuts.g.swift` — the App Shortcuts, for the Runner targets.
+
+```yaml
+dev_dependencies:
+  build_runner: ^2.15.0
+  assistant_actions_generator: ^0.0.2
+```
+
+```bash
+dart run build_runner build
+```
+
+Schema definitions come from the catalog bundled with `assistant_actions`
+(exported from Xcode's `AppIntentSchemas.sqlite`), so generation doesn't need
+Xcode and works on any CI. See the `assistant_actions` README for usage.

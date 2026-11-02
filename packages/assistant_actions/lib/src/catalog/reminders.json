@@ -1,0 +1,629 @@
+{
+  "domain": "reminders",
+  "hash": "c2d369abe24cd220fff14cee83825fd529f2ccfa53c02763b34418f1e3b04803",
+  "xcode": "27B52",
+  "entities": {
+    "group": {
+      "title": "Group",
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "properties": [
+        {
+          "name": "name",
+          "title": "Name",
+          "type": {
+            "kind": "string"
+          },
+          "updatable": false,
+          "indexingKey": "title"
+        },
+        {
+          "name": "lists",
+          "title": "Lists",
+          "type": {
+            "kind": "array",
+            "of": {
+              "kind": "entity",
+              "ref": "reminders.list"
+            }
+          },
+          "updatable": false
+        }
+      ]
+    },
+    "list": {
+      "title": "List",
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "properties": [
+        {
+          "name": "name",
+          "title": "Name",
+          "type": {
+            "kind": "string"
+          },
+          "updatable": false,
+          "indexingKey": "title"
+        },
+        {
+          "name": "type",
+          "title": "Type",
+          "type": {
+            "kind": "enum",
+            "ref": "reminders.listType"
+          },
+          "updatable": false,
+          "indexingKey": "kind"
+        }
+      ]
+    },
+    "reminder": {
+      "title": "Reminder",
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "properties": [
+        {
+          "name": "title",
+          "title": "Title",
+          "type": {
+            "kind": "string"
+          },
+          "indexingKey": "title"
+        },
+        {
+          "name": "note",
+          "title": "Note",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "attributedString"
+            }
+          },
+          "indexingKey": "textContent"
+        },
+        {
+          "name": "tags",
+          "title": "Tags",
+          "type": {
+            "kind": "set",
+            "of": {
+              "kind": "string"
+            }
+          },
+          "indexingKey": "userTags"
+        },
+        {
+          "name": "urls",
+          "title": "URLs",
+          "type": {
+            "kind": "array",
+            "of": {
+              "kind": "url"
+            }
+          },
+          "indexingKey": "url"
+        },
+        {
+          "name": "dueDate",
+          "title": "Due Date",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "dateComponents"
+            }
+          },
+          "indexingKey": "dueDate"
+        },
+        {
+          "name": "recurrence",
+          "title": "Recurrence",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "recurrenceRule"
+            }
+          },
+          "indexingKey": "reminderRecurrenceRule"
+        },
+        {
+          "name": "isCompleted",
+          "title": "Is Completed",
+          "type": {
+            "kind": "bool"
+          },
+          "indexingKey": "completed"
+        },
+        {
+          "name": "isFlagged",
+          "title": "Is Flagged",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "bool"
+            }
+          },
+          "indexingKey": "flagged"
+        },
+        {
+          "name": "creationDate",
+          "title": "Creation Date",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "date"
+            }
+          },
+          "updatable": false,
+          "indexingKey": "contentCreationDate"
+        },
+        {
+          "name": "completionDate",
+          "title": "Completion Date",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "date"
+            }
+          },
+          "updatable": false,
+          "indexingKey": "completionDate"
+        },
+        {
+          "name": "list",
+          "title": "List",
+          "type": {
+            "kind": "entity",
+            "ref": "reminders.list"
+          }
+        },
+        {
+          "name": "locationTrigger",
+          "title": "Location",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "entity",
+              "ref": "reminders.locationTrigger"
+            }
+          }
+        }
+      ]
+    },
+    "section": {
+      "title": "Section",
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "properties": [
+        {
+          "name": "name",
+          "title": "Name",
+          "type": {
+            "kind": "string"
+          },
+          "updatable": false,
+          "indexingKey": "title"
+        },
+        {
+          "name": "list",
+          "title": "List",
+          "type": {
+            "kind": "entity",
+            "ref": "reminders.list"
+          },
+          "updatable": false
+        }
+      ]
+    },
+    "locationTrigger": {
+      "title": "Location Trigger",
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "properties": [
+        {
+          "name": "place",
+          "title": "Place",
+          "type": {
+            "kind": "placeDescriptor"
+          },
+          "updatable": false
+        },
+        {
+          "name": "event",
+          "title": "Event",
+          "type": {
+            "kind": "enum",
+            "ref": "reminders.locationTriggerEvent"
+          },
+          "updatable": false
+        }
+      ]
+    }
+  },
+  "enums": {
+    "listType": {
+      "title": "List Type",
+      "cases": [
+        "standard"
+      ]
+    },
+    "locationTriggerEvent": {
+      "title": "Location Trigger Event",
+      "cases": [
+        "arrive",
+        "depart"
+      ]
+    }
+  },
+  "intents": {
+    "createList": {
+      "title": "Create List",
+      "description": "Creates a new reminder list.",
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "parameters": [
+        {
+          "name": "type",
+          "title": "Type",
+          "type": {
+            "kind": "enum",
+            "ref": "reminders.listType"
+          },
+          "description": "The type of list to create."
+        },
+        {
+          "name": "name",
+          "title": "Name",
+          "type": {
+            "kind": "string"
+          },
+          "description": "Name of the list to create."
+        }
+      ],
+      "result": {
+        "kind": "entity",
+        "ref": "reminders.list"
+      }
+    },
+    "createReminder": {
+      "title": "Create Reminder",
+      "description": "Creates a new reminder",
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "parameters": [
+        {
+          "name": "title",
+          "title": "Title",
+          "type": {
+            "kind": "string"
+          },
+          "description": "The title of the reminder."
+        },
+        {
+          "name": "list",
+          "title": "List",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "entity",
+              "ref": "reminders.list"
+            }
+          },
+          "description": "The list of the reminder."
+        },
+        {
+          "name": "note",
+          "title": "Note",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "attributedString"
+            }
+          },
+          "description": "The note of the reminder."
+        },
+        {
+          "name": "isFlagged",
+          "title": "Flag",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "bool"
+            }
+          },
+          "description": "A boolean value indicating whether the reminder is flagged."
+        },
+        {
+          "name": "images",
+          "title": "Images",
+          "type": {
+            "kind": "array",
+            "of": {
+              "kind": "file"
+            }
+          },
+          "description": "The images of the reminder."
+        },
+        {
+          "name": "tags",
+          "title": "Tags",
+          "type": {
+            "kind": "set",
+            "of": {
+              "kind": "string"
+            }
+          },
+          "description": "The tags of the reminder."
+        },
+        {
+          "name": "urls",
+          "title": "URLs",
+          "type": {
+            "kind": "array",
+            "of": {
+              "kind": "url"
+            }
+          },
+          "description": "The URLs of the reminder."
+        },
+        {
+          "name": "dueDate",
+          "title": "Due Date",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "dateComponents"
+            }
+          },
+          "description": "The due date of the reminder."
+        },
+        {
+          "name": "recurrence",
+          "title": "Recurrence",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "recurrenceRule"
+            }
+          },
+          "description": "The recurrence of the reminder."
+        },
+        {
+          "name": "locationTrigger",
+          "title": "Location",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "entity",
+              "ref": "reminders.locationTrigger"
+            }
+          },
+          "description": "The location of the reminder."
+        },
+        {
+          "name": "section",
+          "title": "Section",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "entity",
+              "ref": "reminders.section"
+            }
+          },
+          "description": "The section of the reminder."
+        }
+      ],
+      "result": {
+        "kind": "entity",
+        "ref": "reminders.reminder"
+      }
+    },
+    "createSection": {
+      "title": "Create Section",
+      "description": "Creates a new reminder list section.",
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "parameters": [
+        {
+          "name": "name",
+          "title": "Name",
+          "type": {
+            "kind": "string"
+          },
+          "description": "The name of the section to create."
+        },
+        {
+          "name": "list",
+          "title": "List",
+          "type": {
+            "kind": "entity",
+            "ref": "reminders.list"
+          },
+          "description": "The list to which the section belongs."
+        }
+      ],
+      "result": {
+        "kind": "entity",
+        "ref": "reminders.section"
+      }
+    },
+    "deleteReminders": {
+      "title": "Delete Reminders",
+      "description": "Deletes reminders.",
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "parameters": [
+        {
+          "name": "entities",
+          "title": "Reminders",
+          "type": {
+            "kind": "array",
+            "of": {
+              "kind": "entity",
+              "ref": "reminders.reminder"
+            }
+          },
+          "description": "The reminders to delete."
+        }
+      ]
+    },
+    "updateReminder": {
+      "title": "Update Reminder",
+      "description": "Updates a reminder.",
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "parameters": [
+        {
+          "name": "target",
+          "title": "Reminder",
+          "type": {
+            "kind": "entity",
+            "ref": "reminders.reminder"
+          },
+          "description": "The reminder to update"
+        },
+        {
+          "name": "title",
+          "title": "Title",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "string"
+            }
+          },
+          "description": "The new title for the reminder"
+        },
+        {
+          "name": "note",
+          "title": "Note",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "attributedString"
+            }
+          },
+          "description": "The new note for the reminder"
+        },
+        {
+          "name": "tags",
+          "title": "Tags",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "set",
+              "of": {
+                "kind": "string"
+              }
+            }
+          },
+          "description": "The new tags for the reminder"
+        },
+        {
+          "name": "urls",
+          "title": "URLs",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "array",
+              "of": {
+                "kind": "url"
+              }
+            }
+          },
+          "description": "The new urls for the reminder"
+        },
+        {
+          "name": "dueDate",
+          "title": "Due Date",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "dateComponents"
+            }
+          },
+          "description": "The new due date for the reminder"
+        },
+        {
+          "name": "recurrence",
+          "title": "Recurrence",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "recurrenceRule"
+            }
+          },
+          "description": "The new recurrence for the reminder"
+        },
+        {
+          "name": "isCompleted",
+          "title": "Is Completed",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "bool"
+            }
+          },
+          "description": "The new is completed for the reminder"
+        },
+        {
+          "name": "isFlagged",
+          "title": "Is Flagged",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "bool"
+            }
+          },
+          "description": "The new is flagged for the reminder"
+        },
+        {
+          "name": "list",
+          "title": "List",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "entity",
+              "ref": "reminders.list"
+            }
+          },
+          "description": "The new list for the reminder"
+        },
+        {
+          "name": "locationTrigger",
+          "title": "Location",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "entity",
+              "ref": "reminders.locationTrigger"
+            }
+          },
+          "description": "The new location for the reminder"
+        }
+      ],
+      "result": {
+        "kind": "entity",
+        "ref": "reminders.reminder"
+      }
+    }
+  }
+}
