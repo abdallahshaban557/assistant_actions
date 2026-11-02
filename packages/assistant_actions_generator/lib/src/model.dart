@@ -70,6 +70,7 @@ class EntityModel {
     required this.title,
     required this.idField,
     required this.titleGetter,
+    required this.fields,
     this.subtitleGetter,
   });
 
@@ -79,6 +80,9 @@ class EntityModel {
   final String idField;
   final String titleGetter;
   final String? subtitleGetter;
+
+  /// Fields of a supported type, published so snapshot answers can read them.
+  final List<FieldModel> fields;
 
   String get swiftName => '${className}Entity';
 }
@@ -153,6 +157,56 @@ class ActionModel {
   String get swiftName => '${pascal(functionName)}Action';
 }
 
+/// `@AssistantAction` on a `const SnapshotAnswer<T>`: answered in Swift from
+/// the published snapshot of [collection], without Flutter.
+class SnapshotActionModel {
+  SnapshotActionModel({
+    required this.name,
+    required this.title,
+    required this.collection,
+    required this.fields,
+    required this.where,
+    required this.limit,
+    required this.item,
+    required this.dialog,
+    required this.empty,
+    required this.separator,
+    this.titleField,
+    this.sortBy,
+    this.descending = false,
+    this.description,
+    this.shortcut,
+  });
+
+  final String name;
+  final String title;
+  final String? description;
+  final ShortcutModel? shortcut;
+
+  /// The entity's collection (its class name).
+  final String collection;
+
+  /// The fields the snapshot has for each item.
+  final List<FieldModel> fields;
+
+  /// The field holding the title, for items Siri created that Dart hasn't
+  /// published yet.
+  final String? titleField;
+
+  /// Field name → a Swift literal it must equal.
+  final Map<String, String> where;
+  final String? sortBy;
+  final bool descending;
+  final int limit;
+  final String item;
+  final String dialog;
+  final String empty;
+  final String separator;
+
+  String get id => name;
+  String get swiftName => '${pascal(name)}Action';
+}
+
 /// A fixed container instance from a schema annotation, such as
 /// `FixedList(id: 'mira', name: 'Mira')`.
 class FixedInstance {
@@ -219,10 +273,12 @@ class AppModel {
     required this.actions,
     required this.entities,
     required this.schemaEntities,
+    this.snapshotActions = const [],
   });
 
   final String appName;
   final List<ActionModel> actions;
+  final List<SnapshotActionModel> snapshotActions;
   final List<EntityModel> entities;
   final List<SchemaEntityModel> schemaEntities;
 

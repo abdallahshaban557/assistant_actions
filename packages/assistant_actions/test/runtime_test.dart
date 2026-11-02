@@ -1,7 +1,6 @@
 import 'dart:convert';
 
 import 'package:assistant_actions/assistant_actions.dart';
-import 'package:assistant_actions/src/host.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 class _Item {

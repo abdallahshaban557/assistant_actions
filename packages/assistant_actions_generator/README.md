@@ -11,10 +11,8 @@ The `build_runner` generator for
   Intents, entities, queries and schema containers;
 - `apple/AssistantShortcuts.g.swift` — the App Shortcuts, for the Runner targets.
 
-```yaml
-dev_dependencies:
-  build_runner: ^2.15.0
-  assistant_actions_generator: ^0.0.2
+```bash
+flutter pub add assistant_actions dev:build_runner dev:assistant_actions_generator
 ```
 
 ```bash

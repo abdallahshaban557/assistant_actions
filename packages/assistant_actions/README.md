@@ -88,12 +88,35 @@ handler interface that you implement:
 ```dart
 class TaskHandler implements TaskItemAssistantHandler {
   Future<void> create(String id, TaskItemValues values) async { ... } // keep id
-  Future<void> update(String id, TaskItemValues changes) async { ... }
+  Future<void> update(String id, TaskItemValues changes) async {
+    // A null field is unchanged. Siri can also clear an optional one:
+    final due = changes.dueCleared ? null : changes.due ?? task.due;
+  }
   Future<void> delete(String id) async { ... }
 }
 ```
 
 Available now: `reminders` and `notes`.
+
+### Answer from published data, without starting the app
+
+Put `@AssistantAction` on a `const SnapshotAnswer<T>` and Siri answers in
+Swift from the items of `T` you last published, plus anything Siri queued since.
+Flutter doesn't start, on iOS or macOS:
+
+```dart
+@AssistantAction(title: 'Show Tasks', shortcut: AppShortcut(...))
+const showTasks = SnapshotAnswer<TaskItem>(
+  where: {'done': false},
+  sortBy: 'due',                      // items without a due date come last
+  item: '{title}[ ({due})]',          // [...] is left out when {due} is empty
+  dialog: 'You have {count} {count|task|tasks}: {items}[, and {rest} more].',
+  empty: 'Your list is clear.',
+);
+```
+
+The generator checks that every field exists and that `where` values match
+the field types.
 
 ## Run
 

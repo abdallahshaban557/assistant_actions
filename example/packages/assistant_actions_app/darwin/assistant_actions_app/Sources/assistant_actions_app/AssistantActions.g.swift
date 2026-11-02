@@ -95,6 +95,55 @@ public struct CountOpenTasksAction: AppIntent, ForegroundContinuableIntent {
   }
 }
 
+/// `showOpenTasks` in Dart: answered from the published `TaskItem` snapshot, without Flutter.
+public struct ShowOpenTasksAction: AppIntent {
+  public static let title: LocalizedStringResource = "Show Open Tasks"
+  public static let description = IntentDescription("Hear your open tasks, soonest first.")
+
+  public init() {}
+
+  @MainActor
+  public func perform() async throws -> some IntentResult & ReturnsValue<[String]> & ProvidesDialog {
+    let answer = AssistantQuery.answer(
+      "TaskItem",
+      where: ["done": false],
+      sortBy: "due",
+      descending: false,
+      limit: 5,
+      dateFields: ["due"],
+      titleField: "title",
+      item: "{title}[ ({due})]",
+      dialog: "You have {count} {count|task|tasks}: {items}[, and {rest} more].",
+      empty: "Your list is clear.",
+      separator: ", ")
+    return .result(value: answer.items, dialog: IntentDialog(stringLiteral: answer.dialog))
+  }
+}
+
+/// `quickRecipes` in Dart: answered from the published `Recipe` snapshot, without Flutter.
+public struct QuickRecipesAction: AppIntent {
+  public static let title: LocalizedStringResource = "Quick Recipes"
+
+  public init() {}
+
+  @MainActor
+  public func perform() async throws -> some IntentResult & ReturnsValue<[String]> & ProvidesDialog {
+    let answer = AssistantQuery.answer(
+      "Recipe",
+      where: [:],
+      sortBy: "minutes",
+      descending: false,
+      limit: 3,
+      dateFields: [],
+      titleField: nil,
+      item: "{title} ({minutes} min)",
+      dialog: "Quickest: {items}.",
+      empty: "No recipes yet.",
+      separator: ", ")
+    return .result(value: answer.items, dialog: IntentDialog(stringLiteral: answer.dialog))
+  }
+}
+
 @available(iOS 27.0, macOS 27.0, *)
 @AppEnum(schema: .reminders.listType)
 enum RemindersListTypeEnum: String {
@@ -420,10 +469,15 @@ struct TaskItemUpdateReminderIntent {
   @MainActor
   func perform() async throws -> some ReturnsValue<TaskItemEntity> {
     var fields: [String: Any] = [:]
+    var cleared: [String] = []
     if title != nil { fields["title"] = AssistantValues.encode(title) }
-    if dueDate != nil { fields["due"] = AssistantValues.encode(dueDate) }
+    switch $dueDate.valueState {
+    case .unset: break
+    case .set(let value?): fields["due"] = AssistantValues.encode(value)
+    case .set(nil): cleared.append("due")
+    }
     if isCompleted != nil { fields["done"] = AssistantValues.encode(isCompleted) }
-    AssistantInbox.update("TaskItem", id: target.id, fields: fields)
+    AssistantInbox.update("TaskItem", id: target.id, fields: fields, cleared: cleared)
     AssistantBridge.shared.inboxChanged()
     let updated = target
     if let value = fields["title"] {
@@ -431,6 +485,8 @@ struct TaskItemUpdateReminderIntent {
     }
     if let value = fields["due"] {
       updated.dueDate = AssistantValues.dateComponents(value)
+    } else if cleared.contains("due") {
+      updated.dueDate = nil
     }
     if let value = fields["done"] {
       updated.isCompleted = AssistantValues.bool(value) ?? false
@@ -473,14 +529,17 @@ struct MemoryItemUpdateNoteIntent {
   @MainActor
   func perform() async throws -> some ReturnsValue<MemoryItemEntity> {
     var fields: [String: Any] = [:]
+    var cleared: [String] = []
     if name != nil { fields["text"] = AssistantValues.encode(name) }
     if isPinned != nil { fields["pinned"] = AssistantValues.encode(isPinned) }
-    AssistantInbox.update("MemoryItem", id: target.id, fields: fields)
+    AssistantInbox.update("MemoryItem", id: target.id, fields: fields, cleared: cleared)
     AssistantBridge.shared.inboxChanged()
     let updated = target
     if let value = fields["text"] {
       updated.name = AssistantValues.attributed(value) ?? AttributedString("")
       updated.content = AssistantValues.attributed(value)
+    } else if cleared.contains("text") {
+      updated.content = nil
     }
     if let value = fields["pinned"] {
       updated.isPinned = AssistantValues.bool(value) ?? false
@@ -499,13 +558,16 @@ struct MemoryItemAppendTextIntent {
   @MainActor
   func perform() async throws -> some ReturnsValue<MemoryItemEntity> {
     var fields: [String: Any] = [:]
+    var cleared: [String] = []
     fields["text"] = AssistantValues.append(AssistantValues.string(AssistantValues.encode(target.content)), AssistantValues.string(AssistantValues.encode(content)) ?? "")
-    AssistantInbox.update("MemoryItem", id: target.id, fields: fields)
+    AssistantInbox.update("MemoryItem", id: target.id, fields: fields, cleared: cleared)
     AssistantBridge.shared.inboxChanged()
     let updated = target
     if let value = fields["text"] {
       updated.name = AssistantValues.attributed(value) ?? AttributedString("")
       updated.content = AssistantValues.attributed(value)
+    } else if cleared.contains("text") {
+      updated.content = nil
     }
     return .result(value: updated)
   }

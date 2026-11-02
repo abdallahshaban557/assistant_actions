@@ -35,3 +35,32 @@ Future<String> countOpenTasks() async {
   final open = Store.instance.tasks.where((t) => !t.done).length;
   return open == 1 ? 'You have 1 open task.' : 'You have $open open tasks.';
 }
+
+/// Answered from published data in Swift, without starting Flutter: open
+/// tasks, soonest first.
+@AssistantAction(
+  title: 'Show Open Tasks',
+  description: 'Hear your open tasks, soonest first.',
+  shortcut: AppShortcut(
+    phrases: ["What's on my {app} list", 'Show my {app} tasks'],
+    shortTitle: 'My Tasks',
+    systemImage: 'list.bullet',
+  ),
+)
+const showOpenTasks = SnapshotAnswer<TaskItem>(
+  where: {'done': false},
+  sortBy: 'due',
+  item: '{title}[ ({due})]',
+  dialog: 'You have {count} {count|task|tasks}: {items}[, and {rest} more].',
+  empty: 'Your list is clear.',
+);
+
+/// The same for one of the app's own entity types.
+@AssistantAction(title: 'Quick Recipes')
+const quickRecipes = SnapshotAnswer<Recipe>(
+  sortBy: 'minutes',
+  limit: 3,
+  item: '{title} ({minutes} min)',
+  dialog: 'Quickest: {items}.',
+  empty: 'No recipes yet.',
+);

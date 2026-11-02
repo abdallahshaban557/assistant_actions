@@ -31,6 +31,9 @@ class SwiftWriter {
     for (final a in app.actions) {
       _action(a);
     }
+    for (final a in app.snapshotActions) {
+      _snapshotAction(a);
+    }
     if (app.schemaEntities.isNotEmpty) _schemas();
     body.write(_out);
 
@@ -159,6 +162,43 @@ public struct ${name}Query: EntityStringQuery {
       ..writeln('  }')
       ..writeln('}')
       ..writeln();
+  }
+
+  void _snapshotAction(SnapshotActionModel a) {
+    String list(Iterable<String> items) => '[${items.join(', ')}]';
+    final where = a.where.isEmpty
+        ? '[:]'
+        : '[${a.where.entries.map((e) => '"${e.key}": ${e.value}').join(', ')}]';
+    final dates = [for (final f in a.fields) if (f.type.kind == ValueKind.dateTime) '"${f.name}"'];
+    _out
+      ..writeln('/// `${a.name}` in Dart: answered from the published `${a.collection}` snapshot, without Flutter.')
+      ..writeln('public struct ${a.swiftName}: AppIntent {')
+      ..writeln('  public static let title: LocalizedStringResource = "${_escape(a.title)}"');
+    if (a.description != null) {
+      _out.writeln('  public static let description = IntentDescription("${_escape(a.description!)}")');
+    }
+    _out.writeln('''
+
+  public init() {}
+
+  @MainActor
+  public func perform() async throws -> some IntentResult & ReturnsValue<[String]> & ProvidesDialog {
+    let answer = AssistantQuery.answer(
+      "${a.collection}",
+      where: $where,
+      sortBy: ${a.sortBy == null ? 'nil' : '"${a.sortBy}"'},
+      descending: ${a.descending},
+      limit: ${a.limit},
+      dateFields: ${dates.isEmpty ? '[]' : list(dates)},
+      titleField: ${a.titleField == null ? 'nil' : '"${a.titleField}"'},
+      item: "${_escape(a.item)}",
+      dialog: "${_escape(a.dialog)}",
+      empty: "${_escape(a.empty)}",
+      separator: "${_escape(a.separator)}")
+    return .result(value: answer.items, dialog: IntentDialog(stringLiteral: answer.dialog))
+  }
+}
+''');
   }
 
   /// A Swift string literal for [template], with `{param}` interpolated.
@@ -497,9 +537,24 @@ struct ${name}Query: EntityStringQuery {
     AssistantBridge.shared.inboxChanged()
     return .result(value: $entity(record: AssistantRecord(id: id, title: "", fields: fields)))''');
       case IntentKind.update || IntentKind.append:
-        _out.writeln('    var fields: [String: Any] = [:]');
+        _out
+          ..writeln('    var fields: [String: Any] = [:]')
+          ..writeln('    var cleared: [String] = []');
         for (final MapEntry(key: field, value: params) in byField.entries) {
-          if (kind == IntentKind.append) {
+          final clearable = kind == IntentKind.update &&
+              params.length == 1 &&
+              params.single.type.isOptional &&
+              s.mapping[params.single.name]!.type.nullable;
+          if (clearable) {
+            // Three states: not given (unchanged), given as nil (cleared), or a value.
+            final p = params.single.name;
+            _out.writeln('''
+    switch \$$p.valueState {
+    case .unset: break
+    case .set(let value?): fields["$field"] = AssistantValues.encode(value)
+    case .set(nil): cleared.append("$field")
+    }''');
+          } else if (kind == IntentKind.append) {
             final p = params.first;
             final current = 'AssistantValues.string(AssistantValues.encode(target.${p.name}))';
             _out.writeln('    fields["$field"] = AssistantValues.append($current, '
@@ -513,14 +568,24 @@ struct ${name}Query: EntityStringQuery {
           }
         }
         _out
-          ..writeln('    AssistantInbox.update("${s.collection}", id: target.id, fields: fields)')
+          ..writeln('    AssistantInbox.update("${s.collection}", id: target.id, fields: fields, cleared: cleared)')
           ..writeln('    AssistantBridge.shared.inboxChanged()')
           ..writeln('    let updated = target');
         for (final field in byField.keys) {
+          final members = [
+            for (final MapEntry(key: member, value: f) in s.mapping.entries)
+              if (f.name == field) member,
+          ];
           _out.writeln('    if let value = fields["$field"] {');
-          for (final MapEntry(key: member, value: f) in s.mapping.entries) {
-            if (f.name != field) continue;
+          for (final member in members) {
             _out.writeln('      updated.$member = ${_decode(s.schema.property(member)!.type, 'value', s.schema)}');
+          }
+          final optionalMembers = [for (final m in members) if (s.schema.property(m)!.type.isOptional) m];
+          if (optionalMembers.isNotEmpty) {
+            _out.writeln('    } else if cleared.contains("$field") {');
+            for (final member in optionalMembers) {
+              _out.writeln('      updated.$member = nil');
+            }
           }
           _out.writeln('    }');
         }
