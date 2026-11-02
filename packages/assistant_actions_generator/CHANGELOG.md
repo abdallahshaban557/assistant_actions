@@ -1,3 +1,12 @@
+## 0.0.8
+
+* Schema entities conform to `SyncableEntity` (iOS/macOS 27), like Apple's own
+  schema entities (Reminders' `ReminderEntity` is Indexed + Syncable). Without
+  it, Siri's planner found the entity but couldn't turn it into a candidate
+  for a schema intent parameter ("Unable to generate candidate id"), so
+  `reminders.updateReminder` and similar ran with no target. The entity's
+  String id is the stable id.
+
 ## 0.0.7
 
 * Generated entity queries are also `EntityPropertyQuery`, modelled on Apple's

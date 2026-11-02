@@ -133,6 +133,13 @@ void main() {
     });
   });
 
+  group('schema entities', () {
+    test('are Syncable, like Apple\'s own schema entities', () {
+      final swift = SwiftWriter(_app()).write();
+      expect(swift, contains('@available(iOS 27.0, macOS 27.0, *)\nextension TaskItemEntity: SyncableEntity {}'));
+    });
+  });
+
   group('entity queries', () {
     test('can list everything and match forgivingly', () {
       final swift = SwiftWriter(_app()).write();
