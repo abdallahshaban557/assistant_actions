@@ -1,3 +1,9 @@
+## 0.0.3
+
+* Dart and Swift now talk over FFI (Pigeon native interop) instead of a
+  platform channel. No API changes. Apps pick up `ffi` and `objective_c` as
+  dependencies.
+
 ## 0.0.2
 
 * Add repository and issue tracker links.
