@@ -1,0 +1,79 @@
+# Runs on every pull request to main: a package that changes must also be
+# released (version bump + CHANGELOG entry), and everything must analyze,
+# pass its tests, and have up-to-date generated code in the example.
+name: Check
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  versions:
+    name: Version and changelog
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: dart-lang/setup-dart@v1
+      - run: dart run tool/check_versions.dart origin/${{ github.base_ref }}
+
+  runtime:
+    name: assistant_actions
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/assistant_actions
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - run: flutter analyze
+      - run: flutter test
+
+  generator:
+    name: assistant_actions_generator
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/assistant_actions_generator
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dart-lang/setup-dart@v1
+      - run: dart pub get
+      - run: dart analyze --fatal-infos
+      - run: dart test
+
+  example:
+    name: Example code is up to date
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: example
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - run: dart run build_runner build
+      # pubspec.lock records the path packages' versions, which change with
+      # every release, so only generated code is compared.
+      - name: Generated files match the commit
+        run: |
+          git diff --exit-code -- . ':(exclude)pubspec.lock' || {
+            echo "::error::Generated code in example/ is stale. Run 'dart run build_runner build' in example/ and commit."
+            exit 1
+          }
+      - run: flutter analyze
