@@ -475,6 +475,7 @@ struct TaskItemUpdateReminderIntent {
     case .unset: break
     case .set(let value?): fields["due"] = AssistantValues.encode(value)
     case .set(nil): cleared.append("due")
+    @unknown default: break
     }
     if isCompleted != nil { fields["done"] = AssistantValues.encode(isCompleted) }
     AssistantInbox.update("TaskItem", id: target.id, fields: fields, cleared: cleared)
@@ -529,7 +530,7 @@ struct MemoryItemUpdateNoteIntent {
   @MainActor
   func perform() async throws -> some ReturnsValue<MemoryItemEntity> {
     var fields: [String: Any] = [:]
-    var cleared: [String] = []
+    let cleared: [String] = []
     if name != nil { fields["text"] = AssistantValues.encode(name) }
     if isPinned != nil { fields["pinned"] = AssistantValues.encode(isPinned) }
     AssistantInbox.update("MemoryItem", id: target.id, fields: fields, cleared: cleared)
@@ -558,7 +559,7 @@ struct MemoryItemAppendTextIntent {
   @MainActor
   func perform() async throws -> some ReturnsValue<MemoryItemEntity> {
     var fields: [String: Any] = [:]
-    var cleared: [String] = []
+    let cleared: [String] = []
     fields["text"] = AssistantValues.append(AssistantValues.string(AssistantValues.encode(target.content)), AssistantValues.string(AssistantValues.encode(content)) ?? "")
     AssistantInbox.update("MemoryItem", id: target.id, fields: fields, cleared: cleared)
     AssistantBridge.shared.inboxChanged()

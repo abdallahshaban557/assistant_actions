@@ -60,10 +60,17 @@ void main() {
       final swift = SwiftWriter(_app()).write();
       final update = swift.substring(swift.indexOf('struct TaskItemUpdateReminderIntent'));
       expect(update, contains(r'switch $dueDate.valueState'));
-      expect(update, contains('case .set(nil): cleared.append("due")'));
+      expect(update, contains('case .set(nil): cleared.append("due")\n    @unknown default: break'));
+      expect(update, contains('    var cleared: [String] = []'));
       expect(update, isNot(contains(r'$title.valueState')), reason: 'title is a non-nullable String in Dart');
       expect(update, contains('AssistantInbox.update("TaskItem", id: target.id, fields: fields, cleared: cleared)'));
       expect(update, contains('} else if cleared.contains("due") {\n      updated.dueDate = nil'));
+    });
+
+    test('intents with nothing to clear declare cleared as a constant', () {
+      final swift = SwiftWriter(_app()).write();
+      // updateReminder can clear due; nothing else in the app can.
+      expect('var cleared: [String] = []'.allMatches(swift), hasLength(1));
     });
 
     test('Values classes expose cleared fields', () {
