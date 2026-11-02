@@ -14,12 +14,8 @@ write the App Intents Swift.
 
 ## Install
 
-```yaml
-dependencies:
-  assistant_actions: ^0.0.3
-dev_dependencies:
-  build_runner: ^2.15.0
-  assistant_actions_generator: ^0.0.3
+```bash
+flutter pub add assistant_actions dev:build_runner dev:assistant_actions_generator
 ```
 
 Then, once, from the app's root:

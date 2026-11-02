@@ -1,3 +1,8 @@
+## 0.0.4
+
+* README: install with `flutter pub add` instead of pinned versions, which
+  listed an `assistant_actions_generator` version that doesn't exist.
+
 ## 0.0.3
 
 * Dart and Swift now talk over FFI (Pigeon native interop) instead of a
