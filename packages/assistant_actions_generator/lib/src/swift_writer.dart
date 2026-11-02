@@ -705,6 +705,15 @@ struct ${name}Query: EntityStringQuery {
   void _adoptedEntity(SchemaEntityModel s) {
     final schema = s.schema;
     final name = s.swiftName;
+    // Like Apple's own schema entities (Reminders' ReminderEntity), mark the
+    // entity Syncable (entitySyncType 1). Without it, Siri's planner can find
+    // the entity but can't turn it into a candidate for a schema intent
+    // parameter ("Unable to generate candidate id"), so updates run with no
+    // target. The String id stays the stable id.
+    _out
+      ..writeln(_availability(schema.availability))
+      ..writeln('extension $name: SyncableEntity {}')
+      ..writeln();
     _out
       ..writeln('/// `${s.className}` in Dart, as `${schema.id}`.')
       ..writeln(_availability(schema.availability))

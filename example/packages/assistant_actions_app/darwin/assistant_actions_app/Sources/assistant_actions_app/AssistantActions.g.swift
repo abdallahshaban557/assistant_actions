@@ -223,6 +223,9 @@ enum RemindersLocationTriggerEventEnum: String {
   ]
 }
 
+@available(iOS 27.0, macOS 27.0, *)
+extension TaskItemEntity: SyncableEntity {}
+
 /// `TaskItem` in Dart, as `reminders.reminder`.
 @available(iOS 27.0, macOS 27.0, *)
 @AppEntity(schema: .reminders.reminder)
@@ -413,6 +416,9 @@ struct RemindersSectionEntityQuery: EntityStringQuery {
 
   func suggestedEntities() async throws -> [RemindersSectionEntity] { [] }
 }
+
+@available(iOS 27.0, macOS 27.0, *)
+extension MemoryItemEntity: SyncableEntity {}
 
 /// `MemoryItem` in Dart, as `notes.note`.
 @available(iOS 27.0, macOS 27.0, *)
