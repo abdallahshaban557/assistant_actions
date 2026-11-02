@@ -69,6 +69,22 @@ check(plan(["a", "b"], []), "a,b", "an empty collection removes everything")
 check(AssistantSpotlight.indexer() == nil ? "none" : "found", "none",
   "no generated indexer here, so updates are no-ops")
 
+// Entity queries: forgiving matching (Mira's "do I have any tasks in Mira").
+let miraTasks = records(#"[{"id":"1","title":"Remember laundry","fields":{"title":"Remember laundry","done":false}},{"id":"2","title":"","fields":{"title":"Call Zoë about the café","done":false}}]"#)
+let taskWords: Set<String> = ["task", "item", "taskitem", "reminder", "reminders", "mira"]
+func ids(_ string: String) -> String {
+  AssistantMatch.records(miraTasks, matching: string, ignoring: taskWords).map(\.id).joined(separator: ",")
+}
+check(ids("tasks"), "1,2", "a word naming the type lists everything")
+check(ids("do I have any tasks in Mira"), "1,2", "filler, type and app words are ignored")
+check(ids("my reminders"), "1,2", "schema words are ignored too")
+check(ids(""), "1,2", "an empty search lists everything")
+check(ids("laundry"), "1", "matches a word in the title")
+check(ids("laundry task"), "1", "type words don't narrow a real term")
+check(ids("zoe cafe"), "2", "ignores case and accents, reads fields when the title is empty (inbox-created)")
+check(ids("laundry zoe"), "1,2", "falls back to any word when no item has all of them")
+check(ids("groceries"), "", "an unrelated word finds nothing")
+
 if failures > 0 {
   print("\(failures) failed")
   exit(1)

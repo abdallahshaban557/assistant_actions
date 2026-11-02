@@ -1,3 +1,11 @@
+## 0.0.6
+
+* Generated entity queries also conform to `EnumerableEntityQuery`
+  (`allEntities()`: everything published plus Siri's pending changes), and
+  `entities(matching:)` uses the runtime's forgiving `AssistantMatch` with the
+  type's own words (class, schema and app names) ignored.
+* Needs assistant_actions 0.0.7 or later.
+
 ## 0.0.5
 
 * Generated entities conform to `IndexedEntity` (iOS 18+ / macOS 15+). Schema
