@@ -1,3 +1,14 @@
+## 0.0.7
+
+* `AssistantMatch`: forgiving search for generated entity queries. Searches
+  are split into words; filler words and words naming the entity type, schema
+  or app ("tasks", "reminders", "Mira") are ignored, and a search with nothing
+  else left lists everything. Remaining words match case- and
+  accent-insensitively in the title or any text field (so items Siri just
+  created match too); if no item has all of them, items with any are
+  returned. Fixes "do I have any tasks in <app>" finding nothing. Needs
+  assistant_actions_generator 0.0.6.
+
 ## 0.0.6
 
 * Spotlight indexing: published entities are indexed with Core Spotlight

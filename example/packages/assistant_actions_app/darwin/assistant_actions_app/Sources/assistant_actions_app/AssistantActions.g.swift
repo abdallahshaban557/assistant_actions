@@ -32,7 +32,10 @@ public struct RecipeEntity: AppEntity {
   }
 }
 
-public struct RecipeEntityQuery: EntityStringQuery {
+public struct RecipeEntityQuery: EntityStringQuery, EnumerableEntityQuery {
+  /// Words that only name the type or app, so they never narrow a search.
+  static let typeWords: Set<String> = ["actions", "assistant", "assistantactionsexample", "example", "recipe"]
+
   public init() {}
 
   public func entities(for identifiers: [String]) async throws -> [RecipeEntity] {
@@ -41,13 +44,18 @@ public struct RecipeEntityQuery: EntityStringQuery {
   }
 
   public func entities(matching string: String) async throws -> [RecipeEntity] {
-    AssistantSnapshot.records("Recipe")
-      .filter { $0.title.localizedCaseInsensitiveContains(string) }
+    AssistantMatch.records(AssistantSnapshot.records("Recipe"), matching: string, ignoring: Self.typeWords)
       .map(RecipeEntity.init(record:))
   }
 
   public func suggestedEntities() async throws -> [RecipeEntity] {
     AssistantSnapshot.records("Recipe").prefix(20).map(RecipeEntity.init(record:))
+  }
+
+  /// Everything published, plus Siri's pending changes, for requests like
+  /// "do I have any recipes".
+  public func allEntities() async throws -> [RecipeEntity] {
+    AssistantSnapshot.records("Recipe").map(RecipeEntity.init(record:))
   }
 }
 
@@ -207,7 +215,10 @@ struct TaskItemEntity {
 }
 
 @available(iOS 27.0, macOS 27.0, *)
-struct TaskItemEntityQuery: EntityStringQuery {
+struct TaskItemEntityQuery: EntityStringQuery, EnumerableEntityQuery {
+  /// Words that only name the type, schema or app, so they never narrow a search.
+  static let typeWords: Set<String> = ["actions", "assistant", "assistantactionsexample", "example", "item", "reminder", "reminders", "task", "taskitem"]
+
   private func all() -> [TaskItemEntity] { AssistantSnapshot.records("TaskItem").map(TaskItemEntity.init(record:)) }
 
   func entities(for identifiers: [String]) async throws -> [TaskItemEntity] {
@@ -216,10 +227,15 @@ struct TaskItemEntityQuery: EntityStringQuery {
   }
 
   func entities(matching string: String) async throws -> [TaskItemEntity] {
-    all().filter { $0.title.localizedCaseInsensitiveContains(string) }
+    AssistantMatch.records(AssistantSnapshot.records("TaskItem"), matching: string, ignoring: Self.typeWords)
+      .map(TaskItemEntity.init(record:))
   }
 
   func suggestedEntities() async throws -> [TaskItemEntity] { Array(all().prefix(20)) }
+
+  /// Everything published, plus Siri's pending changes, for general requests
+  /// like "do I have any reminders".
+  func allEntities() async throws -> [TaskItemEntity] { all() }
 }
 
 /// `reminders.list`, required by the adopted schemas. One fixed instance.
@@ -331,7 +347,10 @@ struct MemoryItemEntity {
 }
 
 @available(iOS 27.0, macOS 27.0, *)
-struct MemoryItemEntityQuery: EntityStringQuery {
+struct MemoryItemEntityQuery: EntityStringQuery, EnumerableEntityQuery {
+  /// Words that only name the type, schema or app, so they never narrow a search.
+  static let typeWords: Set<String> = ["actions", "assistant", "assistantactionsexample", "example", "item", "memory", "memoryitem", "note", "notes"]
+
   private func all() -> [MemoryItemEntity] { AssistantSnapshot.records("MemoryItem").map(MemoryItemEntity.init(record:)) }
 
   func entities(for identifiers: [String]) async throws -> [MemoryItemEntity] {
@@ -340,10 +359,15 @@ struct MemoryItemEntityQuery: EntityStringQuery {
   }
 
   func entities(matching string: String) async throws -> [MemoryItemEntity] {
-    all().filter { String($0.name.characters).localizedCaseInsensitiveContains(string) }
+    AssistantMatch.records(AssistantSnapshot.records("MemoryItem"), matching: string, ignoring: Self.typeWords)
+      .map(MemoryItemEntity.init(record:))
   }
 
   func suggestedEntities() async throws -> [MemoryItemEntity] { Array(all().prefix(20)) }
+
+  /// Everything published, plus Siri's pending changes, for general requests
+  /// like "do I have any notes".
+  func allEntities() async throws -> [MemoryItemEntity] { all() }
 }
 
 /// `notes.folder`, required by the adopted schemas. One fixed instance.

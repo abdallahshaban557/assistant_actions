@@ -95,7 +95,10 @@ public struct $name: AppEntity {
   }
 }
 
-public struct ${name}Query: EntityStringQuery {
+public struct ${name}Query: EntityStringQuery, EnumerableEntityQuery {
+  /// Words that only name the type or app, so they never narrow a search.
+  static let typeWords: Set<String> = ${_typeWords([e.className, e.title])}
+
   public init() {}
 
   public func entities(for identifiers: [String]) async throws -> [$name] {
@@ -104,13 +107,18 @@ public struct ${name}Query: EntityStringQuery {
   }
 
   public func entities(matching string: String) async throws -> [$name] {
-    AssistantSnapshot.records("${e.className}")
-      .filter { \$0.title.localizedCaseInsensitiveContains(string) }
+    AssistantMatch.records(AssistantSnapshot.records("${e.className}"), matching: string, ignoring: Self.typeWords)
       .map($name.init(record:))
   }
 
   public func suggestedEntities() async throws -> [$name] {
     AssistantSnapshot.records("${e.className}").prefix(20).map($name.init(record:))
+  }
+
+  /// Everything published, plus Siri's pending changes, for requests like
+  /// "do I have any ${e.title.toLowerCase()}s".
+  public func allEntities() async throws -> [$name] {
+    AssistantSnapshot.records("${e.className}").map($name.init(record:))
   }
 }
 ''');
@@ -316,6 +324,21 @@ extension ${e.swiftName}: IndexedEntity {
         optional ? '$name.flatMap { Calendar.current.date(from: \$0) }' : 'Calendar.current.date(from: $name)',
       _ => null,
     };
+  }
+
+  /// A Swift `Set<String>` literal of the lowercased words in [names] (split
+  /// at camel-case humps and spaces, plus each name whole) and the app name.
+  String _typeWords(List<String> names) {
+    final words = <String>{};
+    for (final name in [...names, app.appName]) {
+      final spaced = name.replaceAllMapped(RegExp('([a-z0-9])([A-Z])'), (m) => '${m[1]} ${m[2]}');
+      for (final w in spaced.toLowerCase().split(RegExp(r'[^a-z0-9]+'))) {
+        if (w.isNotEmpty) words.add(w);
+      }
+      final whole = name.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
+      if (whole.isNotEmpty) words.add(whole);
+    }
+    return '[${(words.toList()..sort()).map((w) => '"$w"').join(', ')}]';
   }
 
   /// A Swift string literal for [template], with `{param}` interpolated.
@@ -603,7 +626,10 @@ struct ${name}Query: EntityStringQuery {
 }
 
 ${_availability(schema.availability)}
-struct ${name}Query: EntityStringQuery {
+struct ${name}Query: EntityStringQuery, EnumerableEntityQuery {
+  /// Words that only name the type, schema or app, so they never narrow a search.
+  static let typeWords: Set<String> = ${_typeWords([s.className, schema.title, schema.name, schema.domain])}
+
   private func all() -> [$name] { AssistantSnapshot.records("$collection").map($name.init(record:)) }
 
   func entities(for identifiers: [String]) async throws -> [$name] {
@@ -612,10 +638,15 @@ struct ${name}Query: EntityStringQuery {
   }
 
   func entities(matching string: String) async throws -> [$name] {
-    all().filter { ${_titleExpr(schema, r'$0.')}.localizedCaseInsensitiveContains(string) }
+    AssistantMatch.records(AssistantSnapshot.records("$collection"), matching: string, ignoring: Self.typeWords)
+      .map($name.init(record:))
   }
 
   func suggestedEntities() async throws -> [$name] { Array(all().prefix(20)) }
+
+  /// Everything published, plus Siri's pending changes, for general requests
+  /// like "do I have any ${schema.name}s".
+  func allEntities() async throws -> [$name] { all() }
 }
 ''');
   }

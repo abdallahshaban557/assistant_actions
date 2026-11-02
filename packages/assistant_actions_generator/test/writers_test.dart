@@ -99,6 +99,21 @@ void main() {
     });
   });
 
+  group('entity queries', () {
+    test('can list everything and match forgivingly', () {
+      final swift = SwiftWriter(_app()).write();
+      final query = swift.substring(swift.indexOf('struct TaskItemEntityQuery'));
+      expect(query, startsWith('struct TaskItemEntityQuery: EntityStringQuery, EnumerableEntityQuery {'));
+      expect(query, contains('func allEntities() async throws -> [TaskItemEntity] { all() }'));
+      expect(query, contains('AssistantMatch.records(AssistantSnapshot.records("TaskItem"), matching: string, ignoring: Self.typeWords)'));
+    });
+
+    test('type words cover the class, schema and app names', () {
+      final swift = SwiftWriter(_app()).write();
+      expect(swift, contains('static let typeWords: Set<String> = ["item", "mira", "reminder", "reminders", "task", "taskitem"]'));
+    });
+  });
+
   group('snapshot answers', () {
     test('become App Intents answered by AssistantQuery, with no Flutter call', () {
       final swift = SwiftWriter(_app()).write();
