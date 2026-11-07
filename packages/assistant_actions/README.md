@@ -26,6 +26,13 @@ flutter pub get
 dart run build_runner build
 ```
 
+> **Bump the build number whenever the generated intents or entities change**
+> (the `+N` in `pubspec.yaml`'s `version: 1.0.0+N`, which becomes
+> `CFBundleVersion`). Siri caches an app's App Intents per build number, so an
+> app rebuilt with changed actions but the same build number can keep failing
+> with `ToolDiscoveryError` / "Flow tool not found in database" until the
+> number changes. Clean-build after regenerating, too.
+
 ## Declare
 
 Everything lives in `lib/assistant_actions.dart` (and the libraries it imports):
