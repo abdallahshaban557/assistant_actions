@@ -1,6 +1,7 @@
 // Tests for the Swift that runs without Flutter (snapshot answers). Run with
 // tool/test_swift.sh, which compiles this with the runtime's Foundation-only
 // sources; no Flutter, Xcode project or simulator involved.
+import AppIntents
 import Foundation
 
 var failures = 0
@@ -140,6 +141,23 @@ check("\(AssistantValues.encode(Duration.milliseconds(1500)))", "1.5", "duration
 check("\(AssistantValues.duration(90.0)!)", "\(Duration.seconds(90))", "durations decode from seconds")
 check(AssistantValues.stringList(#"["a","b",3]"#).joined(separator: ","), "a,b", "handler id lists decode from JSON")
 check((AssistantValues.strings(["x", 1, "y"]) ?? []).joined(separator: ","), "x,y", "referenced ids decode")
+
+// People, files and recurrence rules cross as maps.
+let sam = AssistantValues.person(["name": "Sam", "email": "sam@example.com", "id": "s1"])!
+let samMap = AssistantValues.encode(sam) as! [String: Any]
+check("\(samMap["name"]!),\(samMap["email"]!),\(samMap["id"]!)", "Sam,sam@example.com,s1", "people round-trip")
+let note = IntentFile(data: Data("hi".utf8), filename: "note.txt", type: .plainText)
+let saved = AssistantValues.encode(note) as! [String: Any]
+let savedPath = saved["path"] as! String
+check(try! String(contentsOfFile: savedPath, encoding: .utf8), "hi", "files are copied to Application Support")
+check(AssistantValues.file(saved)!.filename, "note.txt", "files decode from their path")
+try? FileManager.default.removeItem(atPath: (savedPath as NSString).deletingLastPathComponent)
+if #available(macOS 15.0, *) {
+  let weekly = Calendar.RecurrenceRule.weekly(calendar: .current, interval: 2)
+  let back = AssistantValues.recurrence(AssistantValues.encode(weekly))
+  check(back == weekly ? "same" : "different", "same", "recurrence rules round-trip through JSON")
+}
+check("\(AssistantValues.items([1, "a"])!.count)", "2", "lists decode their items")
 
 if failures > 0 {
   print("\(failures) failed")

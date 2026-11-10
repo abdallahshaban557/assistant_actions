@@ -15,6 +15,7 @@
 library;
 
 import '../src/schema.dart';
+import '../src/values.dart';
 
 /// `audio.appViewIdentifier` ("Audio App View Identifier").
 enum AudioAppViewIdentifier {
@@ -569,12 +570,10 @@ class AudioPlaylist extends SchemaEntity {
   }) : super('audio.playlist');
 
   /// Handle `audio.addToPlaylist` ("Add Audio Item to Playlist"): calls
-  /// `Future<void> addToPlaylist({required String playlist})`
+  /// `Future<void> addToPlaylist({required AssistantUnion audioEntity, required String playlist})`
   /// when the app next runs (queued, like `Runs.deferred`).
   ///
   /// Add an audio item to a playlist
-  ///
-  /// Not passed to Dart yet: `audioEntity` (`union:audio.audioItem`).
   final bool addToPlaylist;
 }
 
@@ -585,13 +584,17 @@ final class AudioPlaylistSchema {
 
 /// Members of `audio.playlist`, used as field annotations:
 /// `@AudioPlaylistField.title …`.
-///
-/// Not mapped to Dart yet: `owner` (`union:audio.owner?`). Generated entities give them their empty value.
 abstract final class AudioPlaylistField {
   /// Title
   ///
   /// Read-only in the schema: Siri reads it but never sets it.
   static const title = SchemaMember<AudioPlaylistSchema, String>('audio.playlist', 'title');
+
+  /// Owner
+  ///
+  /// Read-only in the schema: Siri reads it but never sets it.
+  static const owner =
+      SchemaMember<AudioPlaylistSchema, AssistantUnion?>('audio.playlist', 'owner');
 
   /// Created by me
   ///
@@ -1008,21 +1011,17 @@ class AudioWarmupAudioQueueResult extends SchemaEntity {
   }) : super('audio.warmupAudioQueueResult');
 
   /// Handle `audio.playAudio` ("Play Audio Item"): calls
-  /// `Future<void> playAudio({required List<AudioPlaybackAttributes> playbackAttributes, String? warmupAudioQueueResult, AudioQueueInsertionLocation? queueLocation})`
+  /// `Future<void> playAudio({required AssistantUnion audioEntity, required List<AudioPlaybackAttributes> playbackAttributes, String? warmupAudioQueueResult, AudioQueueInsertionLocation? queueLocation})`
   /// live (on iOS, from the foreground).
   ///
   /// Play an audio item
-  ///
-  /// Not passed to Dart yet: `audioEntity` (`union:audio.audioItem`).
   final bool playAudio;
 
   /// Handle `audio.warmupAudioQueue` ("Warmup Audio Item in the Queue"): calls
-  /// `Future<String> warmupAudioQueue({required List<AudioPlaybackAttributes> playbackAttributes})`
+  /// `Future<String> warmupAudioQueue({required AssistantUnion audioEntity, required List<AudioPlaybackAttributes> playbackAttributes})`
   /// live (on iOS, from the foreground).
   ///
   /// Warm up an audio item by setting the queue without starting playback
-  ///
-  /// Not passed to Dart yet: `audioEntity` (`union:audio.audioItem`).
   final bool warmupAudioQueue;
 }
 
@@ -1056,12 +1055,10 @@ class AudioIntents extends SchemaIntents {
   }) : super('audio');
 
   /// Handle `audio.addToLibrary` ("Add Audio Item to Library"): calls
-  /// `Future<void> addToLibrary()`
+  /// `Future<void> addToLibrary({required AssistantUnion audioEntity})`
   /// when the app next runs (queued, like `Runs.deferred`).
   ///
   /// Add an audio item to the person’s library
-  ///
-  /// Not passed to Dart yet: `audioEntity` (`union:audio.audioItem`).
   final bool addToLibrary;
 
   /// Handle `audio.createStation` ("Create station"): calls
@@ -1072,20 +1069,16 @@ class AudioIntents extends SchemaIntents {
   final bool createStation;
 
   /// Handle `audio.recognizeAudio` ("Recognize Audio"): calls
-  /// `Future<void> recognizeAudio()`
+  /// `Future<List<AssistantUnion>> recognizeAudio()`
   /// live (on iOS, from the foreground).
   ///
   /// Find out what audio is playing nearby
-  ///
-  /// Not supported yet: it returns `[union:audio.audioItem]`, which Dart can't produce.
   final bool recognizeAudio;
 
   /// Handle `audio.updateAudioAffinity` ("Like Audio Item"): calls
-  /// `Future<void> updateAudioAffinity({required AudioAffinityState affinityState})`
+  /// `Future<void> updateAudioAffinity({required AudioAffinityState affinityState, required AssistantUnion target})`
   /// when the app next runs (queued, like `Runs.deferred`).
   ///
   /// Set the like state of an audio item to liked, unliked, or unset
-  ///
-  /// Not passed to Dart yet: `target` (`union:audio.audioItem`).
   final bool updateAudioAffinity;
 }

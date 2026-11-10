@@ -620,4 +620,102 @@ void main() {
       expect(callMethod(_load('clock').intents['clock.pauseTimer']!, null), 'pauseTimer');
     });
   });
+
+  group('people, places, files, recurrence and unions', () {
+    test('entity members map to the runtime types and back', () {
+      final attendee = _adopt('calendar.attendee', const {
+        'person': FieldModel('who', ValueType(ValueKind.person)),
+      }, className: 'Guest');
+      final place = _adopt('maps.place', const {
+        'place': FieldModel('where', ValueType(ValueKind.place)),
+      }, className: 'Spot');
+      final app = AppModel(
+          appName: 'Mira', actions: const [], entities: const [], schemaEntities: [attendee, place], catalogs: _catalogs(['calendar', 'maps']));
+      final swift = SwiftWriter(app).write();
+      expect(swift, contains('person = AssistantValues.person(record.fields["who"]) ?? IntentPerson(identifier: .unknown, name: .unknown, handle: nil)'));
+      expect(swift, contains('place = AssistantValues.place(record.fields["where"]) ?? PlaceDescriptor(representations: [.address("")], commonName: nil)'));
+      final dart = writeDart(app);
+      expect(dart, contains("'who': AssistantValue.encodePerson(e.who),"));
+      expect(dart, contains("'where': AssistantValue.encodePlace(e.where),"));
+    });
+
+    test('unions encode with their case and kind, and decode by case', () {
+      final event = _adopt('calendar.event', const {
+        'title': FieldModel('title', ValueType(ValueKind.string)),
+        'startDate': FieldModel('start', ValueType(ValueKind.dateTime)),
+        'endDate': FieldModel('end', ValueType(ValueKind.dateTime)),
+        'calendar': FieldModel('calendarId', ValueType(ValueKind.entityId, entityRef: 'calendar.calendar')),
+        'location': FieldModel('location', ValueType(ValueKind.union, nullable: true)),
+        'recurrence': FieldModel('repeats', ValueType(ValueKind.recurrence, nullable: true)),
+      }, className: 'Event');
+      final calendar = _adopt('calendar.calendar', const {'title': FieldModel('name', ValueType(ValueKind.string))},
+          className: 'Calendar');
+      final app = AppModel(appName: 'Mira', actions: const [], entities: const [], schemaEntities: [event, calendar]);
+      final swift = SwiftWriter(app).write();
+      expect(swift, contains('extension CalendarLocationUnion: AssistantEncodable {'));
+      expect(swift, contains('case .place(let value): AssistantValues.encodeCase("place", kind: "placeDescriptor", AssistantValues.encode(value))'));
+      expect(swift, contains('case "address": return (AssistantValues.string(raw)).map { .address(\$0) }'));
+      expect(swift, contains('location = CalendarLocationUnion.decode(record.fields["location"])'));
+      expect(swift, contains('recurrence = AssistantValues.recurrence(record.fields["repeats"])'));
+      final create = swift.substring(swift.indexOf('struct EventCreateEventIntent'));
+      expect(create, contains('fields["location"] = AssistantValues.encode(location)'));
+      final dart = writeDart(app);
+      expect(dart, contains("location: AssistantValue.union(f['location']),"));
+      expect(dart, contains("repeats: AssistantValue.recurrence(f['repeats']),"));
+    });
+
+    test('call parameters pass files, people and places to Dart', () {
+      final slide = _adopt('presentation.slide', const {
+        'presentation': FieldModel('deckId', ValueType(ValueKind.entityId, entityRef: 'presentation.document')),
+        'slideIndex': FieldModel('index', ValueType(ValueKind.integer)),
+      }, className: 'Slide');
+      final deck = _adopt('presentation.document', const {'name': FieldModel('name', ValueType(ValueKind.string))},
+          className: 'Deck');
+      final app = AppModel(
+          appName: 'Mira',
+          actions: const [],
+          entities: const [],
+          schemaEntities: [slide, deck],
+          catalogs: _catalogs(['presentation']));
+      final dart = writeDart(app);
+      expect(dart, contains('Future<void> addImageToSlide({required AssistantFile image, required String target});'));
+      expect(dart, contains("image: AssistantValue.file(args['image']) ?? (throw ArgumentError.notNull('image'))"));
+      final swift = SwiftWriter(app).write();
+      expect(swift, contains('"image": AssistantValues.encode(image),'));
+      expect(droppedArgs(_load('presentation').intents['presentation.addImageToSlide']!), isEmpty);
+    });
+  });
+
+  test('list members map to Dart lists: journal media, reminder tags', () {
+    final entry = _adopt('journal.entry', const {
+      'message': FieldModel('text', ValueType(ValueKind.string)),
+      'mediaItems': FieldModel('media', ValueType(ValueKind.file, list: true)),
+    }, className: 'Entry');
+    final tags = _adopt('reminders.reminder', const {
+      'title': FieldModel('title', ValueType(ValueKind.string)),
+      'tags': FieldModel('tags', ValueType(ValueKind.string, list: true)),
+    }, className: 'Task');
+    final app = AppModel(appName: 'Mira', actions: const [], entities: const [], schemaEntities: [entry]);
+    final swift = SwiftWriter(app).write();
+    expect(swift, contains(r'mediaItems = (AssistantValues.items(record.fields["media"]) ?? []).compactMap { AssistantValues.file($0) }'));
+    final create = swift.substring(swift.indexOf('struct EntryCreateEntryIntent'));
+    expect(create, contains(r'fields["media"] = mediaItems.map { AssistantValues.encode($0) }'));
+    final dart = writeDart(app);
+    expect(dart, contains("'media': e.media.map((e) => AssistantValue.encodeFile(e)).toList(),"));
+    expect(dart, contains("media: AssistantValue.list(f['media'], (v) => AssistantValue.file(v)),"));
+    expect(dart, contains('final List<AssistantFile>? media;'));
+    final reminders = SwiftWriter(AppModel(appName: 'Mira', actions: const [], entities: const [], schemaEntities: [
+      SchemaEntityModel(
+        className: tags.className,
+        library: tags.library,
+        catalog: tags.catalog,
+        schema: tags.schema,
+        idField: 'id',
+        mapping: tags.mapping,
+        intents: const [],
+        containers: {'list': const FixedInstance(schema: 'reminders.list', id: 'l', strings: {'name': 'L'}, nested: {})},
+      ),
+    ])).write();
+    expect(reminders, contains(r'tags = Set((AssistantValues.items(record.fields["tags"]) ?? []).compactMap { AssistantValues.string($0) })'));
+  });
 }

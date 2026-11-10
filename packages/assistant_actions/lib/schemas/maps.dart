@@ -15,6 +15,7 @@
 library;
 
 import '../src/schema.dart';
+import '../src/values.dart';
 
 /// `maps.incident` ("Traffic Incident"), whose cases the app defines: put `@MapsIncident()` on a
 /// Dart enum, and each of its values becomes a case Siri can use.
@@ -99,21 +100,17 @@ class MapsNavigationSession extends SchemaEntity {
   }) : super('maps.navigationSession');
 
   /// Handle `maps.startNavigation` ("Start Navigation"): calls
-  /// `Future<String> startNavigation({required Enum transportationType, required List<Enum> preferences})`
+  /// `Future<String> startNavigation({required Enum transportationType, required AssistantUnion origin, required List<AssistantUnion> destinations, required List<Enum> preferences})`
   /// live (on iOS, from the foreground).
   ///
   /// Start Navigation
-  ///
-  /// Not passed to Dart yet: `origin` (`union:maps.location`), `destinations` (`[union:maps.location]`).
   final bool startNavigation;
 
   /// Handle `maps.updateNavigationWaypoints` ("Update Navigation Waypoints"): calls
-  /// `Future<String> updateNavigationWaypoints({required String navigation})`
+  /// `Future<String> updateNavigationWaypoints({required String navigation, required List<AssistantUnion> waypoints})`
   /// live (on iOS, from the foreground).
   ///
   /// Update the list of waypoints for a navigation session.
-  ///
-  /// Not passed to Dart yet: `waypoints` (`[union:maps.location]`).
   final bool updateNavigationWaypoints;
 
   /// Handle `maps.stopNavigation` ("End Navigation"): calls
@@ -131,8 +128,6 @@ final class MapsNavigationSessionSchema {
 
 /// Members of `maps.navigationSession`, used as field annotations:
 /// `@MapsNavigationSessionField.estimatedArrivalDate …`.
-///
-/// Not mapped to Dart yet: `waypoints` (`[union:maps.location]`), `preferences` (`[openEnum]`). Generated entities give them their empty value.
 abstract final class MapsNavigationSessionField {
   /// Estimated Arrival Date
   ///
@@ -140,11 +135,23 @@ abstract final class MapsNavigationSessionField {
   static const estimatedArrivalDate = SchemaMember<MapsNavigationSessionSchema, DateTime>(
       'maps.navigationSession', 'estimatedArrivalDate');
 
+  /// Waypoints
+  ///
+  /// Read-only in the schema: Siri reads it but never sets it.
+  static const waypoints = SchemaMember<MapsNavigationSessionSchema, List<AssistantUnion>>(
+      'maps.navigationSession', 'waypoints');
+
   /// Transportation Type
   ///
   /// Read-only in the schema: Siri reads it but never sets it.
   static const transportationType = SchemaMember<MapsNavigationSessionSchema, Enum>(
       'maps.navigationSession', 'transportationType');
+
+  /// Preferences
+  ///
+  /// Read-only in the schema: Siri reads it but never sets it.
+  static const preferences = SchemaMember<MapsNavigationSessionSchema, List<Enum>>(
+      'maps.navigationSession', 'preferences');
 }
 
 // ──────────────────────────────────────────────────────────────────────
@@ -170,13 +177,21 @@ final class MapsPlaceSchema {
 
 /// Members of `maps.place`, used as field annotations:
 /// `@MapsPlaceField.name …`.
-///
-/// Not mapped to Dart yet: `place` (`placeDescriptor`), `categories` (`[string]`), `amenities` (`[string]`). Generated entities give them their empty value.
 abstract final class MapsPlaceField {
+  /// Place
+  ///
+  /// Read-only in the schema: Siri reads it but never sets it.
+  static const place = SchemaMember<MapsPlaceSchema, AssistantPlace>('maps.place', 'place');
+
   /// Name
   ///
   /// Read-only in the schema: Siri reads it but never sets it.
   static const name = SchemaMember<MapsPlaceSchema, String?>('maps.place', 'name');
+
+  /// Categories
+  ///
+  /// Read-only in the schema: Siri reads it but never sets it.
+  static const categories = SchemaMember<MapsPlaceSchema, List<String>>('maps.place', 'categories');
 
   /// Operating Status
   ///
@@ -208,6 +223,11 @@ abstract final class MapsPlaceField {
   ///
   /// The ids of `maps.rating` items, which the app must adopt too.
   static const ratings = SchemaMember<MapsPlaceSchema, List<String>>('maps.place', 'ratings');
+
+  /// Amenities
+  ///
+  /// Read-only in the schema: Siri reads it but never sets it.
+  static const amenities = SchemaMember<MapsPlaceSchema, List<String>>('maps.place', 'amenities');
 }
 
 // ──────────────────────────────────────────────────────────────────────
@@ -379,21 +399,17 @@ class MapsIntents extends SchemaIntents {
   }) : super('maps');
 
   /// Handle `maps.shareETA` ("Share ETA"): calls
-  /// `Future<void> shareETA()`
+  /// `Future<void> shareETA({required AssistantPerson person})`
   /// when the app next runs (queued, like `Runs.deferred`).
   ///
   /// Share ETA to a contact while navigating
-  ///
-  /// Not passed to Dart yet: `person` (`person`).
   final bool shareETA;
 
   /// Handle `maps.stopShareETA` ("Stop Sharing ETA"): calls
-  /// `Future<void> stopShareETA()`
+  /// `Future<void> stopShareETA({AssistantPerson? person})`
   /// when the app next runs (queued, like `Runs.deferred`).
   ///
   /// Stop Sharing ETA
-  ///
-  /// Not passed to Dart yet: `person` (`person?`).
   final bool stopShareETA;
 
   /// Handle `maps.reportIncident` ("Report Traffic Incident"): calls

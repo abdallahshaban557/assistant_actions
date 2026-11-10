@@ -2,7 +2,22 @@ import 'catalog.dart';
 import 'schema_calls.dart';
 
 /// A Dart value type the generator can pass between Swift and Dart.
-enum ValueKind { string, integer, decimal, boolean, dateTime, uri, duration, enumeration, entityId }
+enum ValueKind {
+  string,
+  integer,
+  decimal,
+  boolean,
+  dateTime,
+  uri,
+  duration,
+  enumeration,
+  entityId,
+  person,
+  place,
+  file,
+  recurrence,
+  union,
+}
 
 class ValueType {
   const ValueType(this.kind, {this.nullable = false, this.enumRef, this.entityRef, this.list = false, this.appEnum});
@@ -11,6 +26,13 @@ class ValueType {
   final String? appEnum;
 
   String get _enumDart => appEnum ?? dartEnumName(enumRef!);
+
+  /// A list of this type: `List<AssistantFile>`.
+  ValueType asList({bool nullable = false}) =>
+      ValueType(kind, nullable: nullable, enumRef: enumRef, entityRef: entityRef, list: true, appEnum: appEnum);
+
+  /// The element type of a list.
+  ValueType get element => ValueType(kind, enumRef: enumRef, entityRef: entityRef, appEnum: appEnum);
 
   /// The schema entity an [ValueKind.entityId] names items of.
   final String? entityRef;
@@ -25,7 +47,9 @@ class ValueType {
   /// `camera.captureMode` (Dart `CameraCaptureMode`).
   final String? enumRef;
 
-  String get dart => '${switch (kind) {
+  String get dart => list ? 'List<${element.dart}>${nullable ? '?' : ''}' : _dart;
+
+  String get _dart => '${switch (kind) {
         ValueKind.string => 'String',
         ValueKind.integer => 'int',
         ValueKind.decimal => 'double',
@@ -34,7 +58,12 @@ class ValueType {
         ValueKind.uri => 'Uri',
         ValueKind.duration => 'Duration',
         ValueKind.enumeration => _enumDart,
-        ValueKind.entityId => list ? 'List<String>' : 'String',
+        ValueKind.entityId => 'String',
+        ValueKind.person => 'AssistantPerson',
+        ValueKind.place => 'AssistantPlace',
+        ValueKind.file => 'AssistantFile',
+        ValueKind.recurrence => 'AssistantRecurrence',
+        ValueKind.union => 'AssistantUnion',
       }}${nullable ? '?' : ''}';
 
   String get swift => '${switch (kind) {
@@ -46,6 +75,8 @@ class ValueType {
         ValueKind.uri => 'URL',
         ValueKind.duration => 'Duration',
         ValueKind.enumeration || ValueKind.entityId => 'String',
+        // Schema members only, whose Swift types the writer takes from the schema.
+        ValueKind.person || ValueKind.place || ValueKind.file || ValueKind.recurrence || ValueKind.union => 'Any',
       }}${nullable ? '?' : ''}';
 
   /// `AssistantValue.<decoder>` in Dart, `AssistantValues.<decoder>` in Swift.
@@ -59,6 +90,11 @@ class ValueType {
         ValueKind.duration => 'duration',
         ValueKind.enumeration => 'enumeration',
         ValueKind.entityId => 'string',
+        ValueKind.person => 'person',
+        ValueKind.place => 'place',
+        ValueKind.file => 'file',
+        ValueKind.recurrence => 'recurrence',
+        ValueKind.union => 'union',
       };
 
   String get swiftDecoder => switch (kind) {
@@ -70,21 +106,39 @@ class ValueType {
         ValueKind.uri => 'url',
         ValueKind.duration => 'duration',
         ValueKind.enumeration || ValueKind.entityId => 'string',
+        ValueKind.person => 'person',
+        ValueKind.place => 'place',
+        ValueKind.file => 'file',
+        ValueKind.recurrence => 'recurrence',
+        ValueKind.union => 'union',
       };
 
   /// Dart expression decoding [expr] (what Swift sent), nullable.
-  String decodeDart(String expr) => switch (kind) {
-        ValueKind.enumeration => 'AssistantValue.enumeration($_enumDart.values, $expr)',
-        ValueKind.entityId when list => 'AssistantValue.list($expr, AssistantValue.string)',
-        _ => 'AssistantValue.$dartDecoder($expr)',
-      };
+  String decodeDart(String expr) {
+    if (list) return 'AssistantValue.list($expr, (v) => ${element.decodeDart('v')})';
+    return switch (kind) {
+      ValueKind.enumeration => 'AssistantValue.enumeration($_enumDart.values, $expr)',
+      _ => 'AssistantValue.$dartDecoder($expr)',
+    };
+  }
 
   /// Dart expression encoding [expr] for Swift.
-  String encodeDart(String expr) => switch (kind) {
+  String encodeDart(String expr) {
+    if (!list) return _encodeDart(expr);
+    final each = element._encodeDart('e');
+    return each == 'e' ? expr : '$expr${nullable ? '?' : ''}.map((e) => $each).toList()';
+  }
+
+  String _encodeDart(String expr) => switch (kind) {
         ValueKind.dateTime => 'AssistantValue.encodeDate($expr)',
         ValueKind.uri => nullable ? '$expr?.toString()' : '$expr.toString()',
         ValueKind.duration => 'AssistantValue.encodeDuration($expr)',
         ValueKind.enumeration => 'AssistantValue.encodeEnum($expr)',
+        ValueKind.person => 'AssistantValue.encodePerson($expr)',
+        ValueKind.place => 'AssistantValue.encodePlace($expr)',
+        ValueKind.file => 'AssistantValue.encodeFile($expr)',
+        ValueKind.recurrence => 'AssistantValue.encodeRecurrence($expr)',
+        ValueKind.union => 'AssistantValue.encodeUnion($expr)',
         _ => expr,
       };
 }
@@ -99,6 +153,11 @@ ValueType valueTypeFor(SchemaType element, [Map<String, String> openEnums = cons
       'duration' => const ValueType(ValueKind.duration),
       'enum' => ValueType(ValueKind.enumeration, enumRef: element.ref),
       'openEnum' => ValueType(ValueKind.enumeration, enumRef: element.ref, appEnum: openEnums[element.ref]),
+      'person' => const ValueType(ValueKind.person),
+      'placeDescriptor' => const ValueType(ValueKind.place),
+      'file' => const ValueType(ValueKind.file),
+      'recurrenceRule' => const ValueType(ValueKind.recurrence),
+      'union' => const ValueType(ValueKind.union),
       _ => const ValueType(ValueKind.string),
     };
 

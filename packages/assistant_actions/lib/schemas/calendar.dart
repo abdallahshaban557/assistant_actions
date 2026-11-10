@@ -10,6 +10,7 @@
 library;
 
 import '../src/schema.dart';
+import '../src/values.dart';
 
 /// `calendar.attendeeType` ("Attendee Type"), whose cases the app defines: put `@CalendarAttendeeType()` on a
 /// Dart enum, and each of its values becomes a case Siri can use.
@@ -55,10 +56,14 @@ final class CalendarAttendeeSchema {
 }
 
 /// Members of `calendar.attendee`, used as field annotations:
-/// `@CalendarAttendeeField.status …`.
-///
-/// Not mapped to Dart yet: `person` (`person`). Generated entities give them their empty value.
+/// `@CalendarAttendeeField.person …`.
 abstract final class CalendarAttendeeField {
+  /// Person
+  ///
+  /// Read-only in the schema: Siri reads it but never sets it.
+  static const person =
+      SchemaMember<CalendarAttendeeSchema, AssistantPerson>('calendar.attendee', 'person');
+
   /// Status
   ///
   /// Read-only in the schema: Siri reads it but never sets it.
@@ -141,12 +146,10 @@ class CalendarEvent extends SchemaEntity {
   final bool deleteEvent;
 
   /// Handle `calendar.updateEvent` ("Update Event"): calls
-  /// `Future<String> updateEvent({required String event, String? title, List<String>? attendees, DateTime? startDate, DateTime? endDate, bool? isAllDay, String? calendar, String? note, CalendarEventSpan? span})`
+  /// `Future<String> updateEvent({required String event, String? title, List<String>? attendees, DateTime? startDate, DateTime? endDate, bool? isAllDay, String? calendar, AssistantRecurrence? recurrence, String? note, AssistantUnion? location, CalendarEventSpan? span})`
   /// live (on iOS, from the foreground).
   ///
   /// Updates a calendar event.
-  ///
-  /// Not passed to Dart yet: `recurrence` (`recurrenceRule?`), `location` (`union:calendar.location?`).
   final bool updateEvent;
 }
 
@@ -157,8 +160,6 @@ final class CalendarEventSchema {
 
 /// Members of `calendar.event`, used as field annotations:
 /// `@CalendarEventField.title …`.
-///
-/// Not mapped to Dart yet: `recurrence` (`recurrenceRule?`), `location` (`union:calendar.location?`), `alarms` (`[union:calendar.eventAlarm]`), `organizers` (`[person]`). Generated entities give them their empty value.
 abstract final class CalendarEventField {
   /// Calendar
   ///
@@ -188,6 +189,12 @@ abstract final class CalendarEventField {
   /// Read-only in the schema: Siri reads it but never sets it.
   static const isAllDay = SchemaMember<CalendarEventSchema, bool>('calendar.event', 'isAllDay');
 
+  /// Recurrence
+  ///
+  /// Read-only in the schema: Siri reads it but never sets it.
+  static const recurrence =
+      SchemaMember<CalendarEventSchema, AssistantRecurrence?>('calendar.event', 'recurrence');
+
   /// Note
   ///
   /// Read-only in the schema: Siri reads it but never sets it.
@@ -198,6 +205,12 @@ abstract final class CalendarEventField {
   /// Read-only in the schema: Siri reads it but never sets it.
   static const travelTime =
       SchemaMember<CalendarEventSchema, Duration?>('calendar.event', 'travelTime');
+
+  /// Location
+  ///
+  /// Read-only in the schema: Siri reads it but never sets it.
+  static const location =
+      SchemaMember<CalendarEventSchema, AssistantUnion?>('calendar.event', 'location');
 
   /// Virtual Location
   ///
@@ -210,6 +223,18 @@ abstract final class CalendarEventField {
   /// Read-only in the schema: Siri reads it but never sets it.
   static const status =
       SchemaMember<CalendarEventSchema, CalendarEventStatus?>('calendar.event', 'status');
+
+  /// Alarms
+  ///
+  /// Read-only in the schema: Siri reads it but never sets it.
+  static const alarms =
+      SchemaMember<CalendarEventSchema, List<AssistantUnion>>('calendar.event', 'alarms');
+
+  /// Organizers
+  ///
+  /// Read-only in the schema: Siri reads it but never sets it.
+  static const organizers =
+      SchemaMember<CalendarEventSchema, List<AssistantPerson>>('calendar.event', 'organizers');
 
   /// Attendees
   ///

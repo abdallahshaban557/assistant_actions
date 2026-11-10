@@ -12,6 +12,7 @@
 library;
 
 import '../src/schema.dart';
+import '../src/values.dart';
 
 /// `phone.audioVisualMode` ("Audio Visual Mode").
 enum PhoneAudioVisualMode {
@@ -36,7 +37,11 @@ final class PhonePhonePersonSchema {
 }
 
 /// Members of `phone.phonePerson`, used as field annotations:
-/// `@PhonePhonePersonField.member …`.
-///
-/// Not mapped to Dart yet: `person` (`person`). Generated entities give them their empty value.
-abstract final class PhonePhonePersonField {}
+/// `@PhonePhonePersonField.person …`.
+abstract final class PhonePhonePersonField {
+  /// Person
+  ///
+  /// Read-only in the schema: Siri reads it but never sets it.
+  static const person =
+      SchemaMember<PhonePhonePersonSchema, AssistantPerson>('phone.phonePerson', 'person');
+}

@@ -54,30 +54,24 @@ class SpreadsheetSheet extends SchemaEntity {
   final bool updateSheet;
 
   /// Handle `spreadsheet.addImageToSheet` ("Add Image to Sheet"): calls
-  /// `Future<void> addImageToSheet({required String target})`
+  /// `Future<void> addImageToSheet({required AssistantFile image, required String target})`
   /// when the app next runs (queued, like `Runs.deferred`).
   ///
   /// Adds an image to a sheet.
-  ///
-  /// Not passed to Dart yet: `image` (`file`).
   final bool addImageToSheet;
 
   /// Handle `spreadsheet.addVideoToSheet` ("Add Video to Sheet"): calls
-  /// `Future<void> addVideoToSheet({required String target})`
+  /// `Future<void> addVideoToSheet({required AssistantFile video, required String target})`
   /// when the app next runs (queued, like `Runs.deferred`).
   ///
   /// Adds a video to a sheet.
-  ///
-  /// Not passed to Dart yet: `video` (`file`).
   final bool addVideoToSheet;
 
   /// Handle `spreadsheet.addAudioToSheet` ("Add Audio to Sheet"): calls
-  /// `Future<void> addAudioToSheet({required String target})`
+  /// `Future<void> addAudioToSheet({required AssistantFile audio, required String target})`
   /// when the app next runs (queued, like `Runs.deferred`).
   ///
   /// Adds an audio clip to a sheet.
-  ///
-  /// Not passed to Dart yet: `audio` (`file`).
   final bool addAudioToSheet;
 
   /// Handle `spreadsheet.addTextBoxToSheet` ("Add Text to Sheet"): calls

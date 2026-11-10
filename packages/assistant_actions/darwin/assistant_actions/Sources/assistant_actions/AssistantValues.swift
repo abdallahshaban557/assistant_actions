@@ -33,6 +33,12 @@ public enum AssistantValues {
       ?? (value as? Int).map { Duration.seconds($0) }
   }
 
+  /// What a Dart handler returned as JSON.
+  public static func json(_ reply: String?) -> Any? {
+    guard let data = reply?.data(using: .utf8) else { return nil }
+    return try? JSONSerialization.jsonObject(with: data, options: [.fragmentsAllowed])
+  }
+
   /// The ids a Dart handler returned, as a JSON array.
   public static func stringList(_ reply: String?) -> [String] {
     guard let data = reply?.data(using: .utf8),
@@ -58,6 +64,9 @@ public enum AssistantValues {
   }
 
   public static func string(_ value: Any?) -> String? { value as? String }
+
+  /// The elements of a list Dart sent.
+  public static func items(_ value: Any?) -> [Any]? { value as? [Any] }
 
   /// Ids of referenced items.
   public static func strings(_ value: Any?) -> [String]? { (value as? [Any])?.compactMap { $0 as? String } }

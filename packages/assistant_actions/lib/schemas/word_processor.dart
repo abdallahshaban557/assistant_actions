@@ -157,30 +157,24 @@ class WordProcessorPage extends SchemaEntity {
   final bool addTextBoxToPage;
 
   /// Handle `wordProcessor.addVideoToPage` ("Add Video to Page"): calls
-  /// `Future<void> addVideoToPage({required String target})`
+  /// `Future<void> addVideoToPage({required AssistantFile video, required String target})`
   /// when the app next runs (queued, like `Runs.deferred`).
   ///
   /// Adds a video to a page.
-  ///
-  /// Not passed to Dart yet: `video` (`file`).
   final bool addVideoToPage;
 
   /// Handle `wordProcessor.addImageToPage` ("Add Image to Page"): calls
-  /// `Future<void> addImageToPage({required String target})`
+  /// `Future<void> addImageToPage({required AssistantFile image, required String target})`
   /// when the app next runs (queued, like `Runs.deferred`).
   ///
   /// Adds an image to a page.
-  ///
-  /// Not passed to Dart yet: `image` (`file`).
   final bool addImageToPage;
 
   /// Handle `wordProcessor.addAudioToPage` ("Add Audio to Page"): calls
-  /// `Future<void> addAudioToPage({required String target})`
+  /// `Future<void> addAudioToPage({required AssistantFile audio, required String target})`
   /// when the app next runs (queued, like `Runs.deferred`).
   ///
   /// Adds an audio clip to a page.
-  ///
-  /// Not passed to Dart yet: `audio` (`file`).
   final bool addAudioToPage;
 
   /// Handle `wordProcessor.addWebVideoToPage` ("Add Web Video to Page"): calls

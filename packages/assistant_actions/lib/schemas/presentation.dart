@@ -66,30 +66,24 @@ class PresentationSlide extends SchemaEntity {
   final bool setSlideTitle;
 
   /// Handle `presentation.addImageToSlide` ("Add Image to Slide"): calls
-  /// `Future<void> addImageToSlide({required String target})`
+  /// `Future<void> addImageToSlide({required AssistantFile image, required String target})`
   /// live, with the app in the foreground.
   ///
   /// Adds an image to a slide.
-  ///
-  /// Not passed to Dart yet: `image` (`file`).
   final bool addImageToSlide;
 
   /// Handle `presentation.addVideoToSlide` ("Add Video to Slide"): calls
-  /// `Future<void> addVideoToSlide({required String target})`
+  /// `Future<void> addVideoToSlide({required AssistantFile video, required String target})`
   /// live, with the app in the foreground.
   ///
   /// Adds a video to a slide.
-  ///
-  /// Not passed to Dart yet: `video` (`file`).
   final bool addVideoToSlide;
 
   /// Handle `presentation.addAudioToSlide` ("Add Audio to Slide"): calls
-  /// `Future<void> addAudioToSlide({required String target})`
+  /// `Future<void> addAudioToSlide({required AssistantFile audio, required String target})`
   /// live, with the app in the foreground.
   ///
   /// Adds an audio clip to a slide.
-  ///
-  /// Not passed to Dart yet: `audio` (`file`).
   final bool addAudioToSlide;
 
   /// Handle `presentation.addTextBoxToSlide` ("Add Text Box to Slide"): calls

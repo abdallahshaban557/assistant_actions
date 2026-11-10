@@ -124,4 +124,17 @@ void main() {
     await AssistantActions.perform('system.searchInApp', '{"criteria":"lake"}');
     expect(store.onScreen, 'search "lake"');
   });
+
+  test('Siri attaches files and a place to a journal entry', () async {
+    await apply(const InboxChange(kind: 'create', collection: 'JournalItem', id: 'j2', fields: {
+      'text': 'Voice note',
+      'media': [
+        {'path': '/tmp/note.m4a', 'name': 'note.m4a', 'type': 'com.apple.m4a-audio'},
+      ],
+      'place': {'name': 'Lake', 'latitude': 47.6, 'longitude': -122.3},
+    }));
+    final entry = store.journal.single;
+    expect(entry.media.single.path, '/tmp/note.m4a');
+    expect(entry.place?.name, 'Lake');
+  });
 }

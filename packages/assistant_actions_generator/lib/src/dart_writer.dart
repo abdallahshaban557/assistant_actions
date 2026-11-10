@@ -24,7 +24,7 @@ String writeDart(AppModel app) {
       for (final (i, k) in s.intents)
         if (k == IntentKind.call) i,
     for (final d in app.schemaDomains) ...d.intents,
-  ].any((i) => callResult(i) == CallResult.entities);
+  ].any((i) => const {CallResult.entities, CallResult.union, CallResult.unions}.contains(callResult(i)));
   if (returnsLists) out.writeln("import 'dart:convert';");
   out
     ..writeln()
@@ -328,8 +328,13 @@ void _callMethod(StringBuffer out, IntentSchema intent, EntitySchema? owner, Map
       break;
     }
   }
-  if (callResult(intent) != CallResult.none) {
-    out.writeln('  ///\n  /// Return the id of the ${resultEntity(intent)} item(s), published first, for Siri to show.');
+  switch (callResult(intent)) {
+    case CallResult.entity || CallResult.entities:
+      out.writeln('  ///\n  /// Return the id of the ${resultEntity(intent)} item(s), published first, for Siri to show.');
+    case CallResult.union || CallResult.unions:
+      out.writeln('  ///\n  /// Return `${intent.result!.element.ref}` case(s). Entity cases are ids of items the app '
+          'adopts and has published.');
+    default:
   }
   out.writeln('  ${callSignature(intent, owner, openEnums)};');
 }
@@ -356,6 +361,8 @@ void _callEntry(
     ..writeln(switch (callResult(intent)) {
       CallResult.entity => '      return await $call;',
       CallResult.entities => '      return jsonEncode(await $call);',
+      CallResult.union => '      return jsonEncode(AssistantValue.encodeUnion(await $call));',
+      CallResult.unions => '      return jsonEncode([for (final u in await $call) AssistantValue.encodeUnion(u)]);',
       _ => '      await $call;\n      return null;',
     })
     ..writeln('    },');

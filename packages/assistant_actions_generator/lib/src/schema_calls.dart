@@ -34,8 +34,12 @@ String dartEnumName(String id) {
 }
 
 /// Dart type for a schema member, when the generator can map one; null for
-/// types only Swift handles (files, people, places, unions, recurrence rules,
-/// …).
+/// types only Swift handles (link metadata, visual scenes) and lists of
+/// values.
+///
+/// People, places, files, recurrence rules and unions are the runtime's
+/// `AssistantPerson`, `AssistantPlace`, `AssistantFile`,
+/// `AssistantRecurrence` and `AssistantUnion`.
 ///
 /// A member that is another entity (or a list of them) maps to its id (or
 /// ids): a `String` (`List<String>`) naming an item of an entity the app
@@ -47,6 +51,11 @@ String? dartTypeFor(SchemaType type, [Map<String, String> openEnums = const {}])
   final t = type.base;
   if (t.kind == 'entity' && t.ref != null) return type.isOptional ? 'String?' : 'String';
   if (t.isList && t.of!.base.kind == 'entity' && t.of!.base.ref != null) return 'List<String>';
+  if (t.isList) {
+    final element = dartElementType(t.of!.base, openEnums);
+    if (element == null) return null;
+    return type.isOptional ? 'List<$element>?' : 'List<$element>';
+  }
   final base = dartElementType(type.base, openEnums);
   if (base == null) return null;
   return type.isOptional ? '$base?' : base;
@@ -63,6 +72,11 @@ String? dartElementType(SchemaType t, [Map<String, String> openEnums = const {}]
       'duration' => 'Duration',
       'enum' => dartEnumName(t.ref!),
       'openEnum' => openEnums[t.ref] ?? 'Enum',
+      'person' => 'AssistantPerson',
+      'placeDescriptor' => 'AssistantPlace',
+      'file' => 'AssistantFile',
+      'recurrenceRule' => 'AssistantRecurrence',
+      'union' => 'AssistantUnion',
       _ => null,
     };
 
@@ -126,7 +140,13 @@ enum CallResult {
   /// Ids of items of the result entity.
   entities,
 
-  /// A result Dart can't produce yet (a union).
+  /// One case of the result union (an `AssistantUnion`).
+  union,
+
+  /// Cases of the result union.
+  unions,
+
+  /// A result Dart can't produce.
   unsupported,
 }
 
@@ -135,6 +155,8 @@ CallResult callResult(IntentSchema intent) {
   if (r == null) return CallResult.none;
   if (r.base.kind == 'entity' && r.base.ref != null) return CallResult.entity;
   if (r.base.isList && r.base.of!.base.kind == 'entity' && r.base.of!.base.ref != null) return CallResult.entities;
+  if (r.base.kind == 'union') return CallResult.union;
+  if (r.base.isList && r.base.of!.base.kind == 'union') return CallResult.unions;
   return CallResult.unsupported;
 }
 
@@ -167,6 +189,8 @@ String callSignature(IntentSchema intent, EntitySchema? owner, [Map<String, Stri
   final returns = switch (callResult(intent)) {
     CallResult.entity => 'String',
     CallResult.entities => 'List<String>',
+    CallResult.union => 'AssistantUnion',
+    CallResult.unions => 'List<AssistantUnion>',
     _ => 'void',
   };
   return 'Future<$returns> ${callMethod(intent, owner)}(${args.isEmpty ? '' : '{${args.join(', ')}}'})';

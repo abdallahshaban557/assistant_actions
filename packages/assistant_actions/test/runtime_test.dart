@@ -162,6 +162,23 @@ void main() {
     expect(const FixedList(id: 'tasks', name: 'Tasks'), isA<FixedRemindersList>());
     expect(NoteField.name, same(NotesNoteField.name));
   });
+
+  test('people, places, files, recurrence and unions round-trip as maps', () {
+    const person = AssistantPerson(name: 'Sam', email: 'sam@example.com');
+    expect(AssistantValue.person(AssistantValue.encodePerson(person)), person);
+    const place = AssistantPlace(name: 'Lake', latitude: 1.5, longitude: -2);
+    expect(AssistantValue.place(AssistantValue.encodePlace(place)), place);
+    const file = AssistantFile(path: '/tmp/a.m4a', name: 'a.m4a', type: 'com.apple.m4a-audio');
+    expect(AssistantValue.file(AssistantValue.encodeFile(file)), file);
+    expect(AssistantValue.file({'name': 'no path'}), isNull);
+    final rule = AssistantValue.recurrence({'frequency': 'weekly', 'interval': 2})!;
+    expect((rule.frequency, rule.interval), ('weekly', 2));
+    final union = AssistantValue.union({'case': 'place', 'kind': 'placeDescriptor', 'value': place.toJson()});
+    expect(union, const AssistantUnion('place', place));
+    expect(AssistantValue.union({'case': 'date', 'kind': 'date', 'value': 0})!.value, DateTime.fromMillisecondsSinceEpoch(0));
+    expect(AssistantValue.encodeUnion(AssistantUnion('when', DateTime.fromMillisecondsSinceEpoch(1500))),
+        {'case': 'when', 'value': 1.5});
+  });
 }
 
 enum _Case { a, b, this$ }

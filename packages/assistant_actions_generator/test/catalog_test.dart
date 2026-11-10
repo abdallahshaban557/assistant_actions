@@ -59,7 +59,8 @@ void main() {
     expect(library, contains('required this.list,'));
     expect(library,
         contains("static const dueDate = SchemaMember<RemindersReminderSchema, DateTime?>('reminders.reminder', 'dueDate');"));
-    expect(library, isNot(contains('static const tags')), reason: 'sets have no Dart mapping');
+    expect(library, contains("static const tags = SchemaMember<RemindersReminderSchema, List<String>>('reminders.reminder', 'tags');"),
+        reason: 'sets map to lists');
     expect(library, contains('class FixedRemindersList extends SchemaContainer'));
     expect(library, isNot(contains('class FixedRemindersLocationTrigger')));
     // Names from before domain prefixes stay as aliases.
@@ -70,7 +71,11 @@ void main() {
   test('Dart types follow the schema types', () {
     expect(dartTypeFor(const SchemaType('attributedString')), 'String');
     expect(dartTypeFor(const SchemaType('optional', of: SchemaType('dateComponents'))), 'DateTime?');
-    expect(dartTypeFor(const SchemaType('file')), isNull);
+    expect(dartTypeFor(const SchemaType('file')), 'AssistantFile');
+    expect(dartTypeFor(const SchemaType('optional', of: SchemaType('placeDescriptor'))), 'AssistantPlace?');
+    expect(dartTypeFor(const SchemaType('linkMetadata')), isNull);
+    expect(dartTypeFor(const SchemaType('array', of: SchemaType('file'))), 'List<AssistantFile>');
+    expect(dartTypeFor(const SchemaType('array', of: SchemaType('linkMetadata'))), isNull);
   });
 
   group('journal', () {
@@ -120,7 +125,7 @@ void main() {
       expect(IntentSchema.fromJson(audio.id, audio.toJson()).recordsAudio, isTrue, reason: 'round-trips');
     });
 
-    test('typed schema library maps title, message and entryDate, not files or places', () {
+    test('typed schema library maps every journal member', () {
       final library = generateSchemaLibrary(journal);
       expect(library, contains('class JournalEntry extends SchemaEntity'));
       expect(library, contains('this.createAudioEntry = false,'));
@@ -131,8 +136,8 @@ void main() {
         contains("static const message = SchemaMember<JournalEntrySchema, String?>('journal.entry', 'message');"),
       );
       expect(library, contains("SchemaMember<JournalEntrySchema, DateTime?>('journal.entry', 'entryDate')"));
-      expect(library, isNot(contains('static const mediaItems')));
-      expect(library, isNot(contains('static const location')));
+      expect(library, contains("SchemaMember<JournalEntrySchema, List<AssistantFile>>('journal.entry', 'mediaItems')"));
+      expect(library, contains("SchemaMember<JournalEntrySchema, AssistantPlace?>('journal.entry', 'location')"));
       expect(library, isNot(contains('this.search')));
     });
   });

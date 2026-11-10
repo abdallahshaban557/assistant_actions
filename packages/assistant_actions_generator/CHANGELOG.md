@@ -1,3 +1,18 @@
+## 0.0.10
+
+* Maps people, places, files, recurrence rules and unions to the runtime's
+  Dart types, for parameters, results and fields. Unions encode with their
+  case and decode by case; entity cases resolve when the app adopts the
+  entity.
+* Union results (`audio.recognizeAudio`): the handler returns
+  `AssistantUnion`s.
+* List members of any supported type map to Dart lists; sets decode as Swift
+  `Set`s.
+* `LinkMetadata` is the Swift type for link previews (iOS / macOS 26.4).
+* Validated: 73 of 74 public entities and 167 of 172 intents adopted at once,
+  accepted by Apple's metadata processor on macOS and the iOS simulator.
+* Needs assistant_actions 0.0.12.
+
 ## 0.0.9
 
 * Generates every shape in Apple's schema catalog, not only create, update

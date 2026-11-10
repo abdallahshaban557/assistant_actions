@@ -40,12 +40,10 @@ class WhiteboardBoard extends SchemaEntity {
   }) : super('whiteboard.board');
 
   /// Handle `whiteboard.createItem` ("Add Item to Board"): calls
-  /// `Future<void> createItem({required String target, Enum? itemType, String? text, Uri? url})`
+  /// `Future<void> createItem({required String target, Enum? itemType, String? text, required List<AssistantFile> mediaItems, Uri? url})`
   /// live, with the app in the foreground.
   ///
   /// Adds an item to a board.
-  ///
-  /// Not passed to Dart yet: `mediaItems` (`[file]`).
   final bool createItem;
 
   /// Handle `whiteboard.createBoard` ("Create Board"): creates items.

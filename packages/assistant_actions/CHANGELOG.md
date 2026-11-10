@@ -1,3 +1,19 @@
+## 0.0.12
+
+* People, places, files, recurrence rules and unions cross to Dart as
+  `AssistantPerson`, `AssistantPlace`, `AssistantFile`, `AssistantRecurrence`
+  and `AssistantUnion`, as intent parameters, results and entity fields. A
+  file Siri passes is copied into Application Support
+  (`assistant_actions/files/`), so its path still works for calls queued
+  while the app wasn't running.
+* List members map to Dart lists (`List<AssistantFile>` for a journal
+  entry's `mediaItems`, `List<String>` for reminder tags).
+* So every public schema entity can be adopted except `files.file`, which
+  needs file-based ids (`FileEntity`).
+* `messages.destination` leaves out its `conversation` case, which Apple's
+  metadata processor rejects.
+* Needs assistant_actions_generator 0.0.10.
+
 ## 0.0.11
 
 * Every App Schema domain the SDK defines publicly: 23 typed libraries in

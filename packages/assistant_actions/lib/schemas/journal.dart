@@ -12,6 +12,7 @@
 library;
 
 import '../src/schema.dart';
+import '../src/values.dart';
 
 // ──────────────────────────────────────────────────────────────────────
 // journal.entry
@@ -51,8 +52,6 @@ final class JournalEntrySchema {
 
 /// Members of `journal.entry`, used as field annotations:
 /// `@JournalEntryField.title …`.
-///
-/// Not mapped to Dart yet: `mediaItems` (`[file]`), `location` (`placeDescriptor?`). Generated entities give them their empty value.
 abstract final class JournalEntryField {
   /// Title
   ///
@@ -64,11 +63,23 @@ abstract final class JournalEntryField {
   /// Read-only in the schema: Siri reads it but never sets it.
   static const message = SchemaMember<JournalEntrySchema, String?>('journal.entry', 'message');
 
+  /// Media Items
+  ///
+  /// Read-only in the schema: Siri reads it but never sets it.
+  static const mediaItems =
+      SchemaMember<JournalEntrySchema, List<AssistantFile>>('journal.entry', 'mediaItems');
+
   /// Entry Date
   ///
   /// Read-only in the schema: Siri reads it but never sets it.
   static const entryDate =
       SchemaMember<JournalEntrySchema, DateTime?>('journal.entry', 'entryDate');
+
+  /// Location
+  ///
+  /// Read-only in the schema: Siri reads it but never sets it.
+  static const location =
+      SchemaMember<JournalEntrySchema, AssistantPlace?>('journal.entry', 'location');
 }
 
 /// A fixed `journal.entry` instance, for schemas that require one.

@@ -10,6 +10,7 @@
 library;
 
 import '../src/schema.dart';
+import '../src/values.dart';
 
 /// `mail.category` ("Mail Category"), whose cases the app defines: put `@MailCategory()` on a
 /// Dart enum, and each of its values becomes a case Siri can use.
@@ -168,9 +169,22 @@ final class MailDraftSchema {
 
 /// Members of `mail.draft`, used as field annotations:
 /// `@MailDraftField.subject …`.
-///
-/// Not mapped to Dart yet: `to` (`[person]`), `cc` (`[person]`), `bcc` (`[person]`), `attachments` (`[file]`). Generated entities give them their empty value.
 abstract final class MailDraftField {
+  /// To
+  ///
+  /// Read-only in the schema: Siri reads it but never sets it.
+  static const to = SchemaMember<MailDraftSchema, List<AssistantPerson>>('mail.draft', 'to');
+
+  /// Cc
+  ///
+  /// Read-only in the schema: Siri reads it but never sets it.
+  static const cc = SchemaMember<MailDraftSchema, List<AssistantPerson>>('mail.draft', 'cc');
+
+  /// Bcc
+  ///
+  /// Read-only in the schema: Siri reads it but never sets it.
+  static const bcc = SchemaMember<MailDraftSchema, List<AssistantPerson>>('mail.draft', 'bcc');
+
   /// Subject
   ///
   /// Read-only in the schema: Siri reads it but never sets it.
@@ -180,6 +194,12 @@ abstract final class MailDraftField {
   ///
   /// Read-only in the schema: Siri reads it but never sets it.
   static const body = SchemaMember<MailDraftSchema, String?>('mail.draft', 'body');
+
+  /// Attachments
+  ///
+  /// Read-only in the schema: Siri reads it but never sets it.
+  static const attachments =
+      SchemaMember<MailDraftSchema, List<AssistantFile>>('mail.draft', 'attachments');
 
   /// Account
   ///
@@ -227,21 +247,17 @@ class MailMessage extends SchemaEntity {
   final FixedMailMailbox mailbox;
 
   /// Handle `mail.forwardMail` ("Forward Message"): calls
-  /// `Future<void> forwardMail({required String target, String? body, String? subject, String? account})`
+  /// `Future<void> forwardMail({required String target, required List<AssistantPerson> to, String? body, required List<AssistantPerson> cc, required List<AssistantPerson> bcc, String? subject, String? account, required List<AssistantFile> attachments})`
   /// live, with the app in the foreground.
   ///
   /// Opens an email composer to forward an email. Does not send the email draft.
-  ///
-  /// Not passed to Dart yet: `to` (`[person]`), `cc` (`[person]`), `bcc` (`[person]`), `attachments` (`[file]`).
   final bool forwardMail;
 
   /// Handle `mail.replyMail` ("Reply Message"): calls
-  /// `Future<void> replyMail({required bool isReplyAll, required String target, String? body, String? subject, String? account})`
+  /// `Future<void> replyMail({required bool isReplyAll, required String target, String? body, String? subject, String? account, required List<AssistantFile> attachments, required List<AssistantPerson> to, required List<AssistantPerson> cc, required List<AssistantPerson> bcc})`
   /// live, with the app in the foreground.
   ///
   /// Opens an email composer to reply to an email. Does not send the email draft.
-  ///
-  /// Not passed to Dart yet: `attachments` (`[file]`), `to` (`[person]`), `cc` (`[person]`), `bcc` (`[person]`).
   final bool replyMail;
 
   /// Handle `mail.archiveMail` ("Archive Messages"): calls
@@ -276,9 +292,22 @@ final class MailMessageSchema {
 
 /// Members of `mail.message`, used as field annotations:
 /// `@MailMessageField.subject …`.
-///
-/// Not mapped to Dart yet: `to` (`[person]`), `cc` (`[person]`), `bcc` (`[person]`), `attachments` (`[file]`), `sender` (`person`). Generated entities give them their empty value.
 abstract final class MailMessageField {
+  /// To
+  ///
+  /// Read-only in the schema: Siri reads it but never sets it.
+  static const to = SchemaMember<MailMessageSchema, List<AssistantPerson>>('mail.message', 'to');
+
+  /// Cc
+  ///
+  /// Read-only in the schema: Siri reads it but never sets it.
+  static const cc = SchemaMember<MailMessageSchema, List<AssistantPerson>>('mail.message', 'cc');
+
+  /// Bcc
+  ///
+  /// Read-only in the schema: Siri reads it but never sets it.
+  static const bcc = SchemaMember<MailMessageSchema, List<AssistantPerson>>('mail.message', 'bcc');
+
   /// Subject
   ///
   /// Read-only in the schema: Siri reads it but never sets it.
@@ -288,6 +317,17 @@ abstract final class MailMessageField {
   ///
   /// Read-only in the schema: Siri reads it but never sets it.
   static const body = SchemaMember<MailMessageSchema, String?>('mail.message', 'body');
+
+  /// Attachments
+  ///
+  /// Read-only in the schema: Siri reads it but never sets it.
+  static const attachments =
+      SchemaMember<MailMessageSchema, List<AssistantFile>>('mail.message', 'attachments');
+
+  /// Sender
+  ///
+  /// Read-only in the schema: Siri reads it but never sets it.
+  static const sender = SchemaMember<MailMessageSchema, AssistantPerson>('mail.message', 'sender');
 
   /// Date Sent
   ///

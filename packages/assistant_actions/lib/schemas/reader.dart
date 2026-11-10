@@ -50,12 +50,10 @@ class ReaderPage extends SchemaEntity {
   final bool deletePages;
 
   /// Handle `reader.insertPages` ("Insert Page"): calls
-  /// `Future<void> insertPages({required bool isAfter, required String page})`
+  /// `Future<void> insertPages({required List<AssistantFile> files, required bool isAfter, required String page})`
   /// when the app next runs (queued, like `Runs.deferred`).
   ///
   /// Inserts pages from the specified files.
-  ///
-  /// Not passed to Dart yet: `files` (`[file]`).
   final bool insertPages;
 }
 
@@ -128,12 +126,10 @@ class ReaderDocument extends SchemaEntity {
   final bool searchDocuments;
 
   /// Handle `reader.openDocument` ("Open Documents"): calls
-  /// `Future<void> openDocument()`
+  /// `Future<void> openDocument({required List<AssistantFile> files})`
   /// when the app next runs (queued, like `Runs.deferred`).
   ///
   /// Opens the specified files in the reader.
-  ///
-  /// Not passed to Dart yet: `files` (`[file]`).
   final bool openDocument;
 }
 

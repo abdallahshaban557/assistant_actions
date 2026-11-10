@@ -9,3 +9,4 @@ export 'src/host.dart' show AssistantHost;
 export 'src/registry.dart';
 export 'src/runtime.dart';
 export 'src/schema.dart';
+export 'src/values.dart';

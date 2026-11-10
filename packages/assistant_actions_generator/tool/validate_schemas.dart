@@ -340,7 +340,7 @@ Future<bool> _processSwift(String swift, String platform, String out) async {
     generated,
     stub,
     for (final f in ['AssistantValues', 'AssistantInbox', 'AssistantSnapshot', 'AssistantQuery', 'AssistantSpotlight',
-      'AssistantMatch', 'AssistantComparison'])
+      'AssistantMatch', 'AssistantComparison', 'AssistantRichValues'])
       p.join(sources, '$f.swift'),
   ];
   final ios = platform == 'ios';

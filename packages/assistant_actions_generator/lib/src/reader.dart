@@ -14,7 +14,7 @@ const _package = 'assistant_actions';
 
 /// The `api` this generator needs in assistant_actions'
 /// `lib/src/catalog/generator_api.json`.
-const _runtimeApi = 6;
+const _runtimeApi = 7;
 
 /// Reads the app's annotations from the definitions library and everything
 /// it imports from the app's own package.
@@ -210,8 +210,8 @@ class ModelReader {
   }
 
   /// The generated Swift and Dart use runtime APIs added in assistant_actions
-  /// 0.0.11 (enum, duration and list values; catalogs with intent
-  /// protocols), marked by `lib/src/catalog/generator_api.json`.
+  /// 0.0.12 (people, places, files, recurrence rules and unions; enum,
+  /// duration and list values; catalogs with intent protocols), marked by `lib/src/catalog/generator_api.json`.
   Future<void> _checkRuntime(LibraryElement library) async {
     final marker = AssetId(_package, 'lib/src/catalog/generator_api.json');
     final api = await step.canRead(marker)
@@ -219,7 +219,7 @@ class ModelReader {
         : 0;
     if (api < _runtimeApi) {
       throw InvalidGenerationSourceError(
-          'This version of assistant_actions_generator needs assistant_actions 0.0.11 or later. '
+          'This version of assistant_actions_generator needs assistant_actions 0.0.12 or later. '
           'Run `flutter pub upgrade assistant_actions`.',
           element: library);
     }
@@ -333,42 +333,7 @@ class ModelReader {
               element: field);
         }
         final property = schema.property(name)!;
-        final element = property.type.base;
-        var type = _valueType(field.type);
-        final reference = element.kind == 'entity'
-            ? element.ref
-            : element.isList && element.of!.base.kind == 'entity'
-                ? element.of!.base.ref
-                : null;
-        if (reference != null) {
-          final t = field.type;
-          final nullable = t.nullabilitySuffix == NullabilitySuffix.question;
-          if (element.kind == 'entity' && t.isDartCoreString) {
-            type = ValueType(ValueKind.entityId, nullable: nullable, entityRef: reference);
-          } else if (element.isList && t is InterfaceType && t.isDartCoreList && t.typeArguments.single.isDartCoreString) {
-            type = ValueType(ValueKind.entityId, list: true, entityRef: reference);
-          }
-        }
-        if (element.kind == 'openEnum' && field.type is InterfaceType) {
-          final t = field.type as InterfaceType;
-          final app = _openEnums[element.ref];
-          if (app != null && t.element.displayName == app.className) {
-            type = ValueType(ValueKind.enumeration,
-                nullable: t.nullabilitySuffix == NullabilitySuffix.question, enumRef: element.ref, appEnum: app.className);
-          } else {
-            throw InvalidGenerationSourceError(
-                '${field.displayName} maps $schemaId.$name, a ${element.ref} whose cases the app defines: '
-                'make it an enum annotated @${dartEnumName(element.ref!)}().',
-                element: field);
-          }
-        }
-        if (element.kind == 'enum' && field.type is InterfaceType) {
-          final t = field.type as InterfaceType;
-          if (t.element is EnumElement && t.element.displayName == dartEnumName(element.ref!)) {
-            type = ValueType(ValueKind.enumeration,
-                nullable: t.nullabilitySuffix == NullabilitySuffix.question, enumRef: element.ref);
-          }
-        }
+        final type = _fieldType(field, field.type, property.type.base, '$schemaId.$name');
         final expected = dartTypeFor(property.type, {for (final e in _openEnums.values) e.schema: e.className})
             ?.replaceAll('?', '');
         if (type == null || type.dart.replaceAll('?', '') != expected) {
@@ -440,6 +405,47 @@ class ModelReader {
         'openEnum' => _openEnums[type.ref]?.cases.isNotEmpty ?? false,
         _ => false,
       };
+
+  /// The value type of [field] (or, for a list, its element type [t]) mapping
+  /// a schema member whose type (without optional) is [member], or null when
+  /// they don't fit.
+  ValueType? _fieldType(FieldElement field, DartType t, SchemaType member, String id) {
+    final nullable = t.nullabilitySuffix == NullabilitySuffix.question;
+    if (member.isList) {
+      if (t is! InterfaceType || !t.isDartCoreList) return null;
+      final element = _fieldType(field, t.typeArguments.single, member.of!.base, id);
+      return element?.asList(nullable: nullable);
+    }
+    switch (member.kind) {
+      case 'entity':
+        return t.isDartCoreString ? ValueType(ValueKind.entityId, nullable: nullable, entityRef: member.ref) : null;
+      case 'person' || 'placeDescriptor' || 'file' || 'recurrenceRule' || 'union':
+        // People, places, files, recurrence rules and unions: the runtime's types.
+        final (className, kind) = switch (member.kind) {
+          'person' => ('AssistantPerson', ValueKind.person),
+          'placeDescriptor' => ('AssistantPlace', ValueKind.place),
+          'file' => ('AssistantFile', ValueKind.file),
+          'recurrenceRule' => ('AssistantRecurrence', ValueKind.recurrence),
+          _ => ('AssistantUnion', ValueKind.union),
+        };
+        return _isFrom(t, className, exact: true) ? ValueType(kind, nullable: nullable) : null;
+      case 'openEnum':
+        final app = _openEnums[member.ref];
+        if (app != null && t is InterfaceType && t.element.displayName == app.className) {
+          return ValueType(ValueKind.enumeration, nullable: nullable, enumRef: member.ref, appEnum: app.className);
+        }
+        throw InvalidGenerationSourceError(
+            '${field.displayName} maps $id, a ${member.ref} whose cases the app defines: '
+            'make it an enum annotated @${dartEnumName(member.ref!)}().',
+            element: field);
+      case 'enum':
+        return t is InterfaceType && t.element is EnumElement && t.element.displayName == dartEnumName(member.ref!)
+            ? ValueType(ValueKind.enumeration, nullable: nullable, enumRef: member.ref)
+            : null;
+      default:
+        return _valueType(t);
+    }
+  }
 
   bool _enumHasCases(String ref) => _catalogs[ref.split('.').first]?.enums[ref]?.cases.isNotEmpty ?? false;
 

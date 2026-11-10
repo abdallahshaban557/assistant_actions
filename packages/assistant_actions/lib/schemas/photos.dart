@@ -12,6 +12,7 @@
 library;
 
 import '../src/schema.dart';
+import '../src/values.dart';
 
 /// `photos.assetType` ("Photo Type"), whose cases the app defines: put `@PhotosAssetType()` on a
 /// Dart enum, and each of its values becomes a case Siri can use.
@@ -69,12 +70,10 @@ class PhotosAsset extends SchemaEntity {
   }) : super('photos.asset');
 
   /// Handle `photos.createAssets` ("Create Photos"): calls
-  /// `Future<List<String>> createAssets()`
+  /// `Future<List<String>> createAssets({required List<AssistantFile> files})`
   /// live (on iOS, from the foreground).
   ///
   /// Creates photos from the provided files.
-  ///
-  /// Not passed to Dart yet: `files` (`[file]`).
   final bool createAssets;
 
   /// Handle `photos.addAssetsToAlbum` ("Add Photos to Album"): calls
@@ -214,14 +213,18 @@ final class PhotosAssetSchema {
 
 /// Members of `photos.asset`, used as field annotations:
 /// `@PhotosAssetField.creationDate …`.
-///
-/// Not mapped to Dart yet: `location` (`placeDescriptor?`). Generated entities give them their empty value.
 abstract final class PhotosAssetField {
   /// Date Created
   ///
   /// Read-only in the schema: Siri reads it but never sets it.
   static const creationDate =
       SchemaMember<PhotosAssetSchema, DateTime?>('photos.asset', 'creationDate');
+
+  /// Location
+  ///
+  /// Read-only in the schema: Siri reads it but never sets it.
+  static const location =
+      SchemaMember<PhotosAssetSchema, AssistantPlace?>('photos.asset', 'location');
 
   /// Photo Type
   ///
@@ -316,12 +319,10 @@ class PhotosAlbum extends SchemaEntity {
   final bool deleteAlbum;
 
   /// Handle `photos.postToSharedAlbum` ("Post To Shared Album"): calls
-  /// `Future<void> postToSharedAlbum({required String sharedAlbum, List<String>? assets, String? comment})`
+  /// `Future<void> postToSharedAlbum({required String sharedAlbum, List<String>? assets, List<AssistantFile>? files, String? comment})`
   /// when the app next runs (queued, like `Runs.deferred`).
   ///
   /// Posts the provided photos or files and optional comment to the provided shared album
-  ///
-  /// Not passed to Dart yet: `files` (`[file]?`).
   final bool postToSharedAlbum;
 }
 
