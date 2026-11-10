@@ -25,7 +25,9 @@ SchemaEntityModel _adopt(String id, Map<String, FieldModel> mapping, {required S
   );
 }
 
-ActionModel _action(String name, {RunsModel runs = RunsModel.withFlutter, bool opensApp = false}) => ActionModel(
+ActionModel _action(String name,
+        {RunsModel runs = RunsModel.withFlutter, bool opensApp = false, bool liveActivity = false}) =>
+    ActionModel(
       functionName: name,
       library: Uri.parse('package:app/assistant_actions.dart'),
       title: name,
@@ -34,6 +36,7 @@ ActionModel _action(String name, {RunsModel runs = RunsModel.withFlutter, bool o
       returnsString: runs == RunsModel.withFlutter,
       dialog: runs == RunsModel.deferred ? 'Done.' : null,
       opensApp: opensApp,
+      liveActivity: liveActivity,
     );
 
 BackgroundModel _backgroundModel({bool applyQueued = true}) => BackgroundModel(
@@ -51,6 +54,8 @@ AppModel _app({bool background = true, bool applyQueued = true}) => AppModel(
         _action('countTasks'),
         _action('showTask', opensApp: true),
         _action('addToList', runs: RunsModel.deferred),
+        _action('record', liveActivity: true),
+        _action('stopRecording', runs: RunsModel.deferred, liveActivity: true),
       ],
       entities: const [],
       schemaEntities: [
@@ -95,6 +100,11 @@ void main() {
       expect(swift, isNot(contains('AssistantBackground')));
       expect(swift, isNot(contains('supportedModes: IntentModes {')));
       expect(swift, isNot(contains('AssistantActionsAppBackground')));
+    });
+
+    test('Live Activity actions keep their own check for running Dart', () {
+      expect(_block(swift, 'public struct RecordAction'), contains('if !AssistantBridge.shared.isReady && UIApplication'));
+      expect(_block(swift, 'public struct StopRecordingAction'), contains('    if AssistantBridge.shared.isReady {'));
     });
 
     test('queued intents only nudge a running app', () {
@@ -202,11 +212,26 @@ void main() {
       expect(swift, isNot(contains('AssistantBridge.shared.inboxChanged()')));
     });
 
+    test('Live Activity actions start Dart in the background too', () {
+      final record = _block(swift, 'public struct RecordAction');
+      expect(record, contains('public static var supportedModes: IntentModes { [.background, .foreground(.dynamic)] }'));
+      expect(record, contains('if !(await AssistantBackground.shared.prepare()), UIApplication'));
+      expect(record, isNot(contains('AssistantBridge.shared.isReady')));
+      final stop = _block(swift, 'public struct StopRecordingAction');
+      expect(stop, contains('    if await AssistantBackground.shared.prepare() {\n'
+          '      _ = try await AssistantBridge.shared.perform("stopRecording", args: args)\n'
+          '    } else {\n'
+          '      AssistantInbox.call("stopRecording", args: args)'));
+      expect(swift, contains('extension RecordAction: LiveActivityIntent {}'));
+    });
+
     test('applyQueued: false leaves queued intents for the next launch', () {
       final queued = SwiftWriter(_app(applyQueued: false)).write();
       expect(queued, isNot(contains('applyInbox')));
       expect(_block(queued, 'public struct AddToListAction'), contains('AssistantBridge.shared.inboxChanged()'));
       expect(_block(queued, 'public struct CountTasksAction'), contains('AssistantBackground.shared.prepare()'));
+      expect(_block(queued, 'public struct StopRecordingAction'), contains('    if AssistantBridge.shared.isReady {'),
+          reason: 'a deferred Live Activity action still runs only in a running engine');
     });
   });
 }
