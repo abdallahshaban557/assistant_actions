@@ -125,4 +125,22 @@ void main() {
       expect(swift, contains('AssistantInbox.call("ping", args: args)\n    AssistantBridge.shared.inboxChanged()'));
     });
   });
+
+  test('a live Live Activity action can also reply with a card', () {
+    final action = ActionModel(
+      functionName: 'stopRecording',
+      library: _library,
+      title: 'Stop Recording',
+      runs: RunsModel.withFlutter,
+      returnsString: false,
+      returnsReply: true,
+      liveActivity: true,
+      params: const [],
+    );
+    final swift = SwiftWriter(_app([action])).write();
+    expect(swift, contains('if !AssistantBridge.shared.isReady && UIApplication.shared.applicationState != .active'));
+    expect(swift, contains('let reply = AssistantReply(json: try await AssistantBridge.shared.perform("stopRecording", args: args))'));
+    expect(swift, contains('ProvidesDialog & ShowsSnippetView'));
+    expect(swift, contains('extension StopRecordingAction: LiveActivityIntent {}'));
+  });
 }
