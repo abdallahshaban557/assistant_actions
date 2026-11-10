@@ -12,5 +12,6 @@ swiftc -module-name assistant_actions -o "$out/tests" \
   "$src/AssistantReply.swift" "$src/AssistantDialog.swift" "$src/AssistantInteraction.swift" \
   "$src/AssistantCardView.swift" \
   "$src/AssistantActivityAttributes.swift" "$src/AssistantLiveActivities.swift" \
+  "$src/AssistantShortcutParameters.swift" \
   test/swift/main.swift
 "$out/tests"

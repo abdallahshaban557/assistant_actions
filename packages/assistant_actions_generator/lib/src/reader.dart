@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:analyzer/dart/constant/value.dart';
 import 'package:analyzer/dart/element/element.dart';
 import 'package:analyzer/dart/element/nullability_suffix.dart';
 import 'package:analyzer/dart/element/type.dart';
@@ -11,13 +12,14 @@ import 'interaction.dart';
 import 'model.dart';
 import 'schema_calls.dart';
 
+part 'reader_actions.dart';
 part 'reader_surfaces.dart';
 
 const _package = 'assistant_actions';
 
 /// The `api` this generator needs in assistant_actions'
 /// `lib/src/catalog/generator_api.json`.
-const _runtimeApi = 8;
+const _runtimeApi = 9;
 
 /// Reads the app's annotations from the definitions library and everything
 /// it imports from the app's own package.
@@ -27,6 +29,7 @@ class ModelReader {
   final BuildStep step;
   final _catalogs = <String, DomainCatalog>{};
   final _openEnums = <String, OpenEnumModel>{};
+  final _appEnums = <String, AppEnumModel>{};
 
   Future<AppModel?> read(LibraryElement library) async {
     final app = _annotation(library, 'AssistantActionsApp');
@@ -58,6 +61,7 @@ class ModelReader {
         }
       }
     }
+    _readAppEnums(libraries);
     for (final lib in libraries) {
       for (final cls in lib.classes) {
         if (_annotation(cls, 'AssistantEntity') case final a?) entities.add(_entity(cls, a));
@@ -77,8 +81,12 @@ class ModelReader {
     final actions = <ActionModel>[];
     for (final lib in libraries) {
       for (final fn in lib.topLevelFunctions) {
-        if (_annotation(fn, 'AssistantAction') case final a?) actions.add(_action(fn, a, entities));
-        if (_annotation(fn, 'AssistantFocusFilter') case final f?) actions.add(_focusFilter(fn, f, entities));
+        if (_annotation(fn, 'AssistantAction') case final a?) {
+          actions.add(await _action(fn, a, entities, schemaEntities));
+        }
+        if (_annotation(fn, 'AssistantFocusFilter') case final f?) {
+          actions.add(await _focusFilter(fn, f, entities));
+        }
       }
     }
     final snapshotActions = <SnapshotActionModel>[];
@@ -95,6 +103,8 @@ class ModelReader {
         throw InvalidGenerationSourceError('Two @AssistantAction declarations are named $id.');
       }
     }
+    final intentShortcuts = _intentShortcuts(libraries, schemaEntities, schemaDomains, entities);
+    _checkShortcuts(actions, snapshotActions, intentShortcuts, library);
     return AppModel(
       appName: app.read('name').stringValue,
       actions: actions,
@@ -104,6 +114,9 @@ class ModelReader {
       schemaDomains: schemaDomains,
       catalogs: Map.of(_catalogs),
       openEnums: Map.of(_openEnums),
+      appEnums: Map.of(_appEnums),
+      intentShortcuts: intentShortcuts,
+      shortcutTileColor: _tileColor(app),
     );
   }
 
@@ -223,7 +236,7 @@ class ModelReader {
         : 0;
     if (api < _runtimeApi) {
       throw InvalidGenerationSourceError(
-          'This version of assistant_actions_generator needs assistant_actions 0.0.14 or later. '
+          'This version of assistant_actions_generator needs assistant_actions 0.0.16 or later. '
           'Run `flutter pub upgrade assistant_actions`.',
           element: library);
     }
@@ -501,108 +514,6 @@ class ModelReader {
     return _catalogs[domain] = catalog;
   }
 
-  // ── Actions ───────────────────────────────────────────────────────────
-
-  ActionModel _action(TopLevelFunctionElement fn, ConstantReader annotation, List<EntityModel> entities) {
-    final params = [
-      for (final p in fn.formalParameters) _param(fn, p, entities),
-    ];
-    final runs = RunsModel.values[annotation.read('runs').objectValue.getField('index')!.toIntValue()!];
-    final dialog = annotation.peek('dialog')?.stringValue;
-    final confirm = annotation.peek('confirm')?.stringValue;
-    for (final (field, template) in [('dialog', dialog), ('confirm', confirm)]) {
-      if (template == null) continue;
-      for (final match in RegExp(r'\{(\w+)\}').allMatches(template)) {
-        if (!params.any((p) => p.name == match.group(1))) {
-          throw InvalidGenerationSourceError('$field uses {${match.group(1)}}, which is not a parameter.',
-              element: fn);
-        }
-      }
-    }
-    final shortcut = _shortcut(annotation, fn);
-
-    var result = fn.returnType;
-    if (result.isDartAsyncFuture || result.isDartAsyncFutureOr) {
-      result = (result as InterfaceType).typeArguments.single;
-    }
-    final returnsString = result.isDartCoreString;
-    final returnsReply = _isFrom(result, 'AssistantReply', exact: true);
-    if (!returnsString && !returnsReply && result is! VoidType && !result.isDartCoreNull) {
-      throw InvalidGenerationSourceError(
-          'An @AssistantAction returns void, String or AssistantReply (optionally in a Future), '
-          'not ${result.getDisplayString()}.',
-          element: fn);
-    }
-    if (runs == RunsModel.deferred && returnsString) {
-      log.warning('${fn.displayName} runs deferred, so Siri says its dialog, not the String it returns.');
-    }
-    if (runs == RunsModel.deferred && returnsReply) {
-      throw InvalidGenerationSourceError(
-          '${fn.displayName} returns an AssistantReply, but it runs deferred: Siri answers before it runs. '
-          'Use runs: Runs.withFlutter, or return void and set dialog.',
-          element: fn);
-    }
-    return ActionModel(
-      functionName: fn.displayName,
-      library: fn.library.uri,
-      title: annotation.read('title').stringValue,
-      description: annotation.peek('description')?.stringValue,
-      runs: runs,
-      dialog: dialog,
-      confirm: confirm,
-      shortcut: shortcut,
-      params: params,
-      returnsString: returnsString,
-      returnsReply: returnsReply,
-      liveActivity: annotation.peek('liveActivity')?.boolValue ?? false,
-    );
-  }
-
-  ParamModel _param(TopLevelFunctionElement fn, FormalParameterElement p, List<EntityModel> entities) {
-    final meta = _annotation(p, 'Param');
-    final name = p.displayName;
-    final title = meta?.peek('title')?.stringValue ?? _titleCase(name);
-    final prompt = meta?.peek('prompt')?.stringValue;
-    final type = p.type;
-    final nullable = type.nullabilitySuffix == NullabilitySuffix.question;
-    if (type is InterfaceType) {
-      final entity = entities.where((e) => e.className == type.element.displayName).firstOrNull;
-      if (entity != null) {
-        return ParamModel(
-            name: name, title: title, prompt: prompt, named: p.isNamed, entity: entity, entityNullable: nullable);
-      }
-    }
-    final value = _valueType(type);
-    if (value == null) {
-      throw InvalidGenerationSourceError(
-          'Parameter $name: ${type.getDisplayString()} is not supported. Use String, int, double, bool, '
-          'DateTime, Uri or an @AssistantEntity class.',
-          element: fn);
-    }
-    return ParamModel(name: name, title: title, prompt: prompt, named: p.isNamed, value: value);
-  }
-
-  ShortcutModel? _shortcut(ConstantReader annotation, Element element) {
-    final s = annotation.peek('shortcut');
-    if (s == null || s.isNull) return null;
-    final phrases = [for (final p in s.read('phrases').listValue) p.toStringValue()!];
-    for (final phrase in phrases) {
-      if (!phrase.contains('{app}')) {
-        throw InvalidGenerationSourceError('Shortcut phrase "$phrase" must contain {app}.', element: element);
-      }
-      final other = RegExp(r'\{(\w+)\}').allMatches(phrase).map((m) => m.group(1)).where((n) => n != 'app');
-      if (other.isNotEmpty) {
-        throw InvalidGenerationSourceError(
-            'Shortcut phrase "$phrase": only {app} is supported in phrases for now.', element: element);
-      }
-    }
-    return ShortcutModel(
-      phrases: phrases,
-      shortTitle: s.read('shortTitle').stringValue,
-      systemImage: s.read('systemImage').stringValue,
-    );
-  }
-
   // ── Snapshot answers ──────────────────────────────────────────────────
 
   SnapshotActionModel _snapshotAction(TopLevelVariableElement variable, ConstantReader annotation,
@@ -666,7 +577,9 @@ class ModelReader {
       name: variable.displayName,
       title: annotation.read('title').stringValue,
       description: annotation.peek('description')?.stringValue,
-      shortcut: _shortcut(annotation, variable),
+      shortcut: _snapshotShortcut(annotation, variable),
+      searchKeywords: _strings(annotation, 'searchKeywords'),
+      isDiscoverable: annotation.read('isDiscoverable').boolValue,
       collection: entity?.className ?? schemaEntity!.collection,
       fields: fields,
       titleField: titleProperty == null ? null : schemaEntity!.mapping[titleProperty.name]?.name,

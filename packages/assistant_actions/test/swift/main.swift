@@ -235,6 +235,28 @@ MainActor.assumeIsolated {
   check((try? AssistantHostCalls.invoke("liveActivity.list", argsJson: "{}")) ?? "nil", "[]", "none run on macOS")
 }
 
+// Action parameters and results: durations as Measurement, results as JSON.
+check("\(AssistantValues.encode(Measurement(value: 2, unit: UnitDuration.minutes)))", "120.0",
+  "duration parameters encode as seconds")
+check("\(AssistantValues.measurement(90)!.converted(to: .minutes).value)", "1.5", "duration results decode from seconds")
+let returned = AssistantValues.result(#"{"value":["a","b"],"dialog":"Two."}"#)
+check("\(AssistantValues.strings(returned.value)!.joined(separator: ",")) \(returned.dialog!)", "a,b Two.",
+  "action results carry a value and a dialog")
+let bare = AssistantValues.result(#"{"value":null}"#)
+check("\(bare.value == nil) \(bare.dialog == nil)", "true true", "a null result has no value or dialog")
+
+// App Shortcut parameters: the app's generated class is found by name.
+check(AssistantShortcutParameters.provider(named: "NoSuchShortcuts") == nil ? "none" : "found", "none",
+  "no generated shortcuts class: nothing to update")
+@objc(AssistantActionsAppShortcuts)
+final class FakeShortcuts: NSObject {
+  nonisolated(unsafe) static var calls = 0
+  @objc static func updateAppShortcutParameters() { calls += 1 }
+}
+_ = FakeShortcuts.self
+check(AssistantShortcutParameters.updateNow() ? "updated \(FakeShortcuts.calls)" : "none", "updated 1",
+  "a generated shortcuts class updates its parameters")
+
 if failures > 0 {
   print("\(failures) failed")
   exit(1)

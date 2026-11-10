@@ -1,10 +1,13 @@
 /// Types the generated `assistant_actions.g.dart` fills in.
 library;
 
+import 'dart:convert';
+
 import 'values.dart';
 
 /// Runs one action with the arguments Swift sent and returns what Siri should
-/// say, if anything.
+/// say, if anything (or, for an action that returns a value to Shortcuts,
+/// [AssistantValue.encodeResult]'s JSON).
 typedef ActionHandler = Future<String?> Function(Map<String, Object?> args);
 
 /// Applies one change Siri made to a schema entity collection.
@@ -170,6 +173,12 @@ abstract final class AssistantValue {
         List l => [for (final e in l) encodeAny(e)],
         _ => v,
       };
+
+  /// What an action returned for Shortcuts, as its handler hands it to
+  /// Swift: [value] (already encoded, such as an entity's id) and, if any,
+  /// what Siri says.
+  static String encodeResult(Object? value, {String? dialog}) =>
+      jsonEncode({'value': value, if (dialog != null) 'dialog': dialog});
 
   /// A list, decoding each element with [element] and dropping ones it
   /// can't read.

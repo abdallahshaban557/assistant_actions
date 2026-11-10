@@ -33,9 +33,9 @@ extension _Surfaces on SwiftWriter {
         if (p.swiftDefault case final d?) 'default: $d',
         if (p.prompt case final prompt?) 'requestValueDialog: "${SwiftWriter._escape(prompt)}"',
       ];
-      _out.writeln('  @Parameter(${options.join(', ')})\n  public var ${p.name}: ${p.swiftType}\n');
+      _out.writeln('  @Parameter(${options.join(', ')})\n  public var ${swiftName(p.name)}: ${_paramSwift(p)}\n');
     }
-    final summary = filter.summary == null ? null : _interpolate(filter.summary!, a);
+    final summary = filter.summary == null ? null : _spokenDialog(filter.summary!, a);
     _out
       ..writeln('  public init() {}')
       ..writeln()
@@ -59,11 +59,6 @@ extension _Surfaces on SwiftWriter {
       ..writeln('}')
       ..writeln();
   }
-
-  /// Swift expression encoding action parameter [p] for Dart.
-  String _encodeParam(ParamModel p) => p.entity != null
-      ? (p.entityNullable ? 'AssistantValues.encode(${p.name}?.id)' : '${p.name}.id')
-      : 'AssistantValues.encode(${p.name})';
 
   /// The body of a `liveActivity: true` action's `perform`. It runs in the
   /// app's process (a `LiveActivityIntent`), maybe in the background, while

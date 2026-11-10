@@ -2,9 +2,12 @@
 // Must be in both Runner targets (dart run assistant_actions:install adds it).
 
 import AppIntents
+import Foundation
 import assistant_actions_app
 
 struct AssistantShortcuts: AppShortcutsProvider {
+  static var shortcutTileColor: ShortcutTileColor { .orange }
+
   static var appShortcuts: [AppShortcut] {
     AppShortcut(
       intent: CountOpenTasksAction(),
@@ -12,9 +15,45 @@ struct AssistantShortcuts: AppShortcutsProvider {
       shortTitle: "Open Tasks",
       systemImageName: "checklist")
     AppShortcut(
+      intent: PlanMealAction(),
+      phrases: ["Cook \(\.$recipe) for \(\.$meal) in \(.applicationName)", "Plan \(\.$meal) in \(.applicationName)"],
+      shortTitle: "Plan a Meal",
+      systemImageName: "fork.knife")
+    AppShortcut(
       intent: ShowOpenTasksAction(),
       phrases: ["What's on my \(.applicationName) list", "Show my \(.applicationName) tasks"],
       shortTitle: "My Tasks",
       systemImageName: "list.bullet")
+    // `if #available` here needs the Runner targets at iOS 17.4 / macOS 14.4 or later.
+    if #available(iOS 27.0, macOS 27.0, *) {
+      AppShortcut(
+        intent: OpenRecipeIntent(),
+        phrases: ["Open \(\.$target) in \(.applicationName)", "Show a recipe in \(.applicationName)"],
+        shortTitle: "Open Recipe",
+        systemImageName: "book")
+    }
+    if #available(iOS 27.0, macOS 27.0, *) {
+      AppShortcut(
+        intent: TaskItemCreateReminderIntent(),
+        phrases: ["Add a task in \(.applicationName)", "New \(.applicationName) task"],
+        shortTitle: "New Task",
+        systemImageName: "plus.circle")
+    }
+    if #available(iOS 18.0, macOS 15.0, *) {
+      AppShortcut(
+        intent: CameraStartCaptureIntent(),
+        phrases: ["Take a \(\.$captureMode) with \(.applicationName)", "Open the \(.applicationName) camera"],
+        shortTitle: "Camera",
+        systemImageName: "camera")
+    }
+  }
+}
+
+/// Found by name by the assistant_actions runtime, which calls it after
+/// `AssistantActions.publish`, so phrases naming entities learn new items.
+@objc(AssistantActionsAppShortcuts)
+final class AssistantActionsAppShortcuts: NSObject {
+  @objc static func updateAppShortcutParameters() {
+    AssistantShortcuts.updateAppShortcutParameters()
   }
 }

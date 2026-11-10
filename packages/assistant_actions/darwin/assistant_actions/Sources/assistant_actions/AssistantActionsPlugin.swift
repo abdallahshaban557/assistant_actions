@@ -34,6 +34,7 @@ private final class AssistantHostApiImpl: AssistantHostApi {
 
   func publish(collection: String, json: String) throws {
     try AssistantSnapshot.write(collection: collection, json: json)
+    AssistantShortcutParameters.update()
   }
 
   func invoke(method: String, argsJson: String) throws -> String? {

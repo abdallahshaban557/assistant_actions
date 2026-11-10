@@ -62,6 +62,11 @@ class AssistantReply<T> {
 
   /// [reply] as the generated registry sends it to Swift.
   static String encode(AssistantReply<Object?>? reply) => jsonEncode(reply?.toJson() ?? const {});
+
+  /// [reply] as the generated registry sends it for an action that returns
+  /// a value to Shortcuts: with [value] encoded already (an entity as its id).
+  static String encodeValue(AssistantReply<Object?> reply, Object? value) =>
+      jsonEncode({...reply.toJson()..remove('value'), if (value != null) 'value': value});
 }
 
 /// A result card Siri shows after an action or intent: a title, a subtitle,

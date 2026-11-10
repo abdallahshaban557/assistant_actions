@@ -245,6 +245,45 @@ void main() {
       expect(jsonDecode((await AssistantActions.perform('show', '{"name":"Mira"}'))!), {'dialog': 'Hi Mira.'});
     });
   });
+
+  test('action results reach Swift as JSON with an optional dialog', () async {
+    expect(jsonDecode(AssistantValue.encodeResult(3, dialog: 'Three.')), {'value': 3, 'dialog': 'Three.'});
+    expect(jsonDecode(AssistantValue.encodeResult(['a', 'b'])), {
+      'value': ['a', 'b'],
+    });
+    expect(jsonDecode(AssistantValue.encodeResult(null)), {'value': null});
+    expect(
+        jsonDecode(AssistantReply.encodeValue(
+            const AssistantReply(value: _Case.a, dialog: 'One.', card: AssistantCard(title: 'A')), 'id-a')),
+        {
+          'value': 'id-a',
+          'dialog': 'One.',
+          'card': {'title': 'A'},
+        },
+        reason: 'a reply carries the encoded value (an entity as its id) with its dialog and card');
+    expect(jsonDecode(AssistantReply.encodeValue(const AssistantReply.choose(['a', 'b']), null)), {
+      'choices': ['a', 'b'],
+    });
+    const result = ActionResult(2, dialog: 'Two.');
+    expect((result.value, result.dialog), (2, 'Two.'));
+
+    await AssistantActions.start(
+        AssistantActionsRegistry(actions: {
+          'count': (args) async => AssistantValue.encodeResult(args['n'], dialog: 'Counted.'),
+        }),
+        host: _FakeHost([]));
+    expect(jsonDecode((await AssistantActions.perform('count', '{"n":4}'))!), {'value': 4, 'dialog': 'Counted.'});
+  });
+
+  test('App Enums and shortcut options are const annotations', () {
+    const tile = AssistantActionsApp(name: 'Mira', shortcutTileColor: ShortcutTileColor.grape);
+    expect(tile.shortcutTileColor, ShortcutTileColor.grape);
+    const shortcut = IntentShortcut('camera.startCapture', phrases: ['Open {app}'], shortTitle: 'Camera', systemImage: 'camera');
+    expect(shortcut, isA<AppShortcut>());
+    expect(const CaseTitle('Extra large', synonyms: ['XL']).synonyms, ['XL']);
+    expect(const AssistantAction(title: 'T').isDiscoverable, isTrue);
+    expect(ShortcutTileColor.values.length, 15, reason: "one per App Intents' ShortcutTileColor case");
+  });
 }
 
 enum _Case { a, b, this$ }

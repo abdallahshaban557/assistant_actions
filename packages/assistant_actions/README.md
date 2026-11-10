@@ -432,6 +432,81 @@ Nothing extra to adopt. Every App Shortcut (`shortcut:` on an
 Action button (Settings → Action Button → Shortcut) or to Apple Pencil Pro's
 squeeze. Both run it like Siri does, so the `runs` rules apply.
 
+### Parameters, results and App Shortcuts
+
+Action parameters can be `String`, `int`, `double`, `bool`, `DateTime`, `Uri`,
+`Duration`, `AssistantPerson`, `AssistantPlace` (iOS / macOS 26),
+`AssistantFile`, an `@AssistantEntity` class, an enum (your own
+`@AssistantEnum`, or a schema enum such as `ClockTimerState`), or a `List` of
+one of these. Dart defaults become App Intents defaults:
+
+```dart
+@AssistantEnum(title: 'Meal')
+enum Meal { breakfast, lunch, dinner, @CaseTitle('Late-night snack', synonyms: ['snack']) snack }
+
+@AssistantAction(
+  title: 'Plan a Meal',
+  dialog: 'Planned {recipe} for {meal}.',
+  searchKeywords: ['menu'],
+  shortcut: AppShortcut(
+    phrases: ['Cook {recipe} for {meal} in {app}'],   // entity and enum parameters
+    shortTitle: 'Plan a Meal',
+    systemImage: 'fork.knife',
+  ),
+)
+Future<void> planMeal(Recipe recipe, {Meal meal = Meal.dinner}) async { ... }
+```
+
+Phrases with an entity parameter work for each item you publish: the runtime
+calls `updateAppShortcutParameters()` after `AssistantActions.publish`. Apple
+allows 10 App Shortcuts per app; the generator checks that and every phrase.
+`isDiscoverable: false` hides an action from Shortcuts and Spotlight (it then
+can't be an App Shortcut).
+
+A `Runs.withFlutter` action can return a value for the next step of a shortcut
+(`ReturnsValue`): any parameter type except places, an `@AssistantEntity` or
+schema entity class (Siri gets the published item with that id), or a list.
+Wrap it in `ActionResult` to say something too, or in `AssistantReply<T>` to
+also show a result card (with `AssistantReply.choose` for one item, Siri asks
+which); a bare `Future<String>` is still only what Siri says. Live Activity
+actions (`liveActivity: true`) can't return values. Confirmations, dialogs and
+Focus filter summaries can say every parameter type except people, places and
+files.
+
+```dart
+@AssistantAction(title: 'Quickest Recipe', runs: Runs.withFlutter)
+Future<ActionResult<Recipe?>> quickestRecipe({Duration? under}) async =>
+    ActionResult(quickest, dialog: '${quickest.name} it is.');
+```
+
+Schema intents can be App Shortcuts too. Put `@IntentShortcut` on the class
+that turns the intent on (`system.open` goes on the entity class it opens):
+
+```dart
+@CameraIntents(startCapture: true)
+@IntentShortcut('camera.startCapture',
+    phrases: ['Take a {captureMode} with {app}'], shortTitle: 'Camera', systemImage: 'camera')
+class CameraHandler implements CameraAssistantHandler { ... }
+```
+
+Schema intents need iOS 18 / macOS 15 or later, so their shortcuts are wrapped
+in `if #available`, which App Shortcuts only allow from **iOS 17.4 / macOS
+14.4**. `dart run assistant_actions:install` raises the Runner targets to that
+(rerun it in an app installed earlier). Set the tile color
+with `@AssistantActionsApp(name: ..., shortcutTileColor: ShortcutTileColor.orange)`.
+
+**Localizing.** Titles, descriptions and phrases go into the Swift as
+localization keys (the English text), and the generator doesn't translate
+them. Translate them with String Catalogs in the Runner target, Apple's usual
+setup: add `AppShortcuts.xcstrings` and Xcode extracts the phrases and short
+titles from `apple/AssistantShortcuts.g.swift` when it builds, with
+parameters written as `${recipe}` and the app name as `${applicationName}`.
+Titles and descriptions of the generated intents live in the
+`assistant_actions_app` package, so add their keys to the Runner's
+`Localizable.xcstrings` by hand. (Not yet verified on a device with
+assistant_actions.) Spoken dialogs are plain strings: localize them in Dart
+and return them from the action.
+
 ## Run
 
 ```dart
@@ -448,6 +523,8 @@ AssistantActions.publish(tasks);
 - Generated intents live in a local plugin (`packages/assistant_actions_app`), so
   adding actions never touches `project.pbxproj`. Only the App Shortcuts file has
   to be in the Runner targets, because Apple reads shortcuts only from the app.
+  The runtime finds its `AssistantActionsAppShortcuts` class by name to refresh
+  phrases that name entities.
 - Deferred actions and schema changes go into a UserDefaults inbox that doesn't
   need Flutter. Ids are assigned in Swift, so Siri can update or delete something
   it just created before Dart has run.
