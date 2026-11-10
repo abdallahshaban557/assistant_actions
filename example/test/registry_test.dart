@@ -26,12 +26,17 @@ void main() {
   setUp(() async {
     store.tasks.clear();
     store.journal.clear();
+    store.timers.clear();
+    store.onScreen = null;
     store.recording = false;
     registry = assistantActionsRegistry(
       findRecipe: (id) => store.recipes.where((r) => r.id == id).firstOrNull,
       taskItem: TaskHandler(),
       memoryItem: MemoryHandler(),
       journalItem: JournalHandler(),
+      countdown: CountdownHandler(),
+      system: SystemHandler(),
+      camera: CameraHandler(),
     );
     // The handlers republish after each change, which needs a started runtime.
     await AssistantActions.start(registry, host: _NoHost());
@@ -98,5 +103,25 @@ void main() {
 
     await apply(const InboxChange(kind: 'delete', collection: 'JournalItem', id: 'j1'));
     expect(store.journal, isEmpty);
+  });
+
+  test('Siri creates a timer, then pauses it with a queued call', () async {
+    await apply(InboxChange(
+        kind: 'create', collection: 'Countdown', id: 'c1', fields: {'length': 300.0, 'label': 'Tea'}));
+    expect(store.timers.single.length, const Duration(minutes: 5));
+    await registry.actions['Countdown.pauseTimer']!({'timer': 'c1'});
+    expect(store.timers.single.state.name, 'paused');
+  });
+
+  test('domain intents decode app-defined enum cases', () async {
+    await AssistantActions.perform('camera.startCapture', '{"captureMode":"video","device":"front"}');
+    expect(store.onScreen, 'camera: video, front');
+  });
+
+  test('system.open and searchInApp show things in the app', () async {
+    await AssistantActions.perform('system.open.Recipe', '{"id":"pancakes"}');
+    expect(store.onScreen, 'recipe pancakes');
+    await AssistantActions.perform('system.searchInApp', '{"criteria":"lake"}');
+    expect(store.onScreen, 'search "lake"');
   });
 }

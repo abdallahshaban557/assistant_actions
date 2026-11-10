@@ -1,0 +1,352 @@
+{
+  "domain": "reader",
+  "hash": "c2d369abe24cd220fff14cee83825fd529f2ccfa53c02763b34418f1e3b04803",
+  "xcode": "27B52",
+  "entities": {
+    "page": {
+      "title": "Page",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "properties": [
+        {
+          "name": "label",
+          "title": "Label",
+          "type": {
+            "kind": "string"
+          },
+          "updatable": false,
+          "indexingKey": "keywords"
+        }
+      ]
+    },
+    "document": {
+      "title": "Document",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "properties": [
+        {
+          "name": "title",
+          "title": "Title",
+          "type": {
+            "kind": "string"
+          },
+          "updatable": false,
+          "indexingKey": "title"
+        },
+        {
+          "name": "kind",
+          "title": "Kind",
+          "type": {
+            "kind": "openEnum",
+            "ref": "reader.documentKind"
+          },
+          "updatable": false,
+          "indexingKey": "kind"
+        },
+        {
+          "name": "width",
+          "title": "Width",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "int"
+            }
+          },
+          "updatable": false,
+          "indexingKey": "pixelWidth"
+        },
+        {
+          "name": "height",
+          "title": "Height",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "int"
+            }
+          },
+          "updatable": false,
+          "indexingKey": "pixelHeight"
+        }
+      ]
+    }
+  },
+  "enums": {
+    "documentKind": {
+      "title": "Document Kind",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "cases": []
+    }
+  },
+  "intents": {
+    "rotateDocuments": {
+      "title": "Rotate Documents",
+      "description": "Rotates the documents in the specified direction.",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "parameters": [
+        {
+          "name": "documents",
+          "title": "Documents",
+          "type": {
+            "kind": "array",
+            "of": {
+              "kind": "entity",
+              "ref": "reader.document"
+            }
+          },
+          "description": "Documents to rotate."
+        },
+        {
+          "name": "isClockwise",
+          "title": "Clockwise",
+          "type": {
+            "kind": "bool"
+          },
+          "description": "Direction the documents will be rotated in."
+        }
+      ]
+    },
+    "resizeDocuments": {
+      "title": "Resize Documents",
+      "description": "Resizes the documents to a particular width and height.",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "parameters": [
+        {
+          "name": "documents",
+          "title": "Documents",
+          "type": {
+            "kind": "array",
+            "of": {
+              "kind": "entity",
+              "ref": "reader.document"
+            }
+          },
+          "description": "Documents to resize."
+        },
+        {
+          "name": "width",
+          "title": "Width",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "double"
+            }
+          },
+          "description": "Width to set for the documents (leave empty to preserve aspect ratio based on the specified height)."
+        },
+        {
+          "name": "height",
+          "title": "Height",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "double"
+            }
+          },
+          "description": "Height to set for the documents (leave empty to preserve aspect ratio based on the specified width)."
+        }
+      ]
+    },
+    "openPage": {
+      "title": "Open Page",
+      "description": "Opens the app to the specified document page.",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "parameters": [
+        {
+          "name": "target",
+          "title": "Page",
+          "type": {
+            "kind": "entity",
+            "ref": "reader.page"
+          },
+          "description": "Page to go to."
+        }
+      ],
+      "opensApp": true,
+      "protocols": [
+        "open"
+      ]
+    },
+    "enhanceDocuments": {
+      "title": "Enhance Documents",
+      "description": "Enhances the documents.",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "parameters": [
+        {
+          "name": "target",
+          "title": "Documents",
+          "type": {
+            "kind": "array",
+            "of": {
+              "kind": "entity",
+              "ref": "reader.document"
+            }
+          },
+          "description": "Documents to automatically enhance."
+        }
+      ]
+    },
+    "searchDocuments": {
+      "title": "Search Documents",
+      "description": "Searches for text in the documents.",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "parameters": [
+        {
+          "name": "criteria",
+          "title": "Search Terms",
+          "type": {
+            "kind": "string"
+          },
+          "description": "Terms used for searching in the documents."
+        },
+        {
+          "name": "documents",
+          "title": "Documents",
+          "type": {
+            "kind": "array",
+            "of": {
+              "kind": "entity",
+              "ref": "reader.document"
+            }
+          },
+          "description": "Documents to search in."
+        }
+      ]
+    },
+    "openDocument": {
+      "title": "Open Documents",
+      "description": "Opens the specified files in the reader.",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "parameters": [
+        {
+          "name": "files",
+          "title": "Documents",
+          "type": {
+            "kind": "array",
+            "of": {
+              "kind": "file"
+            }
+          },
+          "description": "Files to open as documents in the reader."
+        }
+      ]
+    },
+    "rotatePages": {
+      "title": "Rotate Pages",
+      "description": "Rotates the pages in the specified direction.",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "parameters": [
+        {
+          "name": "pages",
+          "title": "Pages",
+          "type": {
+            "kind": "array",
+            "of": {
+              "kind": "entity",
+              "ref": "reader.page"
+            }
+          },
+          "description": "Pages to rotate."
+        },
+        {
+          "name": "isClockwise",
+          "title": "Clockwise",
+          "type": {
+            "kind": "bool"
+          },
+          "description": "Direction the pages will be rotated in."
+        }
+      ]
+    },
+    "deletePages": {
+      "title": "Delete Pages",
+      "description": "Deletes the specified pages.",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "parameters": [
+        {
+          "name": "entities",
+          "title": "Pages",
+          "type": {
+            "kind": "array",
+            "of": {
+              "kind": "entity",
+              "ref": "reader.page"
+            }
+          },
+          "description": "Pages to delete."
+        }
+      ],
+      "protocols": [
+        "delete"
+      ]
+    },
+    "insertPages": {
+      "title": "Insert Page",
+      "description": "Inserts pages from the specified files.",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "parameters": [
+        {
+          "name": "files",
+          "title": "Documents",
+          "type": {
+            "kind": "array",
+            "of": {
+              "kind": "file"
+            }
+          },
+          "description": "Image or PDF files to insert as pages."
+        },
+        {
+          "name": "isAfter",
+          "title": "Placement",
+          "type": {
+            "kind": "bool"
+          },
+          "description": "Whether the new pages are inserted before or after the specified page."
+        },
+        {
+          "name": "page",
+          "title": "Page",
+          "type": {
+            "kind": "entity",
+            "ref": "reader.page"
+          },
+          "description": "Page relative to which the files will be inserted."
+        }
+      ]
+    }
+  }
+}

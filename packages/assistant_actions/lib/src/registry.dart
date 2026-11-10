@@ -97,4 +97,31 @@ abstract final class AssistantValue {
       v is num ? DateTime.fromMillisecondsSinceEpoch((v * 1000).round()) : null;
 
   static double? encodeDate(DateTime? d) => d == null ? null : d.millisecondsSinceEpoch / 1000;
+
+  /// Seconds.
+  static Duration? duration(Object? v) => v is num ? Duration(microseconds: (v * 1e6).round()) : null;
+
+  static double? encodeDuration(Duration? d) => d == null ? null : d.inMicroseconds / 1e6;
+
+  /// A schema enum case by its name in Apple's schema. Dart names that clash
+  /// with reserved words end in `$` (`this$` for `this`).
+  static T? enumeration<T extends Enum>(List<T> values, Object? v) {
+    if (v is! String) return null;
+    for (final value in values) {
+      if (value.name == v || value.name == '$v\$') return value;
+    }
+    return null;
+  }
+
+  /// The case name Swift expects for a schema enum value.
+  static String? encodeEnum(Enum? e) => e == null
+      ? null
+      : e.name.endsWith(r'$')
+          ? e.name.substring(0, e.name.length - 1)
+          : e.name;
+
+  /// A list, decoding each element with [element] and dropping ones it
+  /// can't read.
+  static List<T>? list<T>(Object? v, T? Function(Object? element) element) =>
+      v is List ? [for (final e in v) if (element(e) case final T value) value] : null;
 }

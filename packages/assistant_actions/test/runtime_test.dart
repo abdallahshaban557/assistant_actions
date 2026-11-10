@@ -3,6 +3,8 @@ import 'dart:io';
 
 import 'package:assistant_actions/assistant_actions.dart';
 import 'package:assistant_actions/schemas/journal.dart';
+import 'package:assistant_actions/schemas/notes.dart';
+import 'package:assistant_actions/schemas/reminders.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 class _Item {
@@ -119,12 +121,18 @@ void main() {
     expect(change.cleared, ['due']);
   });
 
-  test('every schema library ships the catalog the generator reads', () {
-    final libraries = Directory('lib/schemas').listSync().map((f) => f.uri.pathSegments.last.replaceAll('.dart', ''));
-    expect(libraries, containsAll(['reminders', 'notes', 'journal']));
-    for (final domain in libraries) {
+  test('every bundled catalog has its typed schema library', () {
+    final domains = [
+      for (final f in Directory('lib/src/catalog').listSync())
+        if (f.path.endsWith('.json') && !f.path.endsWith('generator_api.json'))
+          f.uri.pathSegments.last.replaceAll('.json', ''),
+    ];
+    expect(domains, containsAll(['reminders', 'notes', 'journal', 'camera', 'wordProcessor']));
+    for (final domain in domains) {
       final catalog = jsonDecode(File('lib/src/catalog/$domain.json').readAsStringSync()) as Map;
       expect(catalog['domain'], domain);
+      final library = domain.replaceAllMapped(RegExp('[A-Z]'), (m) => '_${m[0]!.toLowerCase()}');
+      expect(File('lib/schemas/$library.dart').existsSync(), isTrue, reason: library);
     }
   });
 
@@ -133,8 +141,27 @@ void main() {
     expect(entry.schema, 'journal.entry');
     expect(entry.createAudioEntry, isTrue);
     expect(entry.updateEntry, isFalse);
-    expect(EntryField.message.name, 'message');
+    expect(JournalEntryField.message.name, 'message');
     final catalog = jsonDecode(File('lib/src/catalog/journal.json').readAsStringSync()) as Map;
     expect((catalog['intents'] as Map)['createAudioEntry']['protocols'], ['audioStarting']);
   });
+
+  test('AssistantValue decodes enums, durations and lists', () {
+    expect(AssistantValue.enumeration(_Case.values, 'b'), _Case.b);
+    expect(AssistantValue.enumeration(_Case.values, 'this'), _Case.this$, reason: r'reserved names end in $');
+    expect(AssistantValue.enumeration(_Case.values, 'nope'), isNull);
+    expect(AssistantValue.encodeEnum(_Case.this$), 'this');
+    expect(AssistantValue.duration(90.5), const Duration(seconds: 90, milliseconds: 500));
+    expect(AssistantValue.encodeDuration(const Duration(minutes: 2)), 120);
+    expect(AssistantValue.list(['a', 1, 'b'], AssistantValue.string), ['a', 'b']);
+    expect(AssistantValue.list('x', AssistantValue.string), isNull);
+  });
+
+  test('reminders and notes keep their names from before domain prefixes', () {
+    expect(ReminderField.dueDate, same(RemindersReminderField.dueDate));
+    expect(const FixedList(id: 'tasks', name: 'Tasks'), isA<FixedRemindersList>());
+    expect(NoteField.name, same(NotesNoteField.name));
+  });
 }
+
+enum _Case { a, b, this$ }

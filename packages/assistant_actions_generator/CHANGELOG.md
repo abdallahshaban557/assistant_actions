@@ -1,3 +1,42 @@
+## 0.0.9
+
+* Generates every shape in Apple's schema catalog, not only create, update
+  and delete:
+  * **Calls**: any other intent calls a handler method named after it, with
+    its parameters as Dart values (enums, `Duration`, entity ids, lists).
+    Intents that open the app, record audio or return an item run live (from
+    the foreground on iOS; `supportedModes = .foreground` from iOS 26).
+    Others are queued in the inbox, like `Runs.deferred`. Results are item
+    ids that Swift looks up.
+  * **Domain intents** (`camera.*`, `system.searchInApp`,
+    `assistant.activate`) get a `<Domain>AssistantHandler` and a registry
+    parameter.
+  * **`system.open`** generates an open intent per adopted entity, unless the
+    entity's own domain has one (Apple allows one per target).
+  * **Unions** become `@UnionValue` enums. Person, file, place, recurrence,
+    link and scene members get their Swift types (`IntentPerson`,
+    `IntentFile`, …). These aren't passed to Dart yet; the docs list them.
+  * **Unique entities** (`maps.navigationSession`) get a
+    `UniqueAppEntityQuery`.
+  * **Entity references**: a member that is another adopted entity maps to its
+    id. Swift resolves it from the snapshot, one level deep.
+  * Clear build errors for what isn't supported: file entities (`files.file`),
+    union results, results of entities the app doesn't adopt, and app-defined
+    enum cases the app didn't give.
+* Availability: enums use their own catalog availability, a platform missing
+  from the catalog is unavailable (`assistant.activate` is iOS 26.2 only),
+  and `valueState` (clearing a field) raises update intents to iOS 18.2 /
+  macOS 15.2.
+* Create/update/delete are decided by the intent's verb and shape, so
+  `clock.cancelTimer` and `photos.addAssetsToAlbum` become calls rather than
+  deletes or updates.
+* `tool/export_catalog.dart` exports every public domain by default and skips
+  private or deprecated schemas, including ones that use a private schema.
+* `tool/validate_schemas.dart` adopts every schema in a throwaway app and
+  runs the builder, `flutter analyze` and Apple's
+  `appintentsmetadataprocessor` for macOS and the iOS simulator.
+* Needs assistant_actions 0.0.11.
+
 ## 0.0.8
 
 * Supports Apple's `journal` schemas (assistant_actions 0.0.10): create,

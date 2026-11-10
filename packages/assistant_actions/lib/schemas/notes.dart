@@ -6,7 +6,7 @@
 ///
 /// Annotate a class with an entity annotation, such as
 /// `@NotesNote(...)`, and its fields with
-/// `@NoteField.<member>`.
+/// `@NotesNoteField.<member>`.
 library;
 
 import '../src/schema.dart';
@@ -16,7 +16,7 @@ import '../src/schema.dart';
 
 /// Adopts Apple's `notes.note` schema ("Note", iOS 27+, macOS 27+).
 ///
-/// Map fields with [NoteField] and turn on the schema intents the app
+/// Map fields with [NotesNoteField] and turn on the schema intents the app
 /// supports. Each one becomes a method on the generated handler.
 class NotesNote extends SchemaEntity {
   const NotesNote({
@@ -27,7 +27,7 @@ class NotesNote extends SchemaEntity {
   }) : super('notes.note');
 
   /// The fixed `notes.folder` every item belongs to, if any.
-  final FixedFolder? folder;
+  final FixedNotesFolder? folder;
 
   /// Handle `notes.createNote` ("Create Note"): creates items.
   final bool createNote;
@@ -40,38 +40,48 @@ class NotesNote extends SchemaEntity {
 }
 
 /// Marks members of `notes.note`.
-final class NoteSchema {
-  const NoteSchema._();
+final class NotesNoteSchema {
+  const NotesNoteSchema._();
 }
 
 /// Members of `notes.note`, used as field annotations:
-/// `@NoteField.name String title;`.
-abstract final class NoteField {
+/// `@NotesNoteField.name …`.
+///
+/// Not mapped to Dart yet: `attachments` (`[file]`). Generated entities give them their empty value.
+abstract final class NotesNoteField {
   /// Name
   ///
   /// Read-only in the schema: Siri reads it but never sets it.
-  static const name = SchemaMember<NoteSchema, String>('notes.note', 'name');
+  static const name = SchemaMember<NotesNoteSchema, String>('notes.note', 'name');
 
   /// Content
   ///
   /// Read-only in the schema: Siri reads it but never sets it.
-  static const content = SchemaMember<NoteSchema, String?>('notes.note', 'content');
+  static const content = SchemaMember<NotesNoteSchema, String?>('notes.note', 'content');
 
   /// Is Pinned
   ///
   /// Read-only in the schema: Siri reads it but never sets it.
-  static const isPinned = SchemaMember<NoteSchema, bool>('notes.note', 'isPinned');
+  static const isPinned = SchemaMember<NotesNoteSchema, bool>('notes.note', 'isPinned');
 
   /// Creation Date
   ///
   /// Read-only in the schema: Siri reads it but never sets it.
-  static const creationDate = SchemaMember<NoteSchema, DateTime?>('notes.note', 'creationDate');
+  static const creationDate =
+      SchemaMember<NotesNoteSchema, DateTime?>('notes.note', 'creationDate');
 
   /// Modification Date
   ///
   /// Read-only in the schema: Siri reads it but never sets it.
   static const modificationDate =
-      SchemaMember<NoteSchema, DateTime?>('notes.note', 'modificationDate');
+      SchemaMember<NotesNoteSchema, DateTime?>('notes.note', 'modificationDate');
+
+  /// Folder
+  ///
+  /// Read-only in the schema: Siri reads it but never sets it.
+  ///
+  /// The id of `notes.folder` items, which the app must adopt too.
+  static const folder = SchemaMember<NotesNoteSchema, String?>('notes.note', 'folder');
 }
 
 // ──────────────────────────────────────────────────────────────────────
@@ -79,29 +89,29 @@ abstract final class NoteField {
 
 /// Adopts Apple's `notes.account` schema ("Account", iOS 27+, macOS 27+).
 ///
-/// Map fields with [AccountField] and turn on the schema intents the app
+/// Map fields with [NotesAccountField] and turn on the schema intents the app
 /// supports. Each one becomes a method on the generated handler.
 class NotesAccount extends SchemaEntity {
   const NotesAccount() : super('notes.account');
 }
 
 /// Marks members of `notes.account`.
-final class AccountSchema {
-  const AccountSchema._();
+final class NotesAccountSchema {
+  const NotesAccountSchema._();
 }
 
 /// Members of `notes.account`, used as field annotations:
-/// `@AccountField.name String title;`.
-abstract final class AccountField {
+/// `@NotesAccountField.name …`.
+abstract final class NotesAccountField {
   /// Name
   ///
   /// Read-only in the schema: Siri reads it but never sets it.
-  static const name = SchemaMember<AccountSchema, String>('notes.account', 'name');
+  static const name = SchemaMember<NotesAccountSchema, String>('notes.account', 'name');
 }
 
 /// A fixed `notes.account` instance, for schemas that require one.
-class FixedAccount extends SchemaContainer {
-  const FixedAccount({
+class FixedNotesAccount extends SchemaContainer {
+  const FixedNotesAccount({
     required String id,
     required this.name,
   }) : super('notes.account', id);
@@ -114,7 +124,7 @@ class FixedAccount extends SchemaContainer {
 
 /// Adopts Apple's `notes.folder` schema ("Folder", iOS 27+, macOS 27+).
 ///
-/// Map fields with [FolderField] and turn on the schema intents the app
+/// Map fields with [NotesFolderField] and turn on the schema intents the app
 /// supports. Each one becomes a method on the generated handler.
 class NotesFolder extends SchemaEntity {
   const NotesFolder({
@@ -122,31 +132,64 @@ class NotesFolder extends SchemaEntity {
   }) : super('notes.folder');
 
   /// The fixed `notes.account` every item belongs to, if any.
-  final FixedAccount? account;
+  final FixedNotesAccount? account;
 }
 
 /// Marks members of `notes.folder`.
-final class FolderSchema {
-  const FolderSchema._();
+final class NotesFolderSchema {
+  const NotesFolderSchema._();
 }
 
 /// Members of `notes.folder`, used as field annotations:
-/// `@FolderField.name String title;`.
-abstract final class FolderField {
+/// `@NotesFolderField.name …`.
+abstract final class NotesFolderField {
   /// Name
   ///
   /// Read-only in the schema: Siri reads it but never sets it.
-  static const name = SchemaMember<FolderSchema, String>('notes.folder', 'name');
+  static const name = SchemaMember<NotesFolderSchema, String>('notes.folder', 'name');
+
+  /// Parent Folder
+  ///
+  /// Read-only in the schema: Siri reads it but never sets it.
+  ///
+  /// The id of `notes.folder` items, which the app must adopt too.
+  static const parentFolder =
+      SchemaMember<NotesFolderSchema, String?>('notes.folder', 'parentFolder');
+
+  /// Account
+  ///
+  /// Read-only in the schema: Siri reads it but never sets it.
+  ///
+  /// The id of `notes.account` items, which the app must adopt too.
+  static const account = SchemaMember<NotesFolderSchema, String?>('notes.folder', 'account');
 }
 
 /// A fixed `notes.folder` instance, for schemas that require one.
-class FixedFolder extends SchemaContainer {
-  const FixedFolder({
+class FixedNotesFolder extends SchemaContainer {
+  const FixedNotesFolder({
     required String id,
     required this.name,
     this.account,
   }) : super('notes.folder', id);
 
   final String name;
-  final FixedAccount? account;
+  final FixedNotesAccount? account;
 }
+
+// ──────────────────────────────────────────────────────────────────────
+// Names from before 0.0.10, when they had no domain prefix.
+
+/// [NotesNoteField], by its name before 0.0.10.
+typedef NoteField = NotesNoteField;
+
+/// [NotesAccountField], by its name before 0.0.10.
+typedef AccountField = NotesAccountField;
+
+/// [FixedNotesAccount], by its name before 0.0.10.
+typedef FixedAccount = FixedNotesAccount;
+
+/// [NotesFolderField], by its name before 0.0.10.
+typedef FolderField = NotesFolderField;
+
+/// [FixedNotesFolder], by its name before 0.0.10.
+typedef FixedFolder = FixedNotesFolder;

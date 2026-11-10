@@ -1,3 +1,31 @@
+## 0.0.11
+
+* Every App Schema domain the SDK defines publicly: 23 typed libraries in
+  `package:assistant_actions/schemas/` (`calendar`, `clock`, `camera`, `mail`,
+  `photos`, `browser`, `books`, `presentation`, `spreadsheet`,
+  `wordProcessor`, `system`, … plus `reminders`, `notes` and `journal`), from
+  Xcode 27.2 (27B52, catalog c2d369abe24c). The 12 domains with no public
+  schemas (`home`, `health`, `playbackControls`, `voiceMemos`, …) aren't
+  exported. See `doc/schemas.md` for what each domain supports.
+* Only public, non-deprecated schemas are exported. Each catalog lists the
+  others under `skipped`, with why. `journal.search` is gone: Apple
+  deprecated it for `system.searchInApp`.
+* Schema enums are Dart enums (`ClockTimerState`). Enums whose cases the app
+  defines (`camera.captureMode`) get an annotation for the app's own enum:
+  `@CameraCaptureMode() enum CaptureMode { photo, video }`.
+* `@<Domain>Intents(...)` (`@CameraIntents`, `@SystemIntents`) turns on the
+  intents that belong to no entity.
+* Names carry their domain, so several libraries import together:
+  `RemindersReminderField`, `FixedRemindersList`, `JournalEntryField`. The
+  reminders and notes names from before (`ReminderField`, `FixedList`,
+  `NoteField`, `FixedFolder`, …) stay as aliases.
+* Field members that are other entities map to `String` ids
+  (`List<String>` for lists).
+* Runtime values: `AssistantValue.enumeration`/`encodeEnum`, `duration`/
+  `encodeDuration` and `list` in Dart; `Duration`, enum and id-list
+  encoding in Swift.
+* Needs assistant_actions_generator 0.0.9.
+
 ## 0.0.10
 
 * `journal` App Schemas (`package:assistant_actions/schemas/journal.dart`):

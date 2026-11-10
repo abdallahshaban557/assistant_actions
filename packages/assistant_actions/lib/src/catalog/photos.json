@@ -1,0 +1,999 @@
+{
+  "domain": "photos",
+  "hash": "c2d369abe24cd220fff14cee83825fd529f2ccfa53c02763b34418f1e3b04803",
+  "xcode": "27B52",
+  "entities": {
+    "asset": {
+      "title": "Photo",
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "properties": [
+        {
+          "name": "creationDate",
+          "title": "Date Created",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "date"
+            }
+          },
+          "updatable": false,
+          "indexingKey": "contentCreationDate"
+        },
+        {
+          "name": "location",
+          "title": "Location",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "placeDescriptor"
+            }
+          },
+          "updatable": false,
+          "indexingKey": "place"
+        },
+        {
+          "name": "assetType",
+          "title": "Photo Type",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "openEnum",
+              "ref": "photos.assetType"
+            }
+          },
+          "updatable": false,
+          "indexingKey": "kind"
+        },
+        {
+          "name": "isFavorite",
+          "title": "Favorite",
+          "type": {
+            "kind": "bool"
+          },
+          "updatable": false,
+          "indexingKey": "favorited"
+        },
+        {
+          "name": "isHidden",
+          "title": "Hidden",
+          "type": {
+            "kind": "bool"
+          },
+          "updatable": false,
+          "indexingKey": "userHidden"
+        },
+        {
+          "name": "hasSuggestedEdits",
+          "title": "Suggested Edits",
+          "type": {
+            "kind": "bool"
+          },
+          "updatable": false,
+          "indexingKey": "suggestedEdits"
+        },
+        {
+          "name": "aperture",
+          "title": "Aperture",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "double"
+            }
+          },
+          "updatable": false
+        },
+        {
+          "name": "exposure",
+          "title": "Exposure",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "double"
+            }
+          },
+          "updatable": false
+        },
+        {
+          "name": "saturation",
+          "title": "Saturation",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "double"
+            }
+          },
+          "updatable": false
+        },
+        {
+          "name": "warmth",
+          "title": "Warmth",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "double"
+            }
+          },
+          "updatable": false
+        },
+        {
+          "name": "filter",
+          "title": "Filter",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "openEnum",
+              "ref": "photos.filterType"
+            }
+          },
+          "updatable": false
+        },
+        {
+          "name": "isPortraitModeEnabled",
+          "title": "Portrait Mode Enablement",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "bool"
+            }
+          },
+          "updatable": false
+        }
+      ]
+    },
+    "album": {
+      "title": "Album",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "properties": [
+        {
+          "name": "name",
+          "title": "Name",
+          "type": {
+            "kind": "string"
+          },
+          "updatable": false,
+          "indexingKey": "displayName"
+        },
+        {
+          "name": "creationDate",
+          "title": "Date Created",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "date"
+            }
+          },
+          "updatable": false,
+          "indexingKey": "contentCreationDate"
+        },
+        {
+          "name": "albumType",
+          "title": "Type",
+          "type": {
+            "kind": "openEnum",
+            "ref": "photos.albumType"
+          },
+          "updatable": false,
+          "indexingKey": "kind"
+        }
+      ]
+    },
+    "recognizedPerson": {
+      "title": "Person",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "properties": [
+        {
+          "name": "name",
+          "title": "Name",
+          "type": {
+            "kind": "string"
+          },
+          "updatable": false,
+          "indexingKey": "displayName"
+        },
+        {
+          "name": "isFavorite",
+          "title": "Favorite",
+          "type": {
+            "kind": "bool"
+          },
+          "updatable": false,
+          "indexingKey": "favorited"
+        }
+      ]
+    }
+  },
+  "enums": {
+    "assetType": {
+      "title": "Photo Type",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "cases": []
+    },
+    "albumType": {
+      "title": "Album Type",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "cases": []
+    },
+    "filterType": {
+      "title": "Filter Type",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "cases": []
+    },
+    "rotationDirection": {
+      "title": "Rotation Direction",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "cases": []
+    }
+  },
+  "intents": {
+    "createAlbum": {
+      "title": "Create Album",
+      "description": "Creates an album.",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "parameters": [
+        {
+          "name": "name",
+          "title": "Name",
+          "type": {
+            "kind": "string"
+          },
+          "description": "Name of the album to create."
+        }
+      ],
+      "result": {
+        "kind": "entity",
+        "ref": "photos.album"
+      }
+    },
+    "openAlbum": {
+      "title": "Open Album",
+      "description": "Opens the provided album.",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "parameters": [
+        {
+          "name": "target",
+          "title": "Album",
+          "type": {
+            "kind": "entity",
+            "ref": "photos.album"
+          },
+          "description": "Album to open."
+        }
+      ],
+      "opensApp": true,
+      "protocols": [
+        "open"
+      ]
+    },
+    "updateAlbum": {
+      "title": "Rename Album",
+      "description": "Renames the provided album.",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "parameters": [
+        {
+          "name": "target",
+          "title": "Album",
+          "type": {
+            "kind": "entity",
+            "ref": "photos.album"
+          },
+          "description": "Album to update."
+        },
+        {
+          "name": "name",
+          "title": "Name",
+          "type": {
+            "kind": "string"
+          },
+          "description": "Name of the album to update to."
+        }
+      ]
+    },
+    "deleteAlbum": {
+      "title": "Delete Albums",
+      "description": "Deletes the provided albums.",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "parameters": [
+        {
+          "name": "entities",
+          "title": "Albums",
+          "type": {
+            "kind": "array",
+            "of": {
+              "kind": "entity",
+              "ref": "photos.album"
+            }
+          },
+          "description": "Albums to be deleted."
+        }
+      ],
+      "protocols": [
+        "delete"
+      ]
+    },
+    "createAssets": {
+      "title": "Create Photos",
+      "description": "Creates photos from the provided files.",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "parameters": [
+        {
+          "name": "files",
+          "title": "Files",
+          "type": {
+            "kind": "array",
+            "of": {
+              "kind": "file"
+            }
+          },
+          "description": "Files to create photos with."
+        }
+      ],
+      "result": {
+        "kind": "array",
+        "of": {
+          "kind": "entity",
+          "ref": "photos.asset"
+        }
+      }
+    },
+    "postToSharedAlbum": {
+      "title": "Post To Shared Album",
+      "description": "Posts the provided photos or files and optional comment to the provided shared album",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "parameters": [
+        {
+          "name": "sharedAlbum",
+          "title": "Shared Album",
+          "type": {
+            "kind": "entity",
+            "ref": "photos.album"
+          },
+          "description": "Shared Album to post to."
+        },
+        {
+          "name": "assets",
+          "title": "Photos",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "array",
+              "of": {
+                "kind": "entity",
+                "ref": "photos.asset"
+              }
+            }
+          },
+          "description": "Photos to be posted."
+        },
+        {
+          "name": "files",
+          "title": "Files",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "array",
+              "of": {
+                "kind": "file"
+              }
+            }
+          },
+          "description": "Files to be posted."
+        },
+        {
+          "name": "comment",
+          "title": "Comment",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "string"
+            }
+          },
+          "description": "Comment to be posted."
+        }
+      ]
+    },
+    "addAssetsToAlbum": {
+      "title": "Add Photos to Album",
+      "description": "Adds the provided photos to the provided album.",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "parameters": [
+        {
+          "name": "assets",
+          "title": "Photos",
+          "type": {
+            "kind": "array",
+            "of": {
+              "kind": "entity",
+              "ref": "photos.asset"
+            }
+          },
+          "description": "Photos to be added."
+        },
+        {
+          "name": "album",
+          "title": "Album",
+          "type": {
+            "kind": "entity",
+            "ref": "photos.album"
+          },
+          "description": "Album to add photos to."
+        }
+      ]
+    },
+    "removeAssetsFromAlbum": {
+      "title": "Remove Photos from Album",
+      "description": "Removes the provided photos from the provided album.",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "parameters": [
+        {
+          "name": "assets",
+          "title": "Photos",
+          "type": {
+            "kind": "array",
+            "of": {
+              "kind": "entity",
+              "ref": "photos.asset"
+            }
+          },
+          "description": "Photos to be removed."
+        },
+        {
+          "name": "album",
+          "title": "Album",
+          "type": {
+            "kind": "entity",
+            "ref": "photos.album"
+          },
+          "description": "Album to remove photos from."
+        }
+      ]
+    },
+    "setWarmth": {
+      "title": "Set Warmth",
+      "description": "Configures the warmth for a photo.",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "parameters": [
+        {
+          "name": "target",
+          "title": "Photo",
+          "type": {
+            "kind": "entity",
+            "ref": "photos.asset"
+          },
+          "description": "Photo to apply warmth to."
+        },
+        {
+          "name": "value",
+          "title": "Value",
+          "type": {
+            "kind": "double"
+          },
+          "description": "Value for warmth change."
+        }
+      ]
+    },
+    "cleanupPhoto": {
+      "title": "Cleanup Photo",
+      "description": "Remove distracting objects in a photo.",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "parameters": [
+        {
+          "name": "target",
+          "title": "Photo",
+          "type": {
+            "kind": "entity",
+            "ref": "photos.asset"
+          },
+          "description": "Photo to cleanup."
+        }
+      ]
+    },
+    "toggleSuggestedEdits": {
+      "title": "Enhance Photo",
+      "description": "Enhances a photo.",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "parameters": [
+        {
+          "name": "target",
+          "title": "Photo",
+          "type": {
+            "kind": "entity",
+            "ref": "photos.asset"
+          },
+          "description": "Photo to enhance."
+        },
+        {
+          "name": "isEnabled",
+          "title": "Enabled",
+          "type": {
+            "kind": "bool"
+          },
+          "description": "Value for toggling enhancement."
+        }
+      ]
+    },
+    "setFilter": {
+      "title": "Apply Filter",
+      "description": "Applies a filter to a photo.",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "parameters": [
+        {
+          "name": "filterType",
+          "title": "Filter",
+          "type": {
+            "kind": "openEnum",
+            "ref": "photos.filterType"
+          },
+          "description": "Filter to apply."
+        },
+        {
+          "name": "target",
+          "title": "Photo",
+          "type": {
+            "kind": "entity",
+            "ref": "photos.asset"
+          },
+          "description": "Photo to apply filter to."
+        }
+      ]
+    },
+    "crop": {
+      "title": "Crop Photo",
+      "description": "Crops a photo.",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "parameters": [
+        {
+          "name": "target",
+          "title": "Photo",
+          "type": {
+            "kind": "entity",
+            "ref": "photos.asset"
+          },
+          "description": "Photo to be cropped."
+        }
+      ]
+    },
+    "updateAsset": {
+      "title": "Update Photo",
+      "description": "Updates an existing photo’s properties.",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "parameters": [
+        {
+          "name": "target",
+          "title": "Photos",
+          "type": {
+            "kind": "array",
+            "of": {
+              "kind": "entity",
+              "ref": "photos.asset"
+            }
+          },
+          "description": "Photos to update."
+        },
+        {
+          "name": "name",
+          "title": "Name",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "string"
+            }
+          },
+          "description": "Name of the photo to update to."
+        },
+        {
+          "name": "isHidden",
+          "title": "Hidden",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "bool"
+            }
+          },
+          "description": "Whether to hide the photo."
+        },
+        {
+          "name": "isFavorite",
+          "title": "Favorite",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "bool"
+            }
+          },
+          "description": "Whether to mark the photo as favorite."
+        }
+      ]
+    },
+    "duplicateAssets": {
+      "title": "Duplicate Photos",
+      "description": "Duplicates the selected photos.",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "parameters": [
+        {
+          "name": "entities",
+          "title": "Photos",
+          "type": {
+            "kind": "array",
+            "of": {
+              "kind": "entity",
+              "ref": "photos.asset"
+            }
+          },
+          "description": "Photos to duplicate."
+        }
+      ],
+      "result": {
+        "kind": "array",
+        "of": {
+          "kind": "entity",
+          "ref": "photos.asset"
+        }
+      }
+    },
+    "deleteAssets": {
+      "title": "Delete Photos",
+      "description": "Deletes the provided photos.",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "parameters": [
+        {
+          "name": "entities",
+          "title": "Photos",
+          "type": {
+            "kind": "array",
+            "of": {
+              "kind": "entity",
+              "ref": "photos.asset"
+            }
+          },
+          "description": "Photos to be deleted."
+        }
+      ],
+      "protocols": [
+        "delete"
+      ]
+    },
+    "copyEdits": {
+      "title": "Copy Edits",
+      "description": "Copies edits from the provided photo.",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "parameters": [
+        {
+          "name": "target",
+          "title": "Photo",
+          "type": {
+            "kind": "entity",
+            "ref": "photos.asset"
+          },
+          "description": "Photo to copy edits from."
+        }
+      ]
+    },
+    "pasteEdits": {
+      "title": "Paste Edits",
+      "description": "Pastes edits to the provided photo.",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "parameters": [
+        {
+          "name": "target",
+          "title": "Photos",
+          "type": {
+            "kind": "array",
+            "of": {
+              "kind": "entity",
+              "ref": "photos.asset"
+            }
+          },
+          "description": "Photos to paste edits to."
+        }
+      ]
+    },
+    "setDepth": {
+      "title": "Set Depth",
+      "description": "Sets the depth value of a photo.",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "parameters": [
+        {
+          "name": "target",
+          "title": "Photo",
+          "type": {
+            "kind": "entity",
+            "ref": "photos.asset"
+          },
+          "description": "Photo to change depth for."
+        },
+        {
+          "name": "value",
+          "title": "Value",
+          "type": {
+            "kind": "double"
+          },
+          "description": "Depth value to set."
+        }
+      ]
+    },
+    "setExposure": {
+      "title": "Set Exposure",
+      "description": "Configures the exposure for a photo.",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "parameters": [
+        {
+          "name": "target",
+          "title": "Photo",
+          "type": {
+            "kind": "entity",
+            "ref": "photos.asset"
+          },
+          "description": "Photo to apply exposure to."
+        },
+        {
+          "name": "value",
+          "title": "Value",
+          "type": {
+            "kind": "double"
+          },
+          "description": "Value for exposure change."
+        }
+      ]
+    },
+    "setSaturation": {
+      "title": "Set Saturation",
+      "description": "Configures the saturation for a photo.",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "parameters": [
+        {
+          "name": "target",
+          "title": "Photo",
+          "type": {
+            "kind": "entity",
+            "ref": "photos.asset"
+          },
+          "description": "Photo to apply saturation to."
+        },
+        {
+          "name": "value",
+          "title": "Value",
+          "type": {
+            "kind": "double"
+          },
+          "description": "Value for saturation change."
+        }
+      ]
+    },
+    "setRotation": {
+      "title": "Rotate Photo",
+      "description": "Rotates a photo.",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "parameters": [
+        {
+          "name": "target",
+          "title": "Photo",
+          "type": {
+            "kind": "entity",
+            "ref": "photos.asset"
+          },
+          "description": "Photo to be rotated."
+        },
+        {
+          "name": "direction",
+          "title": "Direction",
+          "type": {
+            "kind": "openEnum",
+            "ref": "photos.rotationDirection"
+          },
+          "description": "Direction to rotate photo."
+        }
+      ]
+    },
+    "toggleDepth": {
+      "title": "Toggle Depth Effect",
+      "description": "Toggles depth effect for a photo.",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "parameters": [
+        {
+          "name": "isEnabled",
+          "title": "State",
+          "type": {
+            "kind": "bool"
+          },
+          "description": "Whether depth effect is enabled."
+        },
+        {
+          "name": "target",
+          "title": "Photo",
+          "type": {
+            "kind": "entity",
+            "ref": "photos.asset"
+          },
+          "description": "Photo to change depth for."
+        }
+      ]
+    },
+    "updateRecognizedPerson": {
+      "title": "Update Person",
+      "description": "Updates the provided person with new properties.",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "parameters": [
+        {
+          "name": "target",
+          "title": "Person",
+          "type": {
+            "kind": "entity",
+            "ref": "photos.recognizedPerson"
+          },
+          "description": "Person to update."
+        },
+        {
+          "name": "isFavorite",
+          "title": "Favorite",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "bool"
+            }
+          },
+          "description": "Whether to update the person as favorite."
+        },
+        {
+          "name": "name",
+          "title": "Name",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "string"
+            }
+          },
+          "description": "Name of the person to rename to."
+        }
+      ]
+    },
+    "straighten": {
+      "title": "Straighten Photo",
+      "description": "Straightens a photo.",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "parameters": [
+        {
+          "name": "target",
+          "title": "Photo",
+          "type": {
+            "kind": "entity",
+            "ref": "photos.asset"
+          },
+          "description": "Photo to be straightened."
+        }
+      ]
+    },
+    "editAsset": {
+      "title": "Edit Photo",
+      "description": "Opens a photo for editing.",
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "parameters": [
+        {
+          "name": "asset",
+          "title": "Photo",
+          "type": {
+            "kind": "entity",
+            "ref": "photos.asset"
+          },
+          "description": "Photo to edit."
+        }
+      ],
+      "opensApp": true
+    }
+  },
+  "skipped": {
+    "attributedSearch": "no public definition in the SDK",
+    "destination": "no public definition in the SDK",
+    "favoriteMemories": "no public definition in the SDK",
+    "favoriteMemoriesAction": "no public definition in the SDK",
+    "filterLibrary": "no public definition in the SDK",
+    "hidePhotoFace": "no public definition in the SDK",
+    "libraryViewMode": "no public definition in the SDK",
+    "memory": "no public definition in the SDK",
+    "moveAssetsToPersonalLibrary": "no public definition in the SDK",
+    "moveAssetsToSharedLibrary": "no public definition in the SDK",
+    "navigatePhotoFaces": "no public definition in the SDK",
+    "openAsset": "deprecated: Use .system.open instead",
+    "openDestination": "no public definition in the SDK",
+    "openMemoryCreationView": "no public definition in the SDK",
+    "search": "deprecated: Use .system.searchInApp instead"
+  }
+}

@@ -1,0 +1,721 @@
+{
+  "domain": "messages",
+  "hash": "c2d369abe24cd220fff14cee83825fd529f2ccfa53c02763b34418f1e3b04803",
+  "xcode": "27B52",
+  "entities": {
+    "conversation": {
+      "title": "Conversation",
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "properties": [
+        {
+          "name": "recipients",
+          "title": "Recipients",
+          "type": {
+            "kind": "array",
+            "of": {
+              "kind": "entity",
+              "ref": "messages.messagePerson"
+            }
+          },
+          "updatable": false,
+          "indexingKey": "primaryRecipients"
+        },
+        {
+          "name": "displayName",
+          "title": "Display Name",
+          "type": {
+            "kind": "string"
+          },
+          "updatable": false,
+          "indexingKey": "displayName"
+        },
+        {
+          "name": "previewText",
+          "title": "Last Message",
+          "type": {
+            "kind": "attributedString"
+          },
+          "updatable": false,
+          "indexingKey": "contentDescription"
+        },
+        {
+          "name": "conversationName",
+          "title": "Group Name",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "string"
+            }
+          },
+          "updatable": false,
+          "indexingKey": "contentCatalog"
+        },
+        {
+          "name": "isRead",
+          "title": "Is Read",
+          "type": {
+            "kind": "bool"
+          },
+          "updatable": false,
+          "indexingKey": "read"
+        },
+        {
+          "name": "attributes",
+          "title": "Attributes",
+          "type": {
+            "kind": "set",
+            "of": {
+              "kind": "openEnum",
+              "ref": "messages.conversationAttribute"
+            }
+          },
+          "updatable": false
+        },
+        {
+          "name": "dateLastActive",
+          "title": "Date",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "date"
+            }
+          },
+          "updatable": false,
+          "indexingKey": "contentModificationDate"
+        }
+      ]
+    },
+    "customAttachment": {
+      "title": "Custom Attachment",
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "properties": [
+        {
+          "name": "sourceName",
+          "title": "Source Name",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "attributedString"
+            }
+          },
+          "updatable": false,
+          "indexingKey": "contentSources"
+        },
+        {
+          "name": "description",
+          "title": "Description",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "attributedString"
+            }
+          },
+          "updatable": false,
+          "indexingKey": "contentDescription"
+        }
+      ]
+    },
+    "message": {
+      "title": "Message",
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "properties": [
+        {
+          "name": "messageType",
+          "title": "Type",
+          "type": {
+            "kind": "enum",
+            "ref": "messages.messageType"
+          },
+          "updatable": false
+        },
+        {
+          "name": "author",
+          "title": "Author",
+          "type": {
+            "kind": "entity",
+            "ref": "messages.messagePerson"
+          },
+          "updatable": false,
+          "indexingKey": "authors"
+        },
+        {
+          "name": "isRead",
+          "title": "Is Read",
+          "type": {
+            "kind": "bool"
+          },
+          "updatable": false,
+          "indexingKey": "read"
+        },
+        {
+          "name": "attributes",
+          "title": "Attributes",
+          "type": {
+            "kind": "set",
+            "of": {
+              "kind": "openEnum",
+              "ref": "messages.messageAttribute"
+            }
+          },
+          "updatable": false
+        },
+        {
+          "name": "conversation",
+          "title": "Conversation",
+          "type": {
+            "kind": "entity",
+            "ref": "messages.conversation"
+          },
+          "updatable": false
+        },
+        {
+          "name": "date",
+          "title": "Date",
+          "type": {
+            "kind": "date"
+          },
+          "updatable": false,
+          "indexingKey": "contentCreationDate"
+        },
+        {
+          "name": "subject",
+          "title": "Subject",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "attributedString"
+            }
+          },
+          "updatable": false,
+          "indexingKey": "subject"
+        },
+        {
+          "name": "body",
+          "title": "Body",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "attributedString"
+            }
+          },
+          "updatable": false,
+          "indexingKey": "textContent"
+        },
+        {
+          "name": "attachments",
+          "title": "Attachments",
+          "type": {
+            "kind": "array",
+            "of": {
+              "kind": "file"
+            }
+          },
+          "updatable": false
+        },
+        {
+          "name": "audioMessage",
+          "title": "Audio Message",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "file"
+            }
+          },
+          "updatable": false
+        },
+        {
+          "name": "customAttachments",
+          "title": "Custom Attachments",
+          "type": {
+            "kind": "array",
+            "of": {
+              "kind": "entity",
+              "ref": "messages.customAttachment"
+            }
+          },
+          "updatable": false
+        },
+        {
+          "name": "locations",
+          "title": "Locations",
+          "type": {
+            "kind": "array",
+            "of": {
+              "kind": "placeDescriptor"
+            }
+          },
+          "updatable": false,
+          "indexingKey": "place"
+        },
+        {
+          "name": "links",
+          "title": "Links",
+          "type": {
+            "kind": "array",
+            "of": {
+              "kind": "linkMetadata"
+            }
+          },
+          "updatable": false
+        },
+        {
+          "name": "messageEffect",
+          "title": "Effect",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "openEnum",
+              "ref": "messages.messageEffect"
+            }
+          },
+          "updatable": false
+        },
+        {
+          "name": "reaction",
+          "title": "Reaction",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "union",
+              "ref": "messages.readReaction"
+            }
+          },
+          "updatable": false
+        },
+        {
+          "name": "referencedMessage",
+          "title": "Reference",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "entity",
+              "ref": "messages.message"
+            }
+          },
+          "updatable": false
+        },
+        {
+          "name": "notificationIdentifier",
+          "title": "Notification",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "string"
+            }
+          },
+          "updatable": false
+        }
+      ]
+    },
+    "messagePerson": {
+      "title": "Person",
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "properties": [
+        {
+          "name": "person",
+          "title": "Person",
+          "type": {
+            "kind": "person"
+          },
+          "updatable": false,
+          "indexingKey": "primaryRecipients"
+        }
+      ]
+    }
+  },
+  "enums": {
+    "conversationAttribute": {
+      "title": "ConversationAttribute",
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "cases": []
+    },
+    "messageAttribute": {
+      "title": "MessageAttribute",
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "cases": []
+    },
+    "messageEffect": {
+      "title": "Message Effect",
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "cases": []
+    },
+    "messageType": {
+      "title": "Message Kind",
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "cases": [
+        "unspecified"
+      ]
+    },
+    "customReaction": {
+      "title": "Custom Reaction",
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "cases": []
+    }
+  },
+  "unions": {
+    "readReaction": {
+      "title": "Read Reaction",
+      "cases": [
+        {
+          "name": "customReaction",
+          "type": {
+            "kind": "openEnum",
+            "ref": "messages.customReaction"
+          }
+        },
+        {
+          "name": "attributedString",
+          "type": {
+            "kind": "attributedString"
+          }
+        }
+      ]
+    },
+    "destination": {
+      "title": "Destination",
+      "cases": [
+        {
+          "name": "people",
+          "type": {
+            "kind": "array",
+            "of": {
+              "kind": "person"
+            }
+          }
+        },
+        {
+          "name": "messagePerson",
+          "type": {
+            "kind": "entity",
+            "ref": "messages.messagePerson"
+          }
+        },
+        {
+          "name": "messagePeople",
+          "type": {
+            "kind": "array",
+            "of": {
+              "kind": "entity",
+              "ref": "messages.messagePerson"
+            }
+          }
+        },
+        {
+          "name": "conversation",
+          "type": {
+            "kind": "entity",
+            "ref": "messages.conversation"
+          }
+        }
+      ]
+    }
+  },
+  "intents": {
+    "editSentMessage": {
+      "title": "Edit Sent Message",
+      "description": "Edit an already sent message with new content",
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "parameters": [
+        {
+          "name": "message",
+          "title": "Message",
+          "type": {
+            "kind": "entity",
+            "ref": "messages.message"
+          },
+          "description": "The message to edit."
+        },
+        {
+          "name": "content",
+          "title": "Content",
+          "type": {
+            "kind": "attributedString"
+          },
+          "description": "The new content to replace the original content with."
+        }
+      ]
+    },
+    "sendMessage": {
+      "title": "Send Message",
+      "description": "Sends a message with the associated parameters",
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "parameters": [
+        {
+          "name": "content",
+          "title": "Content",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "attributedString"
+            }
+          },
+          "description": "The content of the message."
+        },
+        {
+          "name": "destination",
+          "title": "Recipients",
+          "type": {
+            "kind": "union",
+            "ref": "messages.destination"
+          },
+          "description": "The recipient or group to send the message to."
+        },
+        {
+          "name": "subject",
+          "title": "Subject",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "attributedString"
+            }
+          },
+          "description": "The subject of the message."
+        },
+        {
+          "name": "attachments",
+          "title": "Attachments",
+          "type": {
+            "kind": "array",
+            "of": {
+              "kind": "file"
+            }
+          },
+          "description": "The attachments to send with the message."
+        },
+        {
+          "name": "audioMessage",
+          "title": "Audio Message",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "file"
+            }
+          },
+          "description": "The audio message to send with the message."
+        },
+        {
+          "name": "locations",
+          "title": "Locations",
+          "type": {
+            "kind": "array",
+            "of": {
+              "kind": "placeDescriptor"
+            }
+          },
+          "description": "The locations to send with the message."
+        },
+        {
+          "name": "links",
+          "title": "Links",
+          "type": {
+            "kind": "array",
+            "of": {
+              "kind": "url"
+            }
+          },
+          "description": "The links to send with the message."
+        },
+        {
+          "name": "scheduledDate",
+          "title": "Scheduled Date",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "date"
+            }
+          },
+          "description": "The scheduled date for sending the message."
+        }
+      ],
+      "result": {
+        "kind": "array",
+        "of": {
+          "kind": "entity",
+          "ref": "messages.message"
+        }
+      }
+    },
+    "setMessageReadStatus": {
+      "title": "Set Message Read Status",
+      "description": "Changes the message read status to a given value",
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "parameters": [
+        {
+          "name": "message",
+          "title": "Message",
+          "type": {
+            "kind": "entity",
+            "ref": "messages.message"
+          },
+          "description": "The message to apply the read status to."
+        },
+        {
+          "name": "isRead",
+          "title": "Read Status",
+          "type": {
+            "kind": "bool"
+          },
+          "description": "A Boolean value that indicates whether to mark the message as read or unread."
+        }
+      ]
+    },
+    "draftMessage": {
+      "title": "Start Message Draft",
+      "description": "Opens app to start or continue composing a message via touch",
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "parameters": [
+        {
+          "name": "destination",
+          "title": "To",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "union",
+              "ref": "messages.destination"
+            }
+          },
+          "description": "The destination of the message. Can be recipients, or a specific conversation."
+        },
+        {
+          "name": "subject",
+          "title": "Subject",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "attributedString"
+            }
+          },
+          "description": "The subject of the message."
+        },
+        {
+          "name": "content",
+          "title": "Content",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "attributedString"
+            }
+          },
+          "description": "The primary body of the message."
+        },
+        {
+          "name": "attachments",
+          "title": "Attachments",
+          "type": {
+            "kind": "array",
+            "of": {
+              "kind": "file"
+            }
+          },
+          "description": "Files such as images to be sent with the message."
+        },
+        {
+          "name": "audioMessage",
+          "title": "Audio Message",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "file"
+            }
+          },
+          "description": "The audio message to send with the message."
+        },
+        {
+          "name": "locations",
+          "title": "Locations",
+          "type": {
+            "kind": "array",
+            "of": {
+              "kind": "placeDescriptor"
+            }
+          },
+          "description": "Locations to include in the message."
+        },
+        {
+          "name": "links",
+          "title": "Links",
+          "type": {
+            "kind": "array",
+            "of": {
+              "kind": "url"
+            }
+          },
+          "description": "URLs to include in the message."
+        },
+        {
+          "name": "scheduledDate",
+          "title": "Scheduled Date",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "date"
+            }
+          },
+          "description": "The date to send the message, if sent at a later time."
+        }
+      ],
+      "opensApp": true
+    },
+    "unsendMessage": {
+      "title": "Unsend Message",
+      "description": "Unsend a sent message",
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "parameters": [
+        {
+          "name": "message",
+          "title": "Message",
+          "type": {
+            "kind": "entity",
+            "ref": "messages.message"
+          },
+          "description": "The message to unsend."
+        }
+      ]
+    }
+  },
+  "skipped": {
+    "sendMessageReaction": "no public definition in the SDK"
+  }
+}

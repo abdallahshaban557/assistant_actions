@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:assistant_actions_generator/src/catalog.dart';
 import 'package:assistant_actions_generator/src/dart_writer.dart';
 import 'package:assistant_actions_generator/src/model.dart';
+import 'package:assistant_actions_generator/src/schema_calls.dart';
 import 'package:assistant_actions_generator/src/swift_writer.dart';
 import 'package:test/test.dart';
 
@@ -102,6 +103,30 @@ AppModel _journalApp({bool everything = true}) => AppModel(
   entities: const [],
   schemaEntities: [_journal(everything: everything)],
 );
+
+
+/// Adopts [id] with [mapping] and every intent its annotation offers.
+SchemaEntityModel _adopt(String id, Map<String, FieldModel> mapping, {String? className}) {
+  final catalog = _load(id.split('.').first);
+  final schema = catalog.entities[id]!;
+  return SchemaEntityModel(
+    className: className ?? '${pascal(schema.domain)}${pascal(schema.name)}Item',
+    library: Uri.parse('package:app/models.dart'),
+    catalog: catalog,
+    schema: schema,
+    idField: 'id',
+    mapping: mapping,
+    intents: catalog.intentsFor(schema),
+    containers: const {},
+  );
+}
+
+SchemaDomainModel _domain(String domain) {
+  final catalog = _load(domain);
+  return SchemaDomainModel(className: '${pascal(domain)}Handler', catalog: catalog, intents: catalog.domainIntents);
+}
+
+Map<String, DomainCatalog> _catalogs(List<String> domains) => {for (final d in domains) d: _load(d)};
 
 /// A plain `@AssistantEntity` with a title field, a number, a date and a URL.
 EntityModel _recipe() => EntityModel(
@@ -411,6 +436,188 @@ void main() {
       final swift = SwiftWriter(_journalApp(everything: false)).write();
       expect(swift, contains('struct JournalItemCreateAudioEntryIntent'));
       expect(swift, isNot(contains('struct JournalItemCreateEntryIntent')));
+    });
+  });
+
+  group('every schema shape', () {
+    String block(String swift, String start) {
+      final i = swift.indexOf(start);
+      expect(i, isNonNegative, reason: start);
+      return swift.substring(i, swift.indexOf('\n}\n', i));
+    }
+
+    SchemaEntityModel timer() => _adopt('clock.timer', const {
+          'duration': FieldModel('length', ValueType(ValueKind.duration)),
+          'durationRemaining': FieldModel('left', ValueType(ValueKind.duration)),
+          'state': FieldModel('state', ValueType(ValueKind.enumeration, enumRef: 'clock.timerState')),
+          'label': FieldModel('label', ValueType(ValueKind.string, nullable: true)),
+        }, className: 'Countdown');
+
+    test('intents of an entity that are not field changes call handler methods', () {
+      final kinds = {for (final (i, k) in timer().intents) i.name: k};
+      expect(kinds['createTimer'], IntentKind.create);
+      expect(kinds['pauseTimer'], IntentKind.call);
+      expect(kinds['cancelTimer'], IntentKind.call, reason: 'takes entities but is not a delete');
+      final app = AppModel(appName: 'Mira', actions: const [], entities: const [], schemaEntities: [timer()]);
+      final swift = SwiftWriter(app).write();
+      final pause = block(swift, 'struct CountdownPauseTimerIntent');
+      expect(pause, startsWith('struct CountdownPauseTimerIntent {'), reason: 'queued, so no foreground');
+      expect(pause, contains('var timer: CountdownEntity'));
+      expect(pause, contains('"timer": timer.id,'));
+      expect(pause, contains('AssistantInbox.call("Countdown.pauseTimer", args: args)'));
+      final dart = writeDart(app);
+      expect(dart, contains('Future<void> pauseTimer({required String timer});'));
+      expect(dart, contains("'Countdown.pauseTimer': (args) async {"));
+      expect(dart, contains("await countdown.pauseTimer(timer: AssistantValue.string(args['timer']) ?? (throw ArgumentError.notNull('timer')));"));
+    });
+
+    test('durations and schema enums map to Dart Duration and enums', () {
+      final app = AppModel(appName: 'Mira', actions: const [], entities: const [], schemaEntities: [timer()]);
+      final swift = SwiftWriter(app).write();
+      expect(swift, contains('var duration: Duration'));
+      expect(swift, contains('duration = AssistantValues.duration(record.fields["length"]) ?? .zero'));
+      expect(swift, contains('state = AssistantValues.string(record.fields["state"]).flatMap(ClockTimerStateEnum.init(rawValue:))'));
+      expect(swift, contains('@AppEnum(schema: .clock.timerState)'));
+      expect(swift, contains('@available(iOS 27.0, macOS 27.0, *)\n@AppEnum(schema: .clock.timerState)'),
+          reason: 'enums take their own catalog availability');
+      final dart = writeDart(app);
+      expect(dart, contains("import 'package:assistant_actions/schemas/clock.dart' show ClockTimerState;"));
+      expect(dart, contains("'state': AssistantValue.encodeEnum(e.state),"));
+      expect(dart, contains("state: AssistantValue.enumeration(ClockTimerState.values, f['state']),"));
+      expect(dart, contains("'length': AssistantValue.encodeDuration(e.length),"));
+    });
+
+    test('a call that returns an entity runs live and looks the item up', () {
+      final tab = _adopt('browser.tab', const {
+        'name': FieldModel('name', ValueType(ValueKind.string)),
+        'url': FieldModel('url', ValueType(ValueKind.uri, nullable: true)),
+      }, className: 'Tab');
+      final app = AppModel(appName: 'Mira', actions: const [], entities: const [], schemaEntities: [tab]);
+      final swift = SwiftWriter(app).write();
+      final create = block(swift, 'struct TabCreateTabIntent');
+      expect(create, startsWith('struct TabCreateTabIntent: ForegroundContinuableIntent {'));
+      expect(create, contains('func perform() async throws -> some ReturnsValue<TabEntity> {'));
+      expect(create, contains('NSApplication.shared.activate()'), reason: 'it opens the app');
+      expect(create, contains('let reply = try await AssistantBridge.shared.perform("Tab.createTab", args: args)'));
+      expect(create, contains('guard let id = reply, let value = try await TabEntityQuery().entities(for: [id]).first'));
+      final close = block(swift, 'struct TabCloseTabsIntent');
+      expect(close, contains('"target": target.map(\\.id),'));
+      final dart = writeDart(app);
+      expect(dart, contains('Future<String> createTab({Uri? url, required bool isPrivate});'));
+      expect(dart, contains('Future<void> closeTabs({required List<String> target});'));
+      expect(dart, contains("return await tab.createTab(url: AssistantValue.uri(args['url'])"));
+    });
+
+    test('domain intents go on a domain handler; app-defined enum cases come from the app', () {
+      final camera = _domain('camera');
+      final app = AppModel(
+        appName: 'Mira',
+        actions: const [],
+        entities: const [],
+        schemaEntities: const [],
+        schemaDomains: [camera],
+        catalogs: _catalogs(['camera']),
+        openEnums: {
+          for (final (id, name) in [
+            ('camera.captureMode', 'Mode'),
+            ('camera.captureDevice', 'Lens'),
+            ('camera.captureDuration', 'Delay'),
+          ])
+            id: OpenEnumModel(schema: id, className: name, library: Uri.parse('package:app/camera.dart'), cases: const ['one', 'this\$']),
+        },
+      );
+      final swift = SwiftWriter(app).write();
+      expect(swift, contains('@AppEnum(schema: .camera.captureMode)\nenum CameraCaptureModeEnum: String {\n  case one\n  case this\n'));
+      final start = block(swift, 'struct CameraStartCaptureIntent');
+      expect(start, contains('var captureMode: CameraCaptureModeEnum'));
+      expect(start, contains('"captureMode": AssistantValues.encode(captureMode),'));
+      expect(start, contains('requestToContinueInForeground()'));
+      expect(start, contains('AssistantBridge.shared.perform("camera.startCapture", args: args)'));
+      final dart = writeDart(app);
+      expect(dart, contains("import 'package:app/camera.dart' show Delay, Lens, Mode;"));
+      expect(dart, contains('abstract interface class CameraAssistantHandler {'));
+      expect(dart, contains('Future<void> startCapture({required Mode captureMode, Lens? device, Delay? timerDuration});'));
+      expect(dart, contains('required CameraAssistantHandler camera,'));
+      expect(dart, contains("'camera.startCapture': (args) async {"));
+      expect(dart, contains("captureMode: AssistantValue.enumeration(Mode.values, args['captureMode'])"));
+    });
+
+    test('an intent missing from the macOS catalog is iOS-only', () {
+      final app = AppModel(
+          appName: 'Mira',
+          actions: const [],
+          entities: const [],
+          schemaEntities: const [],
+          schemaDomains: [_domain('assistant')],
+          catalogs: _catalogs(['assistant']));
+      final swift = SwiftWriter(app).write();
+      expect(swift, contains('@available(iOS 26.2, *)\n@available(macOS, unavailable)\n@AppIntent(schema: .assistant.activate)'));
+      final activate = block(swift, 'struct AssistantActivateIntent');
+      expect(activate, contains('static let supportedModes: IntentModes = .foreground'),
+          reason: 'iOS 26+ intents that open the app declare it');
+      expect(activate, isNot(contains('ForegroundContinuableIntent')));
+    });
+
+    test('unions become @UnionValue enums at iOS 27', () {
+      final event = _adopt('calendar.event', const {
+        'title': FieldModel('title', ValueType(ValueKind.string)),
+        'startDate': FieldModel('start', ValueType(ValueKind.dateTime)),
+        'endDate': FieldModel('end', ValueType(ValueKind.dateTime)),
+        'calendar': FieldModel('calendarId', ValueType(ValueKind.entityId, entityRef: 'calendar.calendar')),
+      }, className: 'Event');
+      final calendar = _adopt('calendar.calendar', const {'title': FieldModel('name', ValueType(ValueKind.string))},
+          className: 'Calendar');
+      final app = AppModel(appName: 'Mira', actions: const [], entities: const [], schemaEntities: [event, calendar]);
+      final swift = SwiftWriter(app).write();
+      expect(swift, contains('@available(iOS 27.0, macOS 27.0, *)\n@UnionValue\nenum CalendarLocationUnion {\n  case place(PlaceDescriptor)\n  case address(String)'));
+      expect(swift, contains('var organizers: [IntentPerson]'));
+      expect(swift, contains('var recurrence: Calendar.RecurrenceRule?'));
+      expect(swift, contains('startDate = AssistantValues.date(record.fields["start"]) ?? Date(timeIntervalSince1970: 0)'));
+      // An entity member mapped to an id resolves it from the snapshot, one level deep.
+      expect(swift, contains('calendar = AssistantValues.string(record.fields["calendarId"]).map { CalendarEntity.reference(\$0, resolve: resolve) } ?? CalendarEntity.reference("", resolve: false)'));
+      expect(swift, contains('static func reference(_ id: String, resolve: Bool) -> CalendarEntity {'));
+      expect(swift, contains('import GeoToolbox'));
+    });
+
+    test('unique entities answer one item', () {
+      final session = _adopt('maps.navigationSession', const {
+        'estimatedArrivalDate': FieldModel('eta', ValueType(ValueKind.dateTime)),
+      }, className: 'Trip');
+      final app = AppModel(
+          appName: 'Mira', actions: const [], entities: const [], schemaEntities: [session], catalogs: _catalogs(['maps']));
+      final swift = SwiftWriter(app).write();
+      expect(swift, contains('struct TripEntityQuery: UniqueAppEntityQuery, EntityStringQuery'));
+      expect(swift, contains('func uniqueEntity() async throws -> TripEntity {'));
+    });
+
+    test('system.open opens each entity without its own open intent', () {
+      final app = AppModel(
+        appName: 'Mira',
+        actions: const [],
+        entities: [_recipe()],
+        schemaEntities: [_journal()],
+        schemaDomains: [_domain('system')],
+        catalogs: _catalogs(['system']),
+      );
+      final swift = SwiftWriter(app).write();
+      expect(swift, contains('@AppIntent(schema: .system.open)\nstruct OpenJournalItemIntent: ForegroundContinuableIntent {\n  var target: JournalItemEntity'));
+      expect(swift, contains('struct OpenRecipeIntent: ForegroundContinuableIntent {\n  var target: RecipeEntity'));
+      expect(swift, contains('AssistantBridge.shared.perform("system.open.JournalItem", args: ["id": target.id])'));
+      final search = block(swift, 'struct SystemSearchInAppIntent');
+      expect(search, contains('var criteria: StringSearchCriteria'));
+      expect(search, contains('"criteria": criteria.term,'));
+      final dart = writeDart(app);
+      expect(dart, contains('abstract interface class SystemAssistantHandler {'));
+      expect(dart, contains('Future<void> openJournalItem(String id);'));
+      expect(dart, contains('Future<void> searchInApp({required String criteria});'));
+      expect(dart, contains("'system.open.Recipe': (args) async {"));
+    });
+
+    test('handler methods are named after intents, unless that clashes', () {
+      final spreadsheet = _load('spreadsheet');
+      final create = spreadsheet.intents['spreadsheet.create']!;
+      expect(callMethod(create, spreadsheet.entities['spreadsheet.document']), 'createDocument');
+      expect(callMethod(_load('clock').intents['clock.pauseTimer']!, null), 'pauseTimer');
     });
   });
 }

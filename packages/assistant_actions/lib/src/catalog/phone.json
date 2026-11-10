@@ -1,0 +1,59 @@
+{
+  "domain": "phone",
+  "hash": "c2d369abe24cd220fff14cee83825fd529f2ccfa53c02763b34418f1e3b04803",
+  "xcode": "27B52",
+  "entities": {
+    "phonePerson": {
+      "title": "Person",
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "properties": [
+        {
+          "name": "person",
+          "title": "Person",
+          "type": {
+            "kind": "person"
+          },
+          "updatable": false,
+          "indexingKey": "authors"
+        }
+      ]
+    }
+  },
+  "enums": {
+    "audioVisualMode": {
+      "title": "Audio Visual Mode",
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "cases": [
+        "audio",
+        "video"
+      ]
+    }
+  },
+  "intents": {},
+  "skipped": {
+    "answerCall": "no public definition in the SDK",
+    "audioRoute": "no public definition in the SDK",
+    "callProvider": "no public definition in the SDK",
+    "callRecord": "no public definition in the SDK",
+    "callStatus": "no public definition in the SDK",
+    "conferenceCall": "no public definition in the SDK",
+    "createConferenceCall": "no public definition in the SDK",
+    "emergencyDestination": "no public definition in the SDK",
+    "emergencyType": "no public definition in the SDK",
+    "endCall": "no public definition in the SDK",
+    "group": "no public definition in the SDK",
+    "liveCall": "no public definition in the SDK",
+    "recordType": "no public definition in the SDK",
+    "setCallAudioRoute": "no public definition in the SDK",
+    "startCall": "uses phone.group, which is not public",
+    "startEmergencyCall": "no public definition in the SDK",
+    "upgradeToVideo": "no public definition in the SDK",
+    "voicemail": "no public definition in the SDK"
+  }
+}

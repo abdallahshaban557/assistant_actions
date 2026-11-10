@@ -1,0 +1,31 @@
+{
+  "domain": "visualIntelligence",
+  "hash": "c2d369abe24cd220fff14cee83825fd529f2ccfa53c02763b34418f1e3b04803",
+  "xcode": "27B52",
+  "entities": {},
+  "enums": {},
+  "intents": {
+    "semanticContentSearch": {
+      "title": "Show Visual Search Results",
+      "description": "Show more and richer visual search results in the app.",
+      "availability": {
+        "iOS": 26,
+        "macOS": 27
+      },
+      "parameters": [
+        {
+          "name": "semanticContent",
+          "title": "Semantic Content",
+          "type": {
+            "kind": "sceneDescriptor"
+          },
+          "description": "Semantic content to be saved."
+        }
+      ],
+      "opensApp": true
+    }
+  },
+  "skipped": {
+    "saveContents": "no public definition in the SDK"
+  }
+}

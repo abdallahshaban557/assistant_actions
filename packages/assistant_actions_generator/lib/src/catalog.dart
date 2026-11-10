@@ -16,17 +16,24 @@ class SchemaType {
       );
 
   /// A primitive (`string`, `attributedString`, `bool`, `date`,
-  /// `dateComponents`, `url`, `file`, …) or `optional`, `array`, `set`,
-  /// `entity`, `enum`.
+  /// `dateComponents`, `url`, `file`, `duration`, `person`, …) or `optional`,
+  /// `array`, `set`, `entity`, `enum`, `union`.
   final String kind;
 
   /// The element type of `optional`, `array` and `set`.
   final SchemaType? of;
 
-  /// The schema id of an `entity` or `enum`, such as `reminders.list`.
+  /// The schema id of an `entity`, `enum` or `union`, such as
+  /// `reminders.list`. Null for an `entity` that can be any of the app's
+  /// entities (the target of `system.open`).
   final String? ref;
 
   bool get isOptional => kind == 'optional';
+
+  bool get isList => kind == 'array' || kind == 'set';
+
+  /// This type without `optional`, `array` or `set`.
+  SchemaType get element => isOptional || isList ? of!.element : this;
 
   /// This type without `optional`.
   SchemaType get base => isOptional ? of! : this;
@@ -42,7 +49,7 @@ class SchemaType {
         'optional' => '$of?',
         'array' => '[$of]',
         'set' => 'Set<$of>',
-        'entity' || 'enum' => '$kind:$ref',
+        'entity' || 'enum' || 'union' => '$kind:${ref ?? 'any'}',
         _ => kind,
       };
 }
@@ -92,6 +99,7 @@ class EntitySchema {
     required this.title,
     required this.availability,
     required this.properties,
+    this.protocols = const [],
   });
 
   factory EntitySchema.fromJson(String id, Map<String, Object?> json) => EntitySchema(
@@ -101,6 +109,7 @@ class EntitySchema {
         properties: [
           for (final p in json['properties'] as List) SchemaMember.fromJson((p as Map).cast()),
         ],
+        protocols: (json['protocols'] as List?)?.cast<String>() ?? const [],
       );
 
   /// `reminders.reminder`.
@@ -110,6 +119,11 @@ class EntitySchema {
   /// Platform → first OS major version, e.g. `{iOS: 27, macOS: 27}`.
   final Map<String, num> availability;
   final List<SchemaMember> properties;
+
+  /// Entity protocols Apple's schema requires: `file` (`FileEntity`, with
+  /// file-based ids), `unique` (`UniqueAppEntity`, one instance) or `url`
+  /// (`URLRepresentableEntity`).
+  final List<String> protocols;
 
   String get domain => id.split('.').first;
   String get name => id.split('.').last;
@@ -126,26 +140,64 @@ class EntitySchema {
         'title': title,
         'availability': availability,
         'properties': [for (final p in properties) p.toJson()],
+        if (protocols.isNotEmpty) 'protocols': protocols,
+      };
+}
+
+/// A value that is one of several types, such as a calendar event's location
+/// (a place or an address).
+class UnionSchema {
+  const UnionSchema({required this.id, required this.title, required this.cases, this.availability = const {}});
+
+  factory UnionSchema.fromJson(String id, Map<String, Object?> json) => UnionSchema(
+        id: id,
+        title: json['title'] as String? ?? id,
+        availability: (json['availability'] as Map?)?.cast<String, num>() ?? const {},
+        cases: [
+          for (final c in json['cases'] as List)
+            (name: (c as Map)['name'] as String, type: SchemaType.fromJson((c['type'] as Map).cast())),
+        ],
+      );
+
+  /// `calendar.eventLocation`.
+  final String id;
+  final String title;
+  final Map<String, num> availability;
+  final List<({String name, SchemaType type})> cases;
+
+  String get domain => id.split('.').first;
+  String get name => id.split('.').last;
+
+  Map<String, Object?> toJson() => {
+        'title': title,
+        if (availability.isNotEmpty) 'availability': availability,
+        'cases': [for (final c in cases) {'name': c.name, 'type': c.type.toJson()}],
       };
 }
 
 class EnumSchema {
-  const EnumSchema({required this.id, required this.title, required this.cases});
+  const EnumSchema({required this.id, required this.title, required this.cases, this.availability = const {}});
 
   factory EnumSchema.fromJson(String id, Map<String, Object?> json) => EnumSchema(
         id: id,
         title: json['title'] as String? ?? id,
         cases: (json['cases'] as List).cast<String>(),
+        availability: (json['availability'] as Map?)?.cast<String, num>() ?? const {},
       );
 
   final String id;
   final String title;
   final List<String> cases;
+  final Map<String, num> availability;
 
   String get domain => id.split('.').first;
   String get name => id.split('.').last;
 
-  Map<String, Object?> toJson() => {'title': title, 'cases': cases};
+  Map<String, Object?> toJson() => {
+        'title': title,
+        if (availability.isNotEmpty) 'availability': availability,
+        'cases': cases,
+      };
 }
 
 class IntentSchema {
@@ -193,6 +245,11 @@ class IntentSchema {
   /// Starts an audio recording (`AudioRecordingIntent`).
   bool get recordsAudio => protocols.contains('audioStarting');
 
+  /// A [IntentKind.call] for this intent runs Dart live (on iOS, from the
+  /// foreground) rather than queueing the call: when it opens the app, starts
+  /// audio, or must return a value.
+  bool get isLive => opensApp || result != null || recordsAudio || protocols.contains('audioRecording');
+
   String get domain => id.split('.').first;
   String get name => id.split('.').last;
 
@@ -214,7 +271,10 @@ class IntentSchema {
 /// [record] intents (`journal.createAudioEntry`) take nothing and return
 /// nothing: they bring the app forward and the app starts recording a new
 /// item itself.
-enum IntentKind { create, update, append, delete, record }
+///
+/// [call] is every other intent: it calls a handler method named after the
+/// intent with the parameters, in Dart. See [IntentSchema.isLive].
+enum IntentKind { create, update, append, delete, record, call }
 
 /// One domain's schemas (`reminders`, `notes`, …), plus where they came from.
 class DomainCatalog {
@@ -225,6 +285,8 @@ class DomainCatalog {
     required this.entities,
     required this.enums,
     required this.intents,
+    this.unions = const {},
+    this.skipped = const {},
   });
 
   factory DomainCatalog.fromJson(Map<String, Object?> json) {
@@ -246,6 +308,11 @@ class DomainCatalog {
         for (final MapEntry(:key, :value) in section('intents').entries)
           '$domain.$key': IntentSchema.fromJson('$domain.$key', (value as Map).cast()),
       },
+      unions: {
+        for (final MapEntry(:key, :value) in ((json['unions'] as Map?) ?? const {}).cast<String, Object?>().entries)
+          '$domain.$key': UnionSchema.fromJson('$domain.$key', (value as Map).cast()),
+      },
+      skipped: ((json['skipped'] as Map?) ?? const {}).cast<String, String>(),
     );
   }
 
@@ -260,45 +327,105 @@ class DomainCatalog {
   final Map<String, EntitySchema> entities;
   final Map<String, EnumSchema> enums;
   final Map<String, IntentSchema> intents;
+  final Map<String, UnionSchema> unions;
 
-  /// The intents that create, change or delete items of [entity], with how.
+  /// Schemas in Apple's catalog for this domain that apps can't adopt, with
+  /// why: no public Swift definition in the SDK, or deprecated.
+  final Map<String, String> skipped;
+
+  /// The entity whose annotation turns [intent] on: the entity it targets,
+  /// deletes or returns, else the first entity of this domain it takes. Null
+  /// for domain-level intents (`camera.startCapture`, `system.open`), which
+  /// go on the domain's `…Intents` annotation.
+  EntitySchema? ownerOf(IntentSchema intent) {
+    SchemaType? ref(SchemaType? t) => t != null && t.element.kind == 'entity' && t.element.ref != null ? t.element : null;
+    final candidates = [
+      ref(intent.parameter('target')?.type),
+      ref(intent.parameter('entities')?.type),
+      ref(intent.result),
+      for (final p in intent.parameters) ref(p.type),
+    ];
+    for (final t in candidates) {
+      if (t == null) continue;
+      if (entities[t.ref] case final owner?) return owner;
+    }
+    // Else the entity it's named after: `createAudioEntry` → `journal.entry`.
+    for (final e in entities.values) {
+      if (intent.name.endsWith(pascal(e.name))) return e;
+    }
+    return null;
+  }
+
+  /// The intents [entity]'s annotation turns on, with how each is handled.
   ///
-  /// Creates return the entity and take no target; updates take a `target`
-  /// (appends are updates named `append…`); deletes take a list of entities.
+  /// Through the inbox, as field changes (parameters that aren't mapped
+  /// members, such as a reminder's images, are dropped):
+  /// * creates are named `create…`, return the entity, take no target and
+  ///   don't open the app;
+  /// * updates are named `update…` (or `append…`, which add text), take the
+  ///   entity as `target` and don't open the app;
+  /// * deletes take a list of the entities and adopt the delete protocol.
+  ///
   /// Records start an audio recording of a new item, take no parameters and
   /// are named after the entity (`createAudioEntry` for `journal.entry`).
+  /// Every other intent [ownerOf] gives to [entity] is a [IntentKind.call].
   List<(IntentSchema, IntentKind)> intentsFor(EntitySchema entity) {
     bool isEntity(SchemaType? t) => t?.base.kind == 'entity' && t!.base.ref == entity.id;
+    IntentKind? kind(IntentSchema intent) {
+      if (ownerOf(intent)?.id != entity.id) return null;
+      final name = intent.name;
+      if (intent.recordsAudio && intent.parameters.isEmpty && intent.result == null && name.endsWith(pascal(entity.name))) {
+        return IntentKind.record;
+      }
+      if (!intent.opensApp) {
+        if (intent.parameter('target') case final target? when isEntity(target.type)) {
+          if (name.startsWith('append')) return IntentKind.append;
+          if (name.startsWith('update') && (intent.result == null || isEntity(intent.result))) return IntentKind.update;
+        }
+        if (intent.parameter('entities') case final list?
+            when list.type.kind == 'array' &&
+                isEntity(list.type.of) &&
+                intent.parameters.length == 1 &&
+                intent.protocols.contains('delete')) {
+          return IntentKind.delete;
+        }
+        if (name.startsWith('create') &&
+            isEntity(intent.result) &&
+            intent.result!.kind == 'entity' &&
+            intent.parameter('target') == null) {
+          return IntentKind.create;
+        }
+      }
+      return IntentKind.call;
+    }
+
     return [
       for (final intent in intents.values)
-        if (intent.parameter('target') case final target? when isEntity(target.type))
-          (intent, intent.name.startsWith('append') ? IntentKind.append : IntentKind.update)
-        else if (intent.parameter('entities') case final list?
-            when list.type.kind == 'array' && isEntity(list.type.of))
-          (intent, IntentKind.delete)
-        else if (isEntity(intent.result) && intent.parameter('target') == null)
-          (intent, IntentKind.create)
-        else if (intent.recordsAudio &&
-            intent.parameters.isEmpty &&
-            intent.result == null &&
-            intent.name.endsWith(pascal(entity.name)))
-          (intent, IntentKind.record),
+        if (kind(intent) case final k?) (intent, k),
     ];
   }
+
+  /// Intents no entity owns, for the domain's `…Intents` annotation.
+  List<IntentSchema> get domainIntents => [
+        for (final intent in intents.values)
+          if (ownerOf(intent) == null) intent,
+      ];
 
   /// Whether a fixed instance of [entity] can be written as a const in Dart:
   /// its properties are strings, enums, or other such entities.
   bool isFixable(EntitySchema entity, [Set<String> seen = const {}]) {
     if (seen.contains(entity.id)) return true;
+    if (entity.protocols.isNotEmpty) return false;
     return entity.properties.every((p) {
       final t = p.type.base;
-      if (t.kind == 'string' || t.kind == 'enum') return true;
       if (t.kind == 'entity') {
         if (t.ref == entity.id) return p.type.isOptional;
         final target = entities[t.ref];
         return target != null && isFixable(target, {...seen, entity.id});
       }
-      return false;
+      if (t.kind == 'string' || t.kind == 'enum' || t.kind == 'bool') return true;
+      // Other optionals and lists start empty.
+      return p.type.isOptional || t.isList;
     });
   }
 
@@ -308,24 +435,10 @@ class DomainCatalog {
         'xcode': xcode,
         'entities': {for (final e in entities.values) e.name: e.toJson()},
         'enums': {for (final e in enums.values) e.name: e.toJson()},
+        if (unions.isNotEmpty) 'unions': {for (final u in unions.values) u.name: u.toJson()},
         'intents': {for (final i in intents.values) i.name: i.toJson()},
+        if (skipped.isNotEmpty) 'skipped': skipped,
       };
-}
-
-/// Dart type for a schema member, when the generator can map one; null for
-/// types only Swift handles (files, sets, recurrence rules, places, …).
-String? dartTypeFor(SchemaType type) {
-  final base = switch (type.base.kind) {
-    'string' || 'attributedString' => 'String',
-    'bool' => 'bool',
-    'int' => 'int',
-    'double' => 'double',
-    'date' || 'dateComponents' => 'DateTime',
-    'url' => 'Uri',
-    _ => null,
-  };
-  if (base == null) return null;
-  return type.isOptional ? '$base?' : base;
 }
 
 /// `createReminder` → `CreateReminder`, `reminders` → `Reminders`.

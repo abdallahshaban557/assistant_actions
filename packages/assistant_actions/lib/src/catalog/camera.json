@@ -1,0 +1,140 @@
+{
+  "domain": "camera",
+  "hash": "c2d369abe24cd220fff14cee83825fd529f2ccfa53c02763b34418f1e3b04803",
+  "xcode": "27B52",
+  "entities": {},
+  "enums": {
+    "captureMode": {
+      "title": "Capture Mode",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "cases": []
+    },
+    "captureDevice": {
+      "title": "Capture Device Position",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "cases": []
+    },
+    "captureDuration": {
+      "title": "Capture Duration",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "cases": []
+    }
+  },
+  "intents": {
+    "switchDevice": {
+      "title": "Flip Camera",
+      "description": "Toggles between front and back camera.",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "parameters": [],
+      "opensApp": true
+    },
+    "startCapture": {
+      "title": "Start Capture",
+      "description": "Starts a capture or opens the camera in a specified mode with a timer setting.",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "parameters": [
+        {
+          "name": "captureMode",
+          "title": "Mode",
+          "type": {
+            "kind": "openEnum",
+            "ref": "camera.captureMode"
+          },
+          "description": "Mode to capture in."
+        },
+        {
+          "name": "device",
+          "title": "Capture Device Position",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "openEnum",
+              "ref": "camera.captureDevice"
+            }
+          },
+          "description": "Device position to capture with."
+        },
+        {
+          "name": "timerDuration",
+          "title": "Timer Duration",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "openEnum",
+              "ref": "camera.captureDuration"
+            }
+          },
+          "description": "Duration to wait before starting the capture."
+        }
+      ],
+      "opensApp": true
+    },
+    "openInCaptureMode": {
+      "title": "Open Camera",
+      "description": "Opens the camera in the specified mode.",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "parameters": [
+        {
+          "name": "target",
+          "title": "Mode",
+          "type": {
+            "kind": "openEnum",
+            "ref": "camera.captureMode"
+          },
+          "description": "Target mode."
+        }
+      ],
+      "opensApp": true,
+      "protocols": [
+        "open"
+      ]
+    },
+    "setDevice": {
+      "title": "Set Camera Position",
+      "description": "Changes the camera to the specified position.",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "parameters": [
+        {
+          "name": "device",
+          "title": "Device Position",
+          "type": {
+            "kind": "openEnum",
+            "ref": "camera.captureDevice"
+          },
+          "description": "Desired device position."
+        }
+      ],
+      "opensApp": true
+    },
+    "stopCapture": {
+      "title": "Stop Capture",
+      "description": "Stops a recording in progress.",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "parameters": []
+    }
+  }
+}

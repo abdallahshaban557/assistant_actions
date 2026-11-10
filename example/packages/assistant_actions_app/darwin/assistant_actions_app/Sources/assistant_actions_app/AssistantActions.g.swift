@@ -225,6 +225,58 @@ enum RemindersLocationTriggerEventEnum: String {
   ]
 }
 
+@available(iOS 27.0, macOS 27.0, *)
+@AppEnum(schema: .clock.timerState)
+enum ClockTimerStateEnum: String {
+  case firing
+  case paused
+  case running
+  case undefined
+
+  static let caseDisplayRepresentations: [ClockTimerStateEnum: DisplayRepresentation] = [
+    .firing: "Firing",
+    .paused: "Paused",
+    .running: "Running",
+    .undefined: "Undefined",
+  ]
+}
+
+@available(iOS 18.0, macOS 15.0, *)
+@AppEnum(schema: .camera.captureMode)
+enum CameraCaptureModeEnum: String {
+  case photo
+  case video
+
+  static let caseDisplayRepresentations: [CameraCaptureModeEnum: DisplayRepresentation] = [
+    .photo: "Photo",
+    .video: "Video",
+  ]
+}
+
+@available(iOS 18.0, macOS 15.0, *)
+@AppEnum(schema: .camera.captureDevice)
+enum CameraCaptureDeviceEnum: String {
+  case front
+  case back
+
+  static let caseDisplayRepresentations: [CameraCaptureDeviceEnum: DisplayRepresentation] = [
+    .front: "Front",
+    .back: "Back",
+  ]
+}
+
+@available(iOS 18.0, macOS 15.0, *)
+@AppEnum(schema: .camera.captureDuration)
+enum CameraCaptureDurationEnum: String {
+  case threeSeconds
+  case tenSeconds
+
+  static let caseDisplayRepresentations: [CameraCaptureDurationEnum: DisplayRepresentation] = [
+    .threeSeconds: "Three Seconds",
+    .tenSeconds: "Ten Seconds",
+  ]
+}
+
 /// `TaskItem` in Dart, as `reminders.reminder`.
 @available(iOS 27.0, macOS 27.0, *)
 @AppEntity(schema: .reminders.reminder)
@@ -250,7 +302,11 @@ struct TaskItemEntity {
 
   var displayRepresentation: DisplayRepresentation { DisplayRepresentation(title: "\(title)") }
 
-  init(record: AssistantRecord) {
+  init(record: AssistantRecord) { self.init(record: record, resolve: true) }
+
+  /// [resolve] looks referenced items up in the snapshot. They get
+  /// `resolve: false`, so references only go one level deep and cycles end.
+  init(record: AssistantRecord, resolve: Bool) {
     id = record.id
     title = AssistantValues.string(record.fields["title"]) ?? ""
     note = nil
@@ -264,6 +320,12 @@ struct TaskItemEntity {
     completionDate = nil
     list = RemindersListEntity.fixed
     locationTrigger = nil
+  }
+
+  /// The item with [id], from the snapshot when [resolve], else just its id.
+  static func reference(_ id: String, resolve: Bool) -> TaskItemEntity {
+    let record = resolve ? AssistantSnapshot.records("TaskItem").first { $0.id == id } : nil
+    return TaskItemEntity(record: record ?? AssistantRecord(id: id, title: "", fields: [:]), resolve: false)
   }
 }
 
@@ -436,7 +498,11 @@ struct MemoryItemEntity {
 
   var displayRepresentation: DisplayRepresentation { DisplayRepresentation(title: "\(String(name.characters))") }
 
-  init(record: AssistantRecord) {
+  init(record: AssistantRecord) { self.init(record: record, resolve: true) }
+
+  /// [resolve] looks referenced items up in the snapshot. They get
+  /// `resolve: false`, so references only go one level deep and cycles end.
+  init(record: AssistantRecord, resolve: Bool) {
     id = record.id
     name = AssistantValues.attributed(record.fields["text"]) ?? AttributedString("")
     content = AssistantValues.attributed(record.fields["text"])
@@ -445,6 +511,12 @@ struct MemoryItemEntity {
     creationDate = nil
     modificationDate = nil
     folder = NotesFolderEntity.fixed
+  }
+
+  /// The item with [id], from the snapshot when [resolve], else just its id.
+  static func reference(_ id: String, resolve: Bool) -> MemoryItemEntity {
+    let record = resolve ? AssistantSnapshot.records("MemoryItem").first { $0.id == id } : nil
+    return MemoryItemEntity(record: record ?? AssistantRecord(id: id, title: "", fields: [:]), resolve: false)
   }
 }
 
@@ -590,13 +662,23 @@ struct JournalItemEntity {
 
   var displayRepresentation: DisplayRepresentation { DisplayRepresentation(title: "\((title ?? ""))") }
 
-  init(record: AssistantRecord) {
+  init(record: AssistantRecord) { self.init(record: record, resolve: true) }
+
+  /// [resolve] looks referenced items up in the snapshot. They get
+  /// `resolve: false`, so references only go one level deep and cycles end.
+  init(record: AssistantRecord, resolve: Bool) {
     id = record.id
     title = AssistantValues.string(record.fields["title"])
     message = AssistantValues.attributed(record.fields["text"])
     mediaItems = []
     entryDate = AssistantValues.date(record.fields["date"])
     location = nil
+  }
+
+  /// The item with [id], from the snapshot when [resolve], else just its id.
+  static func reference(_ id: String, resolve: Bool) -> JournalItemEntity {
+    let record = resolve ? AssistantSnapshot.records("JournalItem").first { $0.id == id } : nil
+    return JournalItemEntity(record: record ?? AssistantRecord(id: id, title: "", fields: [:]), resolve: false)
   }
 }
 
@@ -665,6 +747,98 @@ struct JournalItemEntityQuery: EntityStringQuery, EnumerableEntityQuery, EntityP
     switch path {
     case \JournalItemEntity.$title: return { $0.title?.assistantKey }
     case \JournalItemEntity.$entryDate: return { $0.entryDate?.assistantKey }
+    default: return nil
+    }
+  }
+}
+
+/// `Countdown` in Dart, as `clock.timer`.
+@available(iOS 27.0, macOS 27.0, *)
+@AppEntity(schema: .clock.timer)
+struct CountdownEntity {
+  static let defaultQuery = CountdownEntityQuery()
+
+  let id: String
+  var duration: Duration
+  var durationRemaining: Duration
+  var state: ClockTimerStateEnum
+  @Property(title: "Label")
+  var label: String?
+  var isSleepTimer: Bool
+
+  var displayRepresentation: DisplayRepresentation { DisplayRepresentation(title: "\((label ?? ""))") }
+
+  init(record: AssistantRecord) { self.init(record: record, resolve: true) }
+
+  /// [resolve] looks referenced items up in the snapshot. They get
+  /// `resolve: false`, so references only go one level deep and cycles end.
+  init(record: AssistantRecord, resolve: Bool) {
+    id = record.id
+    duration = AssistantValues.duration(record.fields["length"]) ?? .zero
+    durationRemaining = AssistantValues.duration(record.fields["left"]) ?? .zero
+    state = AssistantValues.string(record.fields["state"]).flatMap(ClockTimerStateEnum.init(rawValue:)) ?? .firing
+    label = AssistantValues.string(record.fields["label"])
+    isSleepTimer = false
+  }
+
+  /// The item with [id], from the snapshot when [resolve], else just its id.
+  static func reference(_ id: String, resolve: Bool) -> CountdownEntity {
+    let record = resolve ? AssistantSnapshot.records("Countdown").first { $0.id == id } : nil
+    return CountdownEntity(record: record ?? AssistantRecord(id: id, title: "", fields: [:]), resolve: false)
+  }
+}
+
+@available(iOS 27.0, macOS 27.0, *)
+struct CountdownEntityQuery: EntityStringQuery, EnumerableEntityQuery, EntityPropertyQuery {
+  /// Words that only name the type, schema or app, so they never narrow a search.
+  static let typeWords: Set<String> = ["actions", "assistant", "assistantactionsexample", "clock", "countdown", "example", "timer"]
+
+  private func all() -> [CountdownEntity] { AssistantSnapshot.records("Countdown").map(CountdownEntity.init(record:)) }
+
+  func entities(for identifiers: [String]) async throws -> [CountdownEntity] {
+    let wanted = Set(identifiers)
+    return all().filter { wanted.contains($0.id) }
+  }
+
+  func entities(matching string: String) async throws -> [CountdownEntity] {
+    AssistantMatch.records(AssistantSnapshot.records("Countdown"), matching: string, ignoring: Self.typeWords)
+      .map(CountdownEntity.init(record:))
+  }
+
+  func suggestedEntities() async throws -> [CountdownEntity] { Array(all().prefix(20)) }
+
+  /// Everything published, plus Siri's pending changes, for general requests
+  /// like "do I have any timers".
+  func allEntities() async throws -> [CountdownEntity] { all() }
+
+  typealias ComparatorMappingType = AssistantPredicate<CountdownEntity>
+
+  /// EntityPropertyQuery and EnumerableEntityQuery both provide a default.
+  static var findIntentDescription: IntentDescription? { nil }
+
+  static let properties = QueryProperties {
+    Property(\CountdownEntity.$label) {
+      ContainsComparator { value in AssistantPredicate({ $0.label }, .contains, value) }
+    }
+  }
+
+  static let sortingOptions = SortingOptions {
+    SortableBy(\CountdownEntity.$label)
+  }
+
+  func entities(
+    matching comparators: [AssistantPredicate<CountdownEntity>], mode: ComparatorMode,
+    sortedBy: [EntityQuerySort<CountdownEntity>], limit: Int?
+  ) async throws -> [CountdownEntity] {
+    let sorts = sortedBy.compactMap { sort in
+      Self.sortKey(sort.by).map { (key: $0, ascending: sort.order == .ascending) }
+    }
+    return AssistantPredicate.apply(comparators, all: mode == .and, to: all(), sortedBy: sorts, limit: limit)
+  }
+
+  private static func sortKey(_ path: PartialKeyPath<CountdownEntity>) -> ((CountdownEntity) -> AssistantKey?)? {
+    switch path {
+    case \CountdownEntity.$label: return { $0.label?.assistantKey }
     default: return nil
     }
   }
@@ -945,6 +1119,217 @@ struct JournalItemDeleteEntryIntent {
   }
 }
 
+/// `clock.createTimer` → creates `Countdown` items through the inbox.
+@available(iOS 27.0, macOS 27.0, *)
+@AppIntent(schema: .clock.createTimer)
+struct CountdownCreateTimerIntent {
+  var duration: Duration
+  var label: String?
+  var isSleepTimer: Bool
+
+  @MainActor
+  func perform() async throws -> some ReturnsValue<CountdownEntity> {
+    var fields: [String: Any] = [:]
+    fields["length"] = AssistantValues.encode(duration)
+    fields["label"] = AssistantValues.encode(label)
+    let id = AssistantInbox.create("Countdown", fields: fields)
+    AssistantBridge.shared.inboxChanged()
+    return .result(value: CountdownEntity(record: AssistantRecord(id: id, title: "", fields: fields)))
+  }
+}
+
+/// `clock.pauseTimer` → queues a call to `pauseTimer` on `CountdownAssistantHandler`, applied when the app next runs.
+@available(iOS 27.0, macOS 27.0, *)
+@AppIntent(schema: .clock.pauseTimer)
+struct CountdownPauseTimerIntent {
+  var timer: CountdownEntity
+
+  @MainActor
+  func perform() async throws -> some IntentResult {
+    let args: [String: Any] = [
+      "timer": timer.id,
+    ]
+    AssistantInbox.call("Countdown.pauseTimer", args: args)
+    AssistantBridge.shared.inboxChanged()
+    return .result()
+  }
+}
+
+/// `clock.resumeTimer` → queues a call to `resumeTimer` on `CountdownAssistantHandler`, applied when the app next runs.
+@available(iOS 27.0, macOS 27.0, *)
+@AppIntent(schema: .clock.resumeTimer)
+struct CountdownResumeTimerIntent {
+  var timer: CountdownEntity
+
+  @MainActor
+  func perform() async throws -> some IntentResult {
+    let args: [String: Any] = [
+      "timer": timer.id,
+    ]
+    AssistantInbox.call("Countdown.resumeTimer", args: args)
+    AssistantBridge.shared.inboxChanged()
+    return .result()
+  }
+}
+
+/// `system.open` for `TaskItem` → calls `openTaskItem(id)` on `SystemAssistantHandler`.
+@available(iOS 27.0, macOS 27.0, *)
+@AppIntent(schema: .system.open)
+struct OpenTaskItemIntent: ForegroundContinuableIntent {
+  var target: TaskItemEntity
+
+  @MainActor
+  func perform() async throws -> some IntentResult {
+    #if os(iOS)
+      if UIApplication.shared.applicationState != .active {
+        try await requestToContinueInForeground()
+      }
+    #elseif os(macOS)
+      NSApplication.shared.activate()
+    #endif
+    _ = try await AssistantBridge.shared.perform("system.open.TaskItem", args: ["id": target.id])
+    return .result()
+  }
+}
+
+/// `system.open` for `MemoryItem` → calls `openMemoryItem(id)` on `SystemAssistantHandler`.
+@available(iOS 27.0, macOS 27.0, *)
+@AppIntent(schema: .system.open)
+struct OpenMemoryItemIntent: ForegroundContinuableIntent {
+  var target: MemoryItemEntity
+
+  @MainActor
+  func perform() async throws -> some IntentResult {
+    #if os(iOS)
+      if UIApplication.shared.applicationState != .active {
+        try await requestToContinueInForeground()
+      }
+    #elseif os(macOS)
+      NSApplication.shared.activate()
+    #endif
+    _ = try await AssistantBridge.shared.perform("system.open.MemoryItem", args: ["id": target.id])
+    return .result()
+  }
+}
+
+/// `system.open` for `JournalItem` → calls `openJournalItem(id)` on `SystemAssistantHandler`.
+@available(iOS 27.0, macOS 27.0, *)
+@AppIntent(schema: .system.open)
+struct OpenJournalItemIntent: ForegroundContinuableIntent {
+  var target: JournalItemEntity
+
+  @MainActor
+  func perform() async throws -> some IntentResult {
+    #if os(iOS)
+      if UIApplication.shared.applicationState != .active {
+        try await requestToContinueInForeground()
+      }
+    #elseif os(macOS)
+      NSApplication.shared.activate()
+    #endif
+    _ = try await AssistantBridge.shared.perform("system.open.JournalItem", args: ["id": target.id])
+    return .result()
+  }
+}
+
+/// `system.open` for `Countdown` → calls `openCountdown(id)` on `SystemAssistantHandler`.
+@available(iOS 27.0, macOS 27.0, *)
+@AppIntent(schema: .system.open)
+struct OpenCountdownIntent: ForegroundContinuableIntent {
+  var target: CountdownEntity
+
+  @MainActor
+  func perform() async throws -> some IntentResult {
+    #if os(iOS)
+      if UIApplication.shared.applicationState != .active {
+        try await requestToContinueInForeground()
+      }
+    #elseif os(macOS)
+      NSApplication.shared.activate()
+    #endif
+    _ = try await AssistantBridge.shared.perform("system.open.Countdown", args: ["id": target.id])
+    return .result()
+  }
+}
+
+/// `system.open` for `Recipe` → calls `openRecipe(id)` on `SystemAssistantHandler`.
+@available(iOS 27.0, macOS 27.0, *)
+@AppIntent(schema: .system.open)
+struct OpenRecipeIntent: ForegroundContinuableIntent {
+  var target: RecipeEntity
+
+  @MainActor
+  func perform() async throws -> some IntentResult {
+    #if os(iOS)
+      if UIApplication.shared.applicationState != .active {
+        try await requestToContinueInForeground()
+      }
+    #elseif os(macOS)
+      NSApplication.shared.activate()
+    #endif
+    _ = try await AssistantBridge.shared.perform("system.open.Recipe", args: ["id": target.id])
+    return .result()
+  }
+}
+
+/// `system.searchInApp` → calls `searchInApp` on `SystemAssistantHandler`.
+@available(iOS 27.0, macOS 27.0, *)
+@AppIntent(schema: .system.searchInApp)
+struct SystemSearchInAppIntent {
+  static let supportedModes: IntentModes = .foreground
+
+  var criteria: StringSearchCriteria
+
+  @MainActor
+  func perform() async throws -> some IntentResult {
+    let args: [String: Any] = [
+      "criteria": criteria.term,
+    ]
+    _ = try await AssistantBridge.shared.perform("system.searchInApp", args: args)
+    return .result()
+  }
+}
+
+/// `camera.startCapture` → calls `startCapture` on `CameraAssistantHandler`.
+@available(iOS 18.0, macOS 15.0, *)
+@AppIntent(schema: .camera.startCapture)
+struct CameraStartCaptureIntent: ForegroundContinuableIntent {
+  var captureMode: CameraCaptureModeEnum
+  var device: CameraCaptureDeviceEnum?
+  var timerDuration: CameraCaptureDurationEnum?
+
+  @MainActor
+  func perform() async throws -> some IntentResult {
+    let args: [String: Any] = [
+      "captureMode": AssistantValues.encode(captureMode),
+      "device": AssistantValues.encode(device),
+      "timerDuration": AssistantValues.encode(timerDuration),
+    ]
+    #if os(iOS)
+      if UIApplication.shared.applicationState != .active {
+        try await requestToContinueInForeground()
+      }
+    #elseif os(macOS)
+      NSApplication.shared.activate()
+    #endif
+    _ = try await AssistantBridge.shared.perform("camera.startCapture", args: args)
+    return .result()
+  }
+}
+
+/// `camera.stopCapture` → queues a call to `stopCapture` on `CameraAssistantHandler`, applied when the app next runs.
+@available(iOS 18.0, macOS 15.0, *)
+@AppIntent(schema: .camera.stopCapture)
+struct CameraStopCaptureIntent {
+  @MainActor
+  func perform() async throws -> some IntentResult {
+    let args: [String: Any] = [:]
+    AssistantInbox.call("camera.stopCapture", args: args)
+    AssistantBridge.shared.inboxChanged()
+    return .result()
+  }
+}
+
 @available(iOS 18.0, macOS 15.0, *)
 extension RecipeEntity: IndexedEntity {
   public var attributeSet: CSSearchableItemAttributeSet {
@@ -992,6 +1377,15 @@ extension JournalItemEntity: IndexedEntity {
   }
 }
 
+@available(iOS 27.0, macOS 27.0, *)
+extension CountdownEntity: IndexedEntity {
+  var attributeSet: CSSearchableItemAttributeSet {
+    let attributes = defaultAttributeSet
+    attributes.displayName = label
+    return attributes
+  }
+}
+
 /// Found by name by `AssistantSpotlight` in the runtime; apps register nothing.
 @objc(AssistantActionsAppSpotlight)
 public final class AssistantActionsAppSpotlight: NSObject, AssistantSpotlightIndexer {
@@ -1018,6 +1412,12 @@ public final class AssistantActionsAppSpotlight: NSObject, AssistantSpotlightInd
       if #available(iOS 26.0, macOS 26.0, *) {
         try await Self.update(
           AssistantSnapshot.records("JournalItem").map(JournalItemEntity.init(record:)),
+          removed: removedIDs, clearFirst: clearFirst)
+      }
+    case "Countdown":
+      if #available(iOS 27.0, macOS 27.0, *) {
+        try await Self.update(
+          AssistantSnapshot.records("Countdown").map(CountdownEntity.init(record:)),
           removed: removedIDs, clearFirst: clearFirst)
       }
     default:

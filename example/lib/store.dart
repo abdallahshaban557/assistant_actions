@@ -1,4 +1,7 @@
 import 'package:assistant_actions/assistant_actions.dart';
+import 'package:assistant_actions/schemas/camera.dart';
+import 'package:assistant_actions/schemas/clock.dart';
+import 'package:assistant_actions/schemas/system.dart';
 import 'package:flutter/foundation.dart';
 
 import 'assistant_actions.g.dart';
@@ -16,6 +19,10 @@ class Store extends ChangeNotifier {
   final tasks = <TaskItem>[];
   final memories = <MemoryItem>[];
   final journal = <JournalItem>[];
+  final timers = <Countdown>[];
+
+  /// What Siri last asked the app to show or do on screen.
+  String? onScreen;
 
   /// Whether the app is recording an audio journal entry Siri asked for.
   bool recording = false;
@@ -28,6 +35,7 @@ class Store extends ChangeNotifier {
     AssistantActions.publish(tasks);
     AssistantActions.publish(memories);
     AssistantActions.publish(journal);
+    AssistantActions.publish(timers);
   }
 }
 
@@ -114,5 +122,80 @@ class JournalHandler implements JournalItemAssistantHandler {
   Future<void> startAudioEntry() async {
     _store.recording = true;
     _store.changed();
+  }
+}
+
+/// Applies Siri's clock.* requests to timers.
+class CountdownHandler implements CountdownAssistantHandler {
+  Store get _store => Store.instance;
+
+  @override
+  Future<void> create(String id, CountdownValues values) async {
+    _store.timers.add(Countdown(id: id, length: values.length ?? const Duration(minutes: 1), label: values.label));
+    _store.changed();
+  }
+
+  @override
+  Future<void> pauseTimer({required String timer}) async {
+    for (final t in _store.timers.where((t) => t.id == timer)) {
+      t.state = ClockTimerState.paused;
+    }
+    _store.changed();
+  }
+
+  @override
+  Future<void> resumeTimer({required String timer}) async {
+    for (final t in _store.timers.where((t) => t.id == timer)) {
+      t.state = ClockTimerState.running;
+    }
+    _store.changed();
+  }
+}
+
+/// `system.open` and `system.searchInApp`: Siri opens an item, or the app's
+/// search, in the foreground.
+@SystemIntents(open: true, searchInApp: true)
+class SystemHandler implements SystemAssistantHandler {
+  Store get _store => Store.instance;
+
+  void _show(String what) {
+    _store.onScreen = what;
+    _store.changed();
+  }
+
+  @override
+  Future<void> openRecipe(String id) async => _show('recipe $id');
+
+  @override
+  Future<void> openTaskItem(String id) async => _show('task $id');
+
+  @override
+  Future<void> openMemoryItem(String id) async => _show('memory $id');
+
+  @override
+  Future<void> openJournalItem(String id) async => _show('journal entry $id');
+
+  @override
+  Future<void> openCountdown(String id) async => _show('timer $id');
+
+  @override
+  Future<void> searchInApp({required String criteria}) async => _show('search "$criteria"');
+}
+
+/// `camera.*`: the app opens its camera. A real app starts capture here.
+@CameraIntents(startCapture: true, stopCapture: true)
+class CameraHandler implements CameraAssistantHandler {
+  @override
+  Future<void> startCapture({required CaptureMode captureMode, Lens? device, CaptureDelay? timerDuration}) async {
+    Store.instance
+      ..onScreen = 'camera: ${captureMode.name}${device == null ? '' : ', ${device.name}'}'
+      ..changed();
+  }
+
+  @override
+  Future<void> stopCapture() async {
+    Store.instance
+      ..onScreen = null
+      ..changed();
   }
 }

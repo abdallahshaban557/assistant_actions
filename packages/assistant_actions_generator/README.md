@@ -22,3 +22,7 @@ dart run build_runner build
 Schema definitions come from the catalog bundled with `assistant_actions`
 (exported from Xcode's `AppIntentSchemas.sqlite`), so generation doesn't need
 Xcode and works on any CI. See the `assistant_actions` README for usage.
+
+Maintainers refresh the catalog with `tool/export_catalog.dart` and check
+every schema against Apple's metadata processor with
+`tool/validate_schemas.dart` (macOS with Xcode).

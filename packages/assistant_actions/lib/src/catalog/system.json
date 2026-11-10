@@ -1,0 +1,56 @@
+{
+  "domain": "system",
+  "hash": "c2d369abe24cd220fff14cee83825fd529f2ccfa53c02763b34418f1e3b04803",
+  "xcode": "27B52",
+  "entities": {},
+  "enums": {},
+  "intents": {
+    "open": {
+      "title": "Open Item",
+      "description": "Opens an item in the application.",
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "parameters": [
+        {
+          "name": "target",
+          "title": "Item",
+          "type": {
+            "kind": "entity"
+          },
+          "description": "Item to open."
+        }
+      ],
+      "opensApp": true,
+      "protocols": [
+        "open"
+      ]
+    },
+    "searchInApp": {
+      "title": "Search",
+      "description": "Navigate to search results.",
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "parameters": [
+        {
+          "name": "criteria",
+          "title": "Text",
+          "type": {
+            "kind": "stringSearchCriteria"
+          },
+          "description": "Search criteria used when searching in app."
+        }
+      ],
+      "opensApp": true,
+      "protocols": [
+        "search"
+      ]
+    }
+  },
+  "skipped": {
+    "search": "deprecated: Use .system.searchInApp instead"
+  }
+}

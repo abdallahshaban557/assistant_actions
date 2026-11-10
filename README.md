@@ -12,8 +12,14 @@ Refresh the schema catalog after a new Xcode:
 
 ```bash
 cd packages/assistant_actions_generator
-dart run tool/export_catalog.dart reminders notes journal
+dart run tool/export_catalog.dart          # every domain the SDK defines publicly
+dart run tool/validate_schemas.dart --report=../assistant_actions/doc/schemas_table.md
 ```
+
+The validator adopts every schema at once in a throwaway app and runs the
+builder, `flutter analyze`, and Apple's `appintentsmetadataprocessor` for macOS
+and the iOS simulator. Paste its report into
+`packages/assistant_actions/doc/schemas.md`.
 
 ## Releasing
 

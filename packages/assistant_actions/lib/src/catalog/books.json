@@ -1,0 +1,564 @@
+{
+  "domain": "books",
+  "hash": "c2d369abe24cd220fff14cee83825fd529f2ccfa53c02763b34418f1e3b04803",
+  "xcode": "27B52",
+  "entities": {
+    "book": {
+      "title": "Book",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "properties": [
+        {
+          "name": "title",
+          "title": "Title",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "string"
+            }
+          },
+          "updatable": false,
+          "indexingKey": "title"
+        },
+        {
+          "name": "seriesTitle",
+          "title": "Series Title",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "string"
+            }
+          },
+          "updatable": false,
+          "indexingKey": "containerTitle"
+        },
+        {
+          "name": "author",
+          "title": "Author",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "string"
+            }
+          },
+          "updatable": false,
+          "indexingKey": "authorNames"
+        },
+        {
+          "name": "genre",
+          "title": "Genre",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "string"
+            }
+          },
+          "updatable": false,
+          "indexingKey": "genre"
+        },
+        {
+          "name": "purchaseDate",
+          "title": "Date of Purchase",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "date"
+            }
+          },
+          "updatable": false,
+          "indexingKey": "purchasedDate"
+        },
+        {
+          "name": "url",
+          "title": "URL",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "url"
+            }
+          },
+          "updatable": false,
+          "indexingKey": "url"
+        }
+      ]
+    },
+    "audiobook": {
+      "title": "Audiobook",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "properties": [
+        {
+          "name": "title",
+          "title": "Title",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "string"
+            }
+          },
+          "updatable": false,
+          "indexingKey": "title"
+        },
+        {
+          "name": "seriesTitle",
+          "title": "Series Title",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "string"
+            }
+          },
+          "updatable": false,
+          "indexingKey": "contentCatalog"
+        },
+        {
+          "name": "author",
+          "title": "Author",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "string"
+            }
+          },
+          "updatable": false,
+          "indexingKey": "authorNames"
+        },
+        {
+          "name": "genre",
+          "title": "Genre",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "string"
+            }
+          },
+          "updatable": false,
+          "indexingKey": "genre"
+        },
+        {
+          "name": "purchaseDate",
+          "title": "Date of Purchase",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "date"
+            }
+          },
+          "updatable": false,
+          "indexingKey": "purchasedDate"
+        },
+        {
+          "name": "url",
+          "title": "URL",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "url"
+            }
+          },
+          "updatable": false,
+          "indexingKey": "url"
+        }
+      ]
+    },
+    "settings": {
+      "title": "Book Settings",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "properties": [
+        {
+          "name": "font",
+          "title": "Font",
+          "type": {
+            "kind": "openEnum",
+            "ref": "books.font"
+          },
+          "updatable": false
+        },
+        {
+          "name": "fontSize",
+          "title": "Font Size",
+          "type": {
+            "kind": "openEnum",
+            "ref": "books.fontSize"
+          },
+          "updatable": false
+        },
+        {
+          "name": "theme",
+          "title": "Theme",
+          "type": {
+            "kind": "openEnum",
+            "ref": "books.theme"
+          },
+          "updatable": false
+        },
+        {
+          "name": "pageNavigationSetting",
+          "title": "Page Navigation Setting",
+          "type": {
+            "kind": "openEnum",
+            "ref": "books.pageNavigationSetting"
+          },
+          "updatable": false
+        },
+        {
+          "name": "isTextJustified",
+          "title": "Is Text Justified",
+          "type": {
+            "kind": "bool"
+          },
+          "updatable": false
+        },
+        {
+          "name": "isAllowMultipleColumns",
+          "title": "Is Allow Multiple Columns",
+          "type": {
+            "kind": "bool"
+          },
+          "updatable": false
+        }
+      ]
+    }
+  },
+  "enums": {
+    "contentType": {
+      "title": "Book Content Type",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "cases": []
+    },
+    "font": {
+      "title": "Book Font",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "cases": []
+    },
+    "fontSize": {
+      "title": "Book Font Size",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "cases": []
+    },
+    "navigationDirection": {
+      "title": "Book Navigation Direction",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "cases": []
+    },
+    "relativeFontChange": {
+      "title": "Book Relative Font Change",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "cases": []
+    },
+    "relativeCharacterSpacingChange": {
+      "title": "Book Relative Character Spacing Change",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "cases": []
+    },
+    "relativeLineSpacingChange": {
+      "title": "Book Relative Line Spacing Change",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "cases": []
+    },
+    "relativeWordSpacingChange": {
+      "title": "Book Relative Word Spacing Change",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "cases": []
+    },
+    "theme": {
+      "title": "Book Theme",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "cases": []
+    },
+    "pageNavigationSetting": {
+      "title": "Book Page Navigation Setting",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "cases": []
+    }
+  },
+  "intents": {
+    "openBook": {
+      "title": "Open Book",
+      "description": "Opens the specified book.",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "parameters": [
+        {
+          "name": "target",
+          "title": "Book",
+          "type": {
+            "kind": "entity",
+            "ref": "books.book"
+          },
+          "description": "Book to open."
+        }
+      ],
+      "opensApp": true,
+      "protocols": [
+        "open"
+      ]
+    },
+    "navigatePage": {
+      "title": "Navigate Page",
+      "description": "Navigates to the next or previous page.",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "parameters": [
+        {
+          "name": "direction",
+          "title": "Direction",
+          "type": {
+            "kind": "openEnum",
+            "ref": "books.navigationDirection"
+          },
+          "description": "Direction to navigate."
+        },
+        {
+          "name": "target",
+          "title": "Book",
+          "type": {
+            "kind": "entity",
+            "ref": "books.book"
+          },
+          "description": "Book to navigate in."
+        }
+      ],
+      "opensApp": true
+    },
+    "updateFontSize": {
+      "title": "Update Book Font Size",
+      "description": "Updates the font size for a book.",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "parameters": [
+        {
+          "name": "target",
+          "title": "Settings",
+          "type": {
+            "kind": "entity",
+            "ref": "books.settings"
+          },
+          "description": "Settings of the book to update."
+        },
+        {
+          "name": "changeOperation",
+          "title": "Font Change",
+          "type": {
+            "kind": "openEnum",
+            "ref": "books.relativeFontChange"
+          },
+          "description": "Font size to update to."
+        }
+      ],
+      "opensApp": true
+    },
+    "updateLineSpacing": {
+      "title": "Update Book Line Spacing",
+      "description": "Updates the line spacing for a book.",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "parameters": [
+        {
+          "name": "target",
+          "title": "Settings",
+          "type": {
+            "kind": "entity",
+            "ref": "books.settings"
+          },
+          "description": "Settings of the book to update."
+        },
+        {
+          "name": "changeOperation",
+          "title": "Line Spacing",
+          "type": {
+            "kind": "openEnum",
+            "ref": "books.relativeLineSpacingChange"
+          },
+          "description": "Line spacing to update to."
+        }
+      ],
+      "opensApp": true
+    },
+    "updateCharacterSpacing": {
+      "title": "Update Book Character Spacing",
+      "description": "Updates the character spacing for a book.",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "parameters": [
+        {
+          "name": "target",
+          "title": "Settings",
+          "type": {
+            "kind": "entity",
+            "ref": "books.settings"
+          },
+          "description": "Settings of the book to update."
+        },
+        {
+          "name": "changeOperation",
+          "title": "Character Spacing",
+          "type": {
+            "kind": "openEnum",
+            "ref": "books.relativeCharacterSpacingChange"
+          },
+          "description": "Character spacing to update to."
+        }
+      ],
+      "opensApp": true
+    },
+    "updateWordSpacing": {
+      "title": "Update Book Word Spacing",
+      "description": "Updates the word spacing for a book.",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "parameters": [
+        {
+          "name": "target",
+          "title": "Settings",
+          "type": {
+            "kind": "entity",
+            "ref": "books.settings"
+          },
+          "description": "Settings of the book to update."
+        },
+        {
+          "name": "changeOperation",
+          "title": "Word Spacing",
+          "type": {
+            "kind": "openEnum",
+            "ref": "books.relativeWordSpacingChange"
+          },
+          "description": "Word spacing to update to."
+        }
+      ],
+      "opensApp": true
+    },
+    "updateSettings": {
+      "title": "Update Book Settings",
+      "description": "Updates the settings for a book.",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "parameters": [
+        {
+          "name": "target",
+          "title": "Settings",
+          "type": {
+            "kind": "entity",
+            "ref": "books.settings"
+          },
+          "description": "Settings of the book to update."
+        },
+        {
+          "name": "font",
+          "title": "Font",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "openEnum",
+              "ref": "books.font"
+            }
+          },
+          "description": "Font to update to."
+        },
+        {
+          "name": "theme",
+          "title": "Theme",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "openEnum",
+              "ref": "books.theme"
+            }
+          },
+          "description": "Theme to update to."
+        },
+        {
+          "name": "pageNavigationSetting",
+          "title": "Navigation Behavior",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "openEnum",
+              "ref": "books.pageNavigationSetting"
+            }
+          },
+          "description": "Navigation style to update to."
+        },
+        {
+          "name": "isTextJustified",
+          "title": "Justify Text",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "bool"
+            }
+          },
+          "description": "Whether to justify the text."
+        },
+        {
+          "name": "isAllowMultipleColumns",
+          "title": "Allow Multiple Columns",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "bool"
+            }
+          },
+          "description": "Whether to allow multiple columns."
+        }
+      ],
+      "opensApp": true
+    }
+  },
+  "skipped": {
+    "playAudiobook": "deprecated: Use .audio.playAudio instead",
+    "search": "deprecated: Use .system.searchInApp instead"
+  }
+}

@@ -1,0 +1,617 @@
+{
+  "domain": "maps",
+  "hash": "c2d369abe24cd220fff14cee83825fd529f2ccfa53c02763b34418f1e3b04803",
+  "xcode": "27B52",
+  "entities": {
+    "currentLocation": {
+      "title": "Current Location",
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "properties": []
+    },
+    "navigationSession": {
+      "title": "Current Route",
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "properties": [
+        {
+          "name": "estimatedArrivalDate",
+          "title": "Estimated Arrival Date",
+          "type": {
+            "kind": "date"
+          },
+          "updatable": false
+        },
+        {
+          "name": "waypoints",
+          "title": "Waypoints",
+          "type": {
+            "kind": "array",
+            "of": {
+              "kind": "union",
+              "ref": "maps.location"
+            }
+          },
+          "updatable": false
+        },
+        {
+          "name": "transportationType",
+          "title": "Transportation Type",
+          "type": {
+            "kind": "openEnum",
+            "ref": "maps.transportType"
+          },
+          "updatable": false
+        },
+        {
+          "name": "preferences",
+          "title": "Preferences",
+          "type": {
+            "kind": "array",
+            "of": {
+              "kind": "openEnum",
+              "ref": "maps.navigationPreferences"
+            }
+          },
+          "updatable": false
+        }
+      ],
+      "protocols": [
+        "unique"
+      ]
+    },
+    "place": {
+      "title": "Place",
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "properties": [
+        {
+          "name": "place",
+          "title": "Place",
+          "type": {
+            "kind": "placeDescriptor"
+          },
+          "updatable": false,
+          "indexingKey": "place"
+        },
+        {
+          "name": "name",
+          "title": "Name",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "string"
+            }
+          },
+          "updatable": false,
+          "indexingKey": "title"
+        },
+        {
+          "name": "categories",
+          "title": "Categories",
+          "type": {
+            "kind": "array",
+            "of": {
+              "kind": "string"
+            }
+          },
+          "updatable": false,
+          "indexingKey": "userTags"
+        },
+        {
+          "name": "operatingStatus",
+          "title": "Operating Status",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "openEnum",
+              "ref": "maps.operatingStatus"
+            }
+          },
+          "updatable": false
+        },
+        {
+          "name": "operatingHours",
+          "title": "Operating Hours",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "entity",
+              "ref": "maps.operatingHours"
+            }
+          },
+          "updatable": false
+        },
+        {
+          "name": "phoneNumber",
+          "title": "Phone Number",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "string"
+            }
+          },
+          "updatable": false,
+          "indexingKey": "phoneNumbers"
+        },
+        {
+          "name": "priceRange",
+          "title": "Price Range",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "openEnum",
+              "ref": "maps.priceRange"
+            }
+          },
+          "updatable": false
+        },
+        {
+          "name": "ratings",
+          "title": "Ratings",
+          "type": {
+            "kind": "array",
+            "of": {
+              "kind": "entity",
+              "ref": "maps.rating"
+            }
+          },
+          "updatable": false
+        },
+        {
+          "name": "amenities",
+          "title": "Amenities",
+          "type": {
+            "kind": "array",
+            "of": {
+              "kind": "string"
+            }
+          },
+          "updatable": false
+        }
+      ]
+    },
+    "operatingHours": {
+      "title": "Operating Hours",
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "properties": [
+        {
+          "name": "monday",
+          "title": "Monday",
+          "type": {
+            "kind": "array",
+            "of": {
+              "kind": "entity",
+              "ref": "maps.operatingTimeRange"
+            }
+          },
+          "updatable": false
+        },
+        {
+          "name": "tuesday",
+          "title": "Tuesday",
+          "type": {
+            "kind": "array",
+            "of": {
+              "kind": "entity",
+              "ref": "maps.operatingTimeRange"
+            }
+          },
+          "updatable": false
+        },
+        {
+          "name": "wednesday",
+          "title": "Wednesday",
+          "type": {
+            "kind": "array",
+            "of": {
+              "kind": "entity",
+              "ref": "maps.operatingTimeRange"
+            }
+          },
+          "updatable": false
+        },
+        {
+          "name": "thursday",
+          "title": "Thursday",
+          "type": {
+            "kind": "array",
+            "of": {
+              "kind": "entity",
+              "ref": "maps.operatingTimeRange"
+            }
+          },
+          "updatable": false
+        },
+        {
+          "name": "friday",
+          "title": "Friday",
+          "type": {
+            "kind": "array",
+            "of": {
+              "kind": "entity",
+              "ref": "maps.operatingTimeRange"
+            }
+          },
+          "updatable": false
+        },
+        {
+          "name": "saturday",
+          "title": "Saturday",
+          "type": {
+            "kind": "array",
+            "of": {
+              "kind": "entity",
+              "ref": "maps.operatingTimeRange"
+            }
+          },
+          "updatable": false
+        },
+        {
+          "name": "sunday",
+          "title": "Sunday",
+          "type": {
+            "kind": "array",
+            "of": {
+              "kind": "entity",
+              "ref": "maps.operatingTimeRange"
+            }
+          },
+          "updatable": false
+        }
+      ]
+    },
+    "operatingTimeRange": {
+      "title": "Business Operating Time Range",
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "properties": [
+        {
+          "name": "startTime",
+          "title": "Start Time",
+          "type": {
+            "kind": "dateComponents"
+          },
+          "updatable": false
+        },
+        {
+          "name": "endTime",
+          "title": "End Time",
+          "type": {
+            "kind": "dateComponents"
+          },
+          "updatable": false
+        }
+      ]
+    },
+    "rating": {
+      "title": "Rating",
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "properties": [
+        {
+          "name": "value",
+          "title": "Rating",
+          "type": {
+            "kind": "double"
+          },
+          "updatable": false
+        },
+        {
+          "name": "descriptor",
+          "title": "Rating Descriptor",
+          "type": {
+            "kind": "enum",
+            "ref": "maps.ratingDescriptor"
+          },
+          "updatable": false
+        },
+        {
+          "name": "count",
+          "title": "Count",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "int"
+            }
+          },
+          "updatable": false
+        },
+        {
+          "name": "provider",
+          "title": "Source",
+          "type": {
+            "kind": "string"
+          },
+          "updatable": false
+        }
+      ]
+    }
+  },
+  "enums": {
+    "incident": {
+      "title": "Traffic Incident",
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "cases": []
+    },
+    "navigationPreferences": {
+      "title": "Navigation Preference",
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "cases": []
+    },
+    "operatingStatus": {
+      "title": "Operating Status",
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "cases": []
+    },
+    "priceRange": {
+      "title": "Price Range",
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "cases": []
+    },
+    "transportType": {
+      "title": "Transport Type",
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "cases": []
+    },
+    "ratingDescriptor": {
+      "title": "Rating Descriptor",
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "cases": [
+        "percentage"
+      ]
+    },
+    "amenity": {
+      "title": "Amenity",
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "cases": []
+    }
+  },
+  "unions": {
+    "location": {
+      "title": "Location",
+      "cases": [
+        {
+          "name": "place",
+          "type": {
+            "kind": "entity",
+            "ref": "maps.place"
+          }
+        },
+        {
+          "name": "currentLocation",
+          "type": {
+            "kind": "entity",
+            "ref": "maps.currentLocation"
+          }
+        }
+      ]
+    }
+  },
+  "intents": {
+    "shareETA": {
+      "title": "Share ETA",
+      "description": "Share ETA to a contact while navigating",
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "parameters": [
+        {
+          "name": "person",
+          "title": "Person",
+          "type": {
+            "kind": "person"
+          },
+          "description": "A person to share ETA with."
+        }
+      ]
+    },
+    "startNavigation": {
+      "title": "Start Navigation",
+      "description": "Start Navigation",
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "parameters": [
+        {
+          "name": "transportationType",
+          "title": "Transportation Type",
+          "type": {
+            "kind": "openEnum",
+            "ref": "maps.transportType"
+          },
+          "description": "The transportation type."
+        },
+        {
+          "name": "origin",
+          "title": "Origin",
+          "type": {
+            "kind": "union",
+            "ref": "maps.location"
+          },
+          "description": "Origin location to start navigation."
+        },
+        {
+          "name": "destinations",
+          "title": "Destinations",
+          "type": {
+            "kind": "array",
+            "of": {
+              "kind": "union",
+              "ref": "maps.location"
+            }
+          },
+          "description": "Destination locations to start navigation."
+        },
+        {
+          "name": "preferences",
+          "title": "Preferences",
+          "type": {
+            "kind": "set",
+            "of": {
+              "kind": "openEnum",
+              "ref": "maps.navigationPreferences"
+            }
+          },
+          "description": "Navigation preferences."
+        }
+      ],
+      "result": {
+        "kind": "optional",
+        "of": {
+          "kind": "entity",
+          "ref": "maps.navigationSession"
+        }
+      }
+    },
+    "stopShareETA": {
+      "title": "Stop Sharing ETA",
+      "description": "Stop Sharing ETA",
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "parameters": [
+        {
+          "name": "person",
+          "title": "Person",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "person"
+            }
+          },
+          "description": "A person to stop share ETA with."
+        }
+      ]
+    },
+    "updateNavigationWaypoints": {
+      "title": "Update Navigation Waypoints",
+      "description": "Update the list of waypoints for a navigation session.",
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "parameters": [
+        {
+          "name": "navigation",
+          "title": "Navigation",
+          "type": {
+            "kind": "entity",
+            "ref": "maps.navigationSession"
+          },
+          "description": "A navigation session to update."
+        },
+        {
+          "name": "waypoints",
+          "title": "Waypoints",
+          "type": {
+            "kind": "array",
+            "of": {
+              "kind": "union",
+              "ref": "maps.location"
+            }
+          },
+          "description": "List of waypoints to add to the route."
+        }
+      ],
+      "result": {
+        "kind": "entity",
+        "ref": "maps.navigationSession"
+      }
+    },
+    "reportIncident": {
+      "title": "Report Traffic Incident",
+      "description": "Report a traffic incident on the route",
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "parameters": [
+        {
+          "name": "incident",
+          "title": "Traffic Incident",
+          "type": {
+            "kind": "openEnum",
+            "ref": "maps.incident"
+          },
+          "description": "Traffic incident type to report."
+        }
+      ]
+    },
+    "stopNavigation": {
+      "title": "End Navigation",
+      "description": "End Navigation",
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "parameters": [
+        {
+          "name": "navigation",
+          "title": "Navigation",
+          "type": {
+            "kind": "entity",
+            "ref": "maps.navigationSession"
+          },
+          "description": "A navigation session to stop."
+        }
+      ]
+    }
+  },
+  "skipped": {
+    "addNoteToPlace": "no public definition in the SDK",
+    "addPlaces": "no public definition in the SDK",
+    "calculateETA": "no public definition in the SDK",
+    "currentHeading": "no public definition in the SDK",
+    "deleteParkingLocations": "no public definition in the SDK",
+    "eta": "no public definition in the SDK",
+    "getElevation": "no public definition in the SDK",
+    "parkingLocationData": "no public definition in the SDK",
+    "placeAttribute": "no public definition in the SDK",
+    "placeList": "no public definition in the SDK",
+    "placeType": "no public definition in the SDK",
+    "removePlaces": "no public definition in the SDK",
+    "saveParkingLocation": "no public definition in the SDK",
+    "showParkingLocation": "no public definition in the SDK",
+    "showPlacesInApp": "no public definition in the SDK",
+    "trafficLevel": "no public definition in the SDK",
+    "updateParkingLocation": "no public definition in the SDK"
+  }
+}

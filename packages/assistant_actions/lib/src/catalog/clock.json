@@ -1,0 +1,656 @@
+{
+  "domain": "clock",
+  "hash": "c2d369abe24cd220fff14cee83825fd529f2ccfa53c02763b34418f1e3b04803",
+  "xcode": "27B52",
+  "entities": {
+    "alarm": {
+      "title": "Alarm",
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "properties": [
+        {
+          "name": "time",
+          "title": "Time",
+          "type": {
+            "kind": "dateComponents"
+          },
+          "updatable": false,
+          "indexingKey": "alarmTime"
+        },
+        {
+          "name": "isEnabled",
+          "title": "Is Enabled",
+          "type": {
+            "kind": "bool"
+          },
+          "updatable": false,
+          "indexingKey": "alarmEnabled"
+        },
+        {
+          "name": "label",
+          "title": "Label",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "string"
+            }
+          },
+          "updatable": false,
+          "indexingKey": "displayName"
+        },
+        {
+          "name": "recurrenceDays",
+          "title": "Recurrence Days",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "recurrenceRule"
+            }
+          },
+          "updatable": false,
+          "indexingKey": "alarmRecurrenceRule"
+        },
+        {
+          "name": "canSnooze",
+          "title": "Can Snooze",
+          "type": {
+            "kind": "bool"
+          },
+          "updatable": false,
+          "indexingKey": "snooze"
+        },
+        {
+          "name": "triggerState",
+          "title": "Trigger State",
+          "type": {
+            "kind": "enum",
+            "ref": "clock.alarmTriggerState"
+          },
+          "updatable": false,
+          "indexingKey": "triggerState"
+        }
+      ]
+    },
+    "stopwatch": {
+      "title": "Stopwatch",
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "properties": [
+        {
+          "name": "laps",
+          "title": "Laps",
+          "type": {
+            "kind": "array",
+            "of": {
+              "kind": "duration"
+            }
+          },
+          "updatable": false
+        },
+        {
+          "name": "startTime",
+          "title": "Start Time",
+          "type": {
+            "kind": "date"
+          },
+          "updatable": false
+        },
+        {
+          "name": "pauseTime",
+          "title": "Pause Time",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "date"
+            }
+          },
+          "updatable": false
+        },
+        {
+          "name": "state",
+          "title": "State",
+          "type": {
+            "kind": "enum",
+            "ref": "clock.stopwatchState"
+          },
+          "updatable": false
+        }
+      ]
+    },
+    "timer": {
+      "title": "Timer",
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "properties": [
+        {
+          "name": "duration",
+          "title": "Duration",
+          "type": {
+            "kind": "duration"
+          },
+          "updatable": false,
+          "indexingKey": "duration"
+        },
+        {
+          "name": "durationRemaining",
+          "title": "Duration Remaining",
+          "type": {
+            "kind": "duration"
+          },
+          "updatable": false
+        },
+        {
+          "name": "state",
+          "title": "State",
+          "type": {
+            "kind": "enum",
+            "ref": "clock.timerState"
+          },
+          "updatable": false
+        },
+        {
+          "name": "label",
+          "title": "Label",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "string"
+            }
+          },
+          "updatable": false,
+          "indexingKey": "displayName"
+        },
+        {
+          "name": "isSleepTimer",
+          "title": "Is Sleep Timer",
+          "type": {
+            "kind": "bool"
+          },
+          "updatable": false
+        }
+      ]
+    }
+  },
+  "enums": {
+    "alarmTriggerState": {
+      "title": "Alarm Trigger State",
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "cases": [
+        "firing",
+        "snoozed",
+        "none"
+      ]
+    },
+    "stopwatchState": {
+      "title": "Stopwatch State",
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "cases": [
+        "paused",
+        "running"
+      ]
+    },
+    "timerState": {
+      "title": "Timer State",
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "cases": [
+        "firing",
+        "paused",
+        "running",
+        "undefined"
+      ]
+    }
+  },
+  "intents": {
+    "cancelTimer": {
+      "title": "Cancel Timers",
+      "description": "Cancel timers",
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "parameters": [
+        {
+          "name": "entities",
+          "title": "Timers",
+          "type": {
+            "kind": "array",
+            "of": {
+              "kind": "entity",
+              "ref": "clock.timer"
+            }
+          },
+          "description": "Timers to cancel."
+        }
+      ]
+    },
+    "createAlarm": {
+      "title": "Add Alarm",
+      "description": "Create an alarm",
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "parameters": [
+        {
+          "name": "time",
+          "title": "Time",
+          "type": {
+            "kind": "dateComponents"
+          },
+          "description": "Alarm time."
+        },
+        {
+          "name": "label",
+          "title": "Label",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "string"
+            }
+          },
+          "description": "Alarm label."
+        },
+        {
+          "name": "recurrenceDays",
+          "title": "Recurrence Days",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "recurrenceRule"
+            }
+          },
+          "description": "Alarm repeating schedule."
+        },
+        {
+          "name": "canSnooze",
+          "title": "Can Snooze",
+          "type": {
+            "kind": "bool"
+          },
+          "description": "If the alarm can be snoozed or not."
+        }
+      ],
+      "result": {
+        "kind": "entity",
+        "ref": "clock.alarm"
+      }
+    },
+    "createTimer": {
+      "title": "Start Timer",
+      "description": "Create a timer",
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "parameters": [
+        {
+          "name": "duration",
+          "title": "Duration",
+          "type": {
+            "kind": "duration"
+          },
+          "description": "Timer duration."
+        },
+        {
+          "name": "label",
+          "title": "Label",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "string"
+            }
+          },
+          "description": "Timer label."
+        },
+        {
+          "name": "isSleepTimer",
+          "title": "Is Sleep Timer",
+          "type": {
+            "kind": "bool"
+          },
+          "description": "If it is sleep timer or not."
+        }
+      ],
+      "result": {
+        "kind": "entity",
+        "ref": "clock.timer"
+      }
+    },
+    "deleteAlarm": {
+      "title": "Delete Alarms",
+      "description": "Delete the alarms",
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "parameters": [
+        {
+          "name": "entities",
+          "title": "Alarms",
+          "type": {
+            "kind": "array",
+            "of": {
+              "kind": "entity",
+              "ref": "clock.alarm"
+            }
+          },
+          "description": "Alarms to delete."
+        }
+      ],
+      "protocols": [
+        "delete"
+      ]
+    },
+    "dismissAlarm": {
+      "title": "Dismiss Alarm",
+      "description": "Dismiss a firing or snoozed alarm",
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "parameters": [
+        {
+          "name": "alarm",
+          "title": "Alarm",
+          "type": {
+            "kind": "entity",
+            "ref": "clock.alarm"
+          },
+          "description": "Alarm to dismiss."
+        }
+      ],
+      "result": {
+        "kind": "entity",
+        "ref": "clock.alarm"
+      }
+    },
+    "lapStopwatch": {
+      "title": "Lap Stopwatch",
+      "description": "Lap the stopwatch",
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "parameters": [
+        {
+          "name": "stopwatch",
+          "title": "Stopwatch",
+          "type": {
+            "kind": "entity",
+            "ref": "clock.stopwatch"
+          },
+          "description": "Stopwatch to modify."
+        }
+      ]
+    },
+    "pauseTimer": {
+      "title": "Pause Timer",
+      "description": "Pause a timer",
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "parameters": [
+        {
+          "name": "timer",
+          "title": "Timer",
+          "type": {
+            "kind": "entity",
+            "ref": "clock.timer"
+          },
+          "description": "Timer to pause."
+        }
+      ]
+    },
+    "resumeTimer": {
+      "title": "Resume Timer",
+      "description": "Resume a timer",
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "parameters": [
+        {
+          "name": "timer",
+          "title": "Timer",
+          "type": {
+            "kind": "entity",
+            "ref": "clock.timer"
+          },
+          "description": "Timer to resume."
+        }
+      ]
+    },
+    "snoozeAlarm": {
+      "title": "Snooze Alarm",
+      "description": "Snooze the firing alarm",
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "parameters": [
+        {
+          "name": "alarm",
+          "title": "Alarm",
+          "type": {
+            "kind": "entity",
+            "ref": "clock.alarm"
+          },
+          "description": "Alarm to snooze."
+        },
+        {
+          "name": "duration",
+          "title": "Duration",
+          "type": {
+            "kind": "duration"
+          },
+          "description": "Snooze duration."
+        }
+      ],
+      "result": {
+        "kind": "entity",
+        "ref": "clock.alarm"
+      }
+    },
+    "startStopwatch": {
+      "title": "Start Stopwatch",
+      "description": "Start the stopwatch",
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "parameters": [],
+      "result": {
+        "kind": "entity",
+        "ref": "clock.stopwatch"
+      }
+    },
+    "stopStopwatch": {
+      "title": "Stop Stopwatch",
+      "description": "Stop the stopwatch",
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "parameters": [
+        {
+          "name": "stopwatch",
+          "title": "Stopwatch",
+          "type": {
+            "kind": "entity",
+            "ref": "clock.stopwatch"
+          },
+          "description": "Stopwatch to stop."
+        }
+      ]
+    },
+    "resetStopwatch": {
+      "title": "Reset Stopwatch",
+      "description": "Reset the stopwatch",
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "parameters": [
+        {
+          "name": "stopwatch",
+          "title": "Stopwatch",
+          "type": {
+            "kind": "entity",
+            "ref": "clock.stopwatch"
+          },
+          "description": "Stopwatch to reset."
+        }
+      ]
+    },
+    "updateAlarm": {
+      "title": "Update Alarm",
+      "description": "Update the alarm, for example, turn on / off the alarm, change the label, time, or repeating schedule",
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "parameters": [
+        {
+          "name": "alarm",
+          "title": "Alarm",
+          "type": {
+            "kind": "entity",
+            "ref": "clock.alarm"
+          },
+          "description": "Alarm to update."
+        },
+        {
+          "name": "isEnabled",
+          "title": "Is Enabled",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "bool"
+            }
+          },
+          "description": "True to enable the alarm, False to disable the alarm."
+        },
+        {
+          "name": "time",
+          "title": "Time",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "dateComponents"
+            }
+          },
+          "description": "Alarm time."
+        },
+        {
+          "name": "label",
+          "title": "Label",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "string"
+            }
+          },
+          "description": "Alarm label."
+        },
+        {
+          "name": "recurrenceDays",
+          "title": "Recurrence Days",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "recurrenceRule"
+            }
+          },
+          "description": "Alarm repeating schedule."
+        },
+        {
+          "name": "allowsSnooze",
+          "title": "Allows Snooze",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "bool"
+            }
+          },
+          "description": "If the alarm allows snooze or not."
+        }
+      ],
+      "result": {
+        "kind": "entity",
+        "ref": "clock.alarm"
+      }
+    },
+    "updateTimer": {
+      "title": "Update Timer",
+      "description": "Update the timer’s attributes",
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "parameters": [
+        {
+          "name": "timer",
+          "title": "Timer",
+          "type": {
+            "kind": "entity",
+            "ref": "clock.timer"
+          },
+          "description": "Timer to update."
+        },
+        {
+          "name": "duration",
+          "title": "Duration",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "duration"
+            }
+          },
+          "description": "Timer duration."
+        },
+        {
+          "name": "label",
+          "title": "Label",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "string"
+            }
+          },
+          "description": "Timer label."
+        },
+        {
+          "name": "isSleepTimer",
+          "title": "Is Sleep Timer",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "bool"
+            }
+          },
+          "description": "If the timer is a sleep timer."
+        }
+      ],
+      "result": {
+        "kind": "entity",
+        "ref": "clock.timer"
+      }
+    }
+  }
+}
