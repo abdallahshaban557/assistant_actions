@@ -8,6 +8,7 @@ import 'package:assistant_actions/schemas/clock.dart' show ClockTimerState;
 
 import 'package:assistant_actions_example/assistant_actions.dart' as a0;
 import 'package:assistant_actions_example/models/models.dart' as a1;
+import 'package:assistant_actions_example/store.dart' as a2;
 import 'package:assistant_actions_example/models/models.dart'
     show CaptureDelay, CaptureMode, Lens, Meal;
 
@@ -434,3 +435,9 @@ AssistantActionsRegistry assistantActionsRegistry({
     },
   },
 );
+
+/// Run by the headless Flutter engine that Swift starts when Siri needs Dart
+/// and the app has no engine (iOS). Builds the registry with
+/// `appRegistry`.
+@pragma('vm:entry-point')
+Future<void> assistantActionsBackgroundMain() => AssistantActions.startInBackground(a2.appRegistry);

@@ -1,3 +1,22 @@
+## 0.0.14
+
+* With an `@AssistantBackground()` function, writes the headless engine's
+  entrypoint (`assistantActionsBackgroundMain`) and
+  `AssistantActionsAppBackground`. Live intents that don't need the app's
+  screen (`Runs.withFlutter` actions, including those returning values,
+  replies, confirmations and Live Activity actions, and live schema calls and
+  replies) call `AssistantBackground.prepare()` instead of asking to open the
+  app, falling back to the foreground if Dart can't start. They declare
+  `supportedModes` `[.background, .foreground(.dynamic)]` from iOS 26 and keep
+  `ForegroundContinuableIntent` before. Intents that open the app or record
+  audio still come to the foreground. Queued intents, Focus filters and
+  deferred Live Activity actions apply right away on the headless engine.
+* `@AssistantAction(opensApp: true)`.
+* `tool/validate_schemas.dart` sets up background execution;
+  `--no-background` checks the output without it.
+* Without `@AssistantBackground()`, the output is unchanged.
+* Needs assistant_actions 0.0.17.
+
 ## 0.0.13
 
 * Generates App Enums, the new action parameter types and their defaults,
