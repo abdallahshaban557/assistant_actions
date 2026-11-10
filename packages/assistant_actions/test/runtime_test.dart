@@ -298,6 +298,18 @@ void main() {
     expect(await AssistantActions.perform('add', jsonEncode({'n': 2})), 'add 2');
   });
 
+  test('the drain action applies the inbox and answers once it is applied', () async {
+    final applied = <String>[];
+    final host = _FakeHost([]);
+    await AssistantActions.start(
+      AssistantActionsRegistry(actions: {'add': (args) async => (applied..add('add ${args['n']}')).last}),
+      host: host,
+    );
+    host.inbox = [jsonEncode({'kind': 'call', 'action': 'add', 'args': {'n': 7}})];
+    expect(await AssistantActions.perform(AssistantActions.drainAction, '{}'), isNull);
+    expect(applied, ['add 7']);
+  });
+
   test('startInBackground stands down when Swift declines (the app engine started)', () async {
     final host = _BackgroundHost(claim: false, [jsonEncode({'kind': 'call', 'action': 'add', 'args': {}})]);
     var built = false;

@@ -140,9 +140,21 @@ abstract final class AssistantActions {
     return result == null ? null : jsonDecode(result);
   }
 
+  /// The action Swift performs to apply the inbox and wait until it's done
+  /// (`AssistantBackground.applyInbox`), unlike `inboxChanged`, which
+  /// doesn't wait.
+  @internal
+  static const drainAction = 'assistant_actions.drainInbox';
+
   /// Runs a `Runs.withFlutter` action for Swift.
   @visibleForTesting
   static Future<String?> perform(String action, String argsJson) async {
+    if (action == drainAction) {
+      // A drain already running may have read the inbox before this item.
+      if (_draining case final running?) await running;
+      await drain();
+      return null;
+    }
     final handler = _registry?.actions[action];
     if (handler == null) throw ArgumentError.value(action, 'action', 'Unknown action');
     return handler((jsonDecode(argsJson) as Map).cast<String, Object?>());

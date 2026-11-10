@@ -98,10 +98,15 @@ public final class AssistantBackground {
   /// `@AssistantBackground(applyQueued: true)`.
   public func applyInbox(timeout: TimeInterval = 10) async {
     guard bridge.isReady || launcher != nil || appEngine else { return }
-    // Starting Dart drains the inbox; asking again covers an engine that
-    // drained before this item was queued.
-    if await prepare(timeout: timeout) { bridge.inboxChanged() }
+    guard await prepare(timeout: timeout) else { return }
+    // Waits for Dart to apply it, so the change is made before Siri answers
+    // (and the system may suspend the app). Dart's drain runs one at a time,
+    // so this also covers an engine that drained before the item was queued.
+    _ = try? await bridge.perform(Self.drainAction, args: [:])
   }
+
+  /// Dart's `AssistantActions.drainAction`.
+  static let drainAction = "assistant_actions.drainInbox"
 
   // ── Called by the plugin and the headless engine's Dart ──
 
