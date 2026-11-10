@@ -42,6 +42,7 @@ class AssistantAction {
     this.dialog,
     this.confirm,
     this.shortcut,
+    this.liveActivity = false,
   });
 
   final String title;
@@ -52,6 +53,14 @@ class AssistantAction {
   /// `'Remove {recipe} from your list?'`. `{name}` is the parameter `name`.
   /// If the user says no, nothing runs or is queued.
   final String? confirm;
+  /// The action starts, updates or ends an `AssistantLiveActivity`, so the
+  /// intent is a `LiveActivityIntent` on iOS: the system runs it in the app's
+  /// process and lets it start Live Activities from the background. When Dart
+  /// is already running (say, the app is recording in the background), the
+  /// function runs at once, without bringing the app forward. Otherwise
+  /// [Runs.deferred] queues the call as usual and [Runs.withFlutter] brings
+  /// the app forward first. No effect on macOS, which has no Live Activities.
+  final bool liveActivity;
 
   /// What Siri says when the action finishes. `{name}` is replaced with the
   /// parameter `name`. Required for [Runs.deferred]; for [Runs.withFlutter]

@@ -6,6 +6,7 @@ import 'model.dart';
 import 'schema_calls.dart';
 
 part 'swift_writer_interaction.dart';
+part 'swift_writer_surfaces.dart';
 
 /// Writes `AssistantActions.g.swift`, compiled into the generated
 /// `assistant_actions_app` plugin.
@@ -34,7 +35,7 @@ class SwiftWriter {
       _entity(e);
     }
     for (final a in app.actions) {
-      _action(a);
+      a.focusFilter == null ? _action(a) : _focusFilter(a);
     }
     for (final a in app.snapshotActions) {
       _snapshotAction(a);
@@ -275,7 +276,9 @@ ${_propertyQuery(name, [const _Queryable('title', 'Title', 'string', optional: f
     // Asked before anything runs or is queued.
     if (a.confirm != null) _out.writeln('    try await assistantConfirm(${_interpolate(a.confirm!, a)})');
     final dialog = a.dialog == null ? '"Done."' : _interpolate(a.dialog!, a);
-    if (foreground && a.returnsReply) {
+    if (a.liveActivity) {
+      _out.writeln(_liveActivityPerform(a, dialog));
+    } else if (foreground && a.returnsReply) {
       _out.writeln('''
     #if os(iOS)
       // iOS doesn't start the Flutter engine without a scene, so answer from the foreground.
@@ -305,6 +308,7 @@ ${_propertyQuery(name, [const _Queryable('title', 'Title', 'string', optional: f
       ..writeln('  }')
       ..writeln('}')
       ..writeln();
+    if (a.liveActivity) _liveActivityConformance(a);
   }
 
   void _snapshotAction(SnapshotActionModel a) {

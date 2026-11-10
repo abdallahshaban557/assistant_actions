@@ -11,7 +11,10 @@
 /// [AssistantInbox].
 public final class AssistantActionsPlugin: NSObject, FlutterPlugin {
   public static func register(with registrar: FlutterPluginRegistrar) {
-    MainActor.assumeIsolated { AssistantBridge.shared.engineStarted() }
+    MainActor.assumeIsolated {
+      AssistantBridge.shared.engineStarted()
+      AssistantLiveActivities.register()
+    }
     // Registering also keeps the linker from stripping the generated setup class.
     AssistantHostApiSetup.register(api: AssistantHostApiImpl())
   }

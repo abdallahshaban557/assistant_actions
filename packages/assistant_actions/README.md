@@ -22,6 +22,7 @@ Then, once, from the app's root:
 
 ```bash
 dart run assistant_actions:install   # generated plugin, Runner wiring, deployment targets
+                                     # add --widgets for Live Activities (iOS widget extension)
 flutter pub get
 dart run build_runner build
 ```
@@ -165,7 +166,20 @@ and calls `startAudioEntry()` on the generated `JournalItemAssistantHandler`,
 live, like a `Runs.withFlutter` action. Recording is the app's job: start the
 recorder there and save the entry when the user stops. Apple's schema makes
 the intent an `AudioRecordingIntent`, so on iOS show a Live Activity while
-recording continues in the background, or the system stops it.
+recording continues in the background, or the system stops it. Start it in
+`startAudioEntry` with `AssistantLiveActivity.start` (see
+[Live Activities](#live-activities)) and end it when recording stops:
+
+```dart
+@override
+Future<void> startAudioEntry() async {
+  recorder.start();
+  activity = await AssistantLiveActivity.start(
+    AssistantActivityContent(title: 'Recording', systemImage: 'mic.fill', timerStart: DateTime.now()),
+    kind: 'recording',
+  );
+}
+```
 
 `mediaItems` maps to `List<AssistantFile>` and `location` to
 `AssistantPlace?`. `journal.search` is deprecated in favour of
@@ -270,6 +284,153 @@ answer (finding or opening an item), not to pick what to change.
 Queued intents (`Runs.deferred`, inbox creates, updates and deletes, and
 queued calls) run after Siri has answered, so they can confirm and use
 `dialogs` but can't reply from Dart; the generator says so.
+
+## Beyond Siri: Focus, Live Activities, controls, the Action button
+
+### Focus filters
+
+Put `@AssistantFocusFilter` on a top-level function and it becomes the app's
+Focus filter (`SetFocusFilterIntent`). In Settings → Focus → Add Filter, the
+user picks the app, sets the parameters, and the function runs when that
+Focus turns on. When the Focus turns off, Apple runs the filter again with
+every parameter at its default, so make the defaults mean "no Focus":
+
+```dart
+@AssistantFocusFilter(
+  title: 'Journal',
+  description: 'Choose what the app shows during this Focus.',
+  summary: 'Hide tasks: {hideTasks}',          // under the title in Settings
+)
+Future<void> applyFocus({
+  @Param(title: 'Hide tasks') bool hideTasks = false,
+  @Param(title: 'Note to show') String? note,
+}) async { ... }
+```
+
+Parameters take the same types as actions (String, int, double, bool,
+DateTime, Uri, Duration, `@AssistantEntity` classes). Each must be nullable
+or have a bool, int, double or String default, because the system creates
+the filter from its defaults. The generator fails the build otherwise. The
+system can run the filter while the app is in the background or not running
+at all: if Dart is running, the function runs at once; if not, the call is
+queued like a `Runs.deferred` action and runs when the app next starts or
+resumes. It never brings the app forward. Works on iOS and macOS.
+
+### Live Activities
+
+`AssistantLiveActivity` starts, updates and ends ActivityKit Live Activities
+(iOS) from Dart. Each activity carries the runtime's generic, JSON-backed
+`AssistantActivityAttributes`: a title, subtitle, SF Symbol, progress, a timer,
+and a `data` map for views of your own.
+
+```dart
+final activity = await AssistantLiveActivity.start(
+  AssistantActivityContent(title: 'Recording', systemImage: 'mic.fill', timerStart: DateTime.now()),
+  kind: 'recording',
+);
+await activity?.update(const AssistantActivityContent(title: 'Recording', progress: 0.5));
+await activity?.end(dismissal: AssistantActivityDismissal.immediate);
+```
+
+`start` returns null on macOS, and on iOS when the user has turned Live
+Activities off (`AssistantLiveActivity.areEnabled()`). iOS only starts them
+while the app is in the foreground, or from an intent that allows it: an
+`AudioRecordingIntent` such as `journal.createAudioEntry`, or an action with
+`liveActivity: true` (see below).
+
+A Flutter app has no widget extension, and the system needs one to draw the
+activity. Add one with:
+
+```bash
+dart run assistant_actions:install --widgets
+```
+
+This step:
+- writes `ios/AssistantWidgets/`: the widget bundle `AssistantWidgets.swift`
+  (yours to edit; later runs leave it alone), the generic SwiftUI Live
+  Activity view `AssistantLiveActivityWidget.swift` (Lock Screen and Dynamic
+  Island), a copy of `AssistantActivityAttributes.swift`, an `Info.plist`, and
+  an xcconfig that gives the extension Flutter's build name and number;
+- adds the `AssistantWidgets` app extension target to `ios/Runner.xcodeproj`.
+  It's embedded in Runner, with an "Embed Foundation Extensions" phase placed
+  before Flutter's "Thin Binary" script (otherwise Xcode reports a build
+  cycle). The bundle id is Runner's plus `.AssistantWidgets`, the team is
+  Runner's, and the target is iOS 17. If the project isn't laid out like a
+  Flutter one, nothing is changed and the step prints the Xcode steps instead;
+- sets `NSSupportsLiveActivities` in `ios/Runner/Info.plist`.
+
+Running it again refreshes the view and the attributes copy, which ActivityKit
+matches with the app's copy by type name and fields. Run it after upgrading
+assistant_actions. **By hand in Xcode:** for device builds, pick a team for the
+`AssistantWidgets` target under Signing & Capabilities if Runner's wasn't set
+when you ran the step. The simulator needs no signing.
+
+For the journal's `createAudioEntry`, start the activity in `startAudioEntry`
+and end it when recording stops. The example app does this.
+
+### Live Activity intents
+
+`@AssistantAction(liveActivity: true)` makes the intent a `LiveActivityIntent`
+on iOS. The system runs it in the app's process, and it can start or update
+Live Activities from the background. When Dart is already running, say the
+app is recording in the background, the function runs at once without
+bringing the app forward. When it isn't, `Runs.deferred` queues the call as
+usual and `Runs.withFlutter` brings the app forward first, because iOS only
+starts the Flutter engine with a scene. On macOS the option does nothing.
+
+```dart
+@AssistantAction(title: 'Stop Recording', dialog: 'Stopped recording.', liveActivity: true)
+Future<void> stopRecording() => recorder.stop();
+```
+
+### Controls and widgets
+
+Control Center controls (`ControlWidget`, iOS 18) and configurable widgets
+(`WidgetConfigurationIntent`) live in the widget extension, and so must the
+App Intents they run. The generated intents can't go there: they're in the
+`assistant_actions_app` plugin, which links Flutter. assistant_actions
+doesn't generate controls yet. Write them in Swift in `ios/AssistantWidgets/`
+and add them to the bundle:
+
+```swift
+@main
+struct AssistantWidgets: WidgetBundle {
+  var body: some Widget {
+    AssistantLiveActivityWidget()
+    if #available(iOS 18.0, *) { OpenJournalControl() }
+  }
+}
+
+@available(iOS 18.0, *)
+struct OpenJournalControl: ControlWidget {
+  var body: some ControlWidgetConfiguration {
+    StaticControlConfiguration(kind: "com.example.open-journal") {
+      ControlWidgetButton(action: OpenJournalIntent()) { Label("Journal", systemImage: "book") }
+    }
+    .displayName("Open Journal")
+  }
+}
+
+/// Add this file to both the Runner and AssistantWidgets targets.
+@available(iOS 18.0, *)
+struct OpenJournalIntent: AppIntent {
+  static let title: LocalizedStringResource = "Open Journal"
+  static let openAppWhenRun = true
+  func perform() async throws -> some IntentResult { .result() }
+}
+```
+
+This compiles in the extension. assistant_actions hasn't checked it on a
+device. The extension can't see the app's assistant_actions inbox or
+snapshots, which live in the app's own UserDefaults. A control that needs app
+data needs an App Group you set up yourself.
+
+### Action button and Apple Pencil
+
+Nothing extra to adopt. Every App Shortcut (`shortcut:` on an
+`@AssistantAction`) and every action in Shortcuts can be assigned to the
+Action button (Settings → Action Button → Shortcut) or to Apple Pencil Pro's
+squeeze. Both run it like Siri does, so the `runs` rules apply.
 
 ## Run
 

@@ -11,6 +11,8 @@ import 'interaction.dart';
 import 'model.dart';
 import 'schema_calls.dart';
 
+part 'reader_surfaces.dart';
+
 const _package = 'assistant_actions';
 
 /// The `api` this generator needs in assistant_actions'
@@ -76,6 +78,7 @@ class ModelReader {
     for (final lib in libraries) {
       for (final fn in lib.topLevelFunctions) {
         if (_annotation(fn, 'AssistantAction') case final a?) actions.add(_action(fn, a, entities));
+        if (_annotation(fn, 'AssistantFocusFilter') case final f?) actions.add(_focusFilter(fn, f, entities));
       }
     }
     final snapshotActions = <SnapshotActionModel>[];
@@ -551,6 +554,7 @@ class ModelReader {
       params: params,
       returnsString: returnsString,
       returnsReply: returnsReply,
+      liveActivity: annotation.peek('liveActivity')?.boolValue ?? false,
     );
   }
 
@@ -610,6 +614,9 @@ class ModelReader {
     final type = value?.type;
     if (value == null || type is! InterfaceType || !_isFrom(type, 'SnapshotAnswer', exact: true)) {
       throw error('@AssistantAction on a variable needs a top-level `const` SnapshotAnswer<T>.');
+    }
+    if (annotation.peek('liveActivity')?.boolValue ?? false) {
+      throw error('liveActivity is for functions; a SnapshotAnswer answers in Swift without Dart.');
     }
     final target = type.typeArguments.single;
     final name = target is InterfaceType ? target.element.displayName : null;

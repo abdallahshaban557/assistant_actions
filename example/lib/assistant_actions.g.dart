@@ -244,6 +244,17 @@ AssistantActionsRegistry assistantActionsRegistry({
     'countOpenTasks': (args) async {
       return await a0.countOpenTasks();
     },
+    'stopRecording': (args) async {
+      await a0.stopRecording();
+      return null;
+    },
+    'applyFocus': (args) async {
+      final _hideTasks =
+          AssistantValue.boolean(args['hideTasks']) ?? (throw ArgumentError.notNull('hideTasks'));
+      final _note = AssistantValue.string(args['note']);
+      await a0.applyFocus(hideTasks: _hideTasks, note: _note);
+      return null;
+    },
     'JournalItem.startAudioEntry': (args) async {
       await journalItem.startAudioEntry();
       return null;

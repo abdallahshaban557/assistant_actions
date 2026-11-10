@@ -201,6 +201,64 @@ public struct CountOpenTasksAction: AppIntent, ForegroundContinuableIntent {
   }
 }
 
+/// `stopRecording` in Dart (deferred).
+public struct StopRecordingAction: AppIntent {
+  public static let title: LocalizedStringResource = "Stop Recording"
+  public static let description = IntentDescription("Stops recording the journal entry.")
+
+  public init() {}
+
+  @MainActor
+  public func perform() async throws -> some IntentResult & ProvidesDialog {
+    let args: [String: Any] = [:]
+    if AssistantBridge.shared.isReady {
+      _ = try await AssistantBridge.shared.perform("stopRecording", args: args)
+    } else {
+      AssistantInbox.call("stopRecording", args: args)
+    }
+    return .result(dialog: IntentDialog(stringLiteral: "Stopped recording."))
+  }
+}
+
+#if os(iOS)
+  /// Runs in the app's process and may start or update Live Activities.
+  extension StopRecordingAction: LiveActivityIntent {}
+#endif
+
+/// `applyFocus` in Dart: the app's Focus filter, run live when Dart is running and
+/// queued otherwise.
+public struct ApplyFocusFocusFilter: SetFocusFilterIntent {
+  public static let title: LocalizedStringResource = "Assistant Actions Example"
+  public static let description: IntentDescription? = IntentDescription("Choose what the app shows during this Focus.")
+
+  @Parameter(title: "Hide tasks", default: false)
+  public var hideTasks: Bool
+
+  @Parameter(title: "Note to show")
+  public var note: String?
+
+  public init() {}
+
+  public var displayRepresentation: DisplayRepresentation {
+    let summary: String = "Hide tasks: \(hideTasks)"
+    return DisplayRepresentation(title: Self.title, subtitle: "\(summary)")
+  }
+
+  @MainActor
+  public func perform() async throws -> some IntentResult {
+    let args: [String: Any] = [
+      "hideTasks": AssistantValues.encode(hideTasks),
+      "note": AssistantValues.encode(note),
+    ]
+    if AssistantBridge.shared.isReady {
+      _ = try await AssistantBridge.shared.perform("applyFocus", args: args)
+    } else {
+      AssistantInbox.call("applyFocus", args: args)
+    }
+    return .result()
+  }
+}
+
 /// `showOpenTasks` in Dart: answered from the published `TaskItem` snapshot, without Flutter.
 public struct ShowOpenTasksAction: AppIntent {
   public static let title: LocalizedStringResource = "Show Open Tasks"

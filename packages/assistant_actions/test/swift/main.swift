@@ -206,6 +206,35 @@ check(AssistantDialog.items(["Milk"]), "Milk", "items read by title")
 check(AssistantDialog.items([""]), "this item", "an untitled item")
 check(AssistantDialog.items(["Milk", ""]), "these 2 items", "items when any is untitled")
 
+// Live Activities: the content state Dart sends, and macOS reporting them
+// unavailable (ActivityKit is iOS-only).
+do {
+  let state = AssistantActivityAttributes.ContentState(json: [
+    "title": "Recording", "subtitle": "Journal", "systemImage": "mic.fill", "progress": 1.5,
+    "timerStart": 1_700_000_000.5, "data": #"{"entry":"j1"}"#,
+  ])
+  check(state.title, "Recording", "activity content keeps its title")
+  check("\(state.progress!)", "1.0", "activity progress is clamped to 0...1")
+  check("\(state.timerStart!.timeIntervalSince1970)", "1700000000.5", "activity dates are Unix seconds")
+  check("\(state.timerEnd == nil)", "true", "missing dates stay nil")
+  check(state.dataObject["entry"] as? String ?? "nil", "j1", "activity data decodes")
+  let encoded = try! JSONEncoder().encode(state)
+  check(
+    try! JSONDecoder().decode(AssistantActivityAttributes.ContentState.self, from: encoded) == state ? "same" : "different",
+    "same", "activity content round-trips through Codable")
+  check(AssistantActivityAttributes(kind: "recording", data: nil).dataObject.isEmpty ? "empty" : "data", "empty",
+    "activities without data decode to an empty object")
+  check(AssistantActivityAttributes.ContentState(json: [:]).title, "", "content without a title is blank")
+}
+MainActor.assumeIsolated {
+  AssistantLiveActivities.register()
+  check((try? AssistantHostCalls.invoke("liveActivity.enabled", argsJson: "{}")) ?? "nil", "false",
+    "Live Activities are off on macOS")
+  check((try? AssistantHostCalls.invoke("liveActivity.start", argsJson: #"{"content":{"title":"x"}}"#)) ?? "nil",
+    "nil", "starting one on macOS gives nothing")
+  check((try? AssistantHostCalls.invoke("liveActivity.list", argsJson: "{}")) ?? "nil", "[]", "none run on macOS")
+}
+
 if failures > 0 {
   print("\(failures) failed")
   exit(1)

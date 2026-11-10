@@ -205,12 +205,17 @@ class ParamModel {
     this.entity,
     this.entityNullable = false,
     this.prompt,
+    this.swiftDefault,
   });
 
   final String name;
   final String title;
   final bool named;
   final String? prompt;
+
+  /// The Dart default as a Swift literal, for Focus filter parameters
+  /// (`false`, `3`, `"Work"`).
+  final String? swiftDefault;
 
   /// Set for value parameters.
   final ValueType? value;
@@ -248,6 +253,8 @@ class ActionModel {
     this.dialog,
     this.confirm,
     this.shortcut,
+    this.liveActivity = false,
+    this.focusFilter,
   });
 
   final String functionName;
@@ -265,13 +272,29 @@ class ActionModel {
   /// The function returns an `AssistantReply` (possibly in a `Future`):
   /// a dialog and a result card.
   final bool returnsReply;
+  /// `liveActivity: true`: a `LiveActivityIntent` on iOS that runs at once
+  /// when Dart is running.
+  final bool liveActivity;
+
+  /// Set when the function is the app's `@AssistantFocusFilter` rather than
+  /// an `@AssistantAction`: Swift writes a `SetFocusFilterIntent`, and the
+  /// registry calls the function by [id] like any action.
+  final FocusFilterModel? focusFilter;
 
   /// The function returns `String`/`String?` (possibly in a `Future`), which
   /// becomes what Siri says.
   final bool returnsString;
 
   String get id => functionName;
-  String get swiftName => '${pascal(functionName)}Action';
+  String get swiftName => '${pascal(functionName)}${focusFilter == null ? 'Action' : 'FocusFilter'}';
+}
+
+/// `@AssistantFocusFilter` options beyond an action's.
+class FocusFilterModel {
+  const FocusFilterModel({this.summary});
+
+  /// What Settings shows under the title; `{param}` interpolates.
+  final String? summary;
 }
 
 /// `@AssistantAction` on a `const SnapshotAnswer<T>`: answered in Swift from

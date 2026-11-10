@@ -26,7 +26,30 @@ class Store extends ChangeNotifier {
 
   /// Whether the app is recording an audio journal entry Siri asked for.
   bool recording = false;
+
+  /// The Live Activity shown while [recording] (iOS; null elsewhere).
+  AssistantLiveActivity? recordingActivity;
+
+  /// What the Focus filter asks for (see `applyFocus`): the defaults mean no
+  /// Focus is on.
+  bool hideTasks = false;
+  String? focusNote;
   final shopping = <String>[];
+
+  /// Stops recording and ends its Live Activity: the Stop button, and Siri's
+  /// "Stop Recording" (`stopRecording`), which can run while the app records
+  /// in the background.
+  Future<void> stopRecording() async {
+    recording = false;
+    final activity = recordingActivity;
+    recordingActivity = null;
+    changed();
+    await activity?.end(
+      content: const AssistantActivityContent(title: 'Journal entry saved', systemImage: 'checkmark.circle.fill'),
+      dismissal: AssistantActivityDismissal.after,
+      dismissAt: DateTime.now().add(const Duration(seconds: 5)),
+    );
+  }
 
   /// Tells listeners and republishes what Siri can see.
   void changed() {
@@ -125,12 +148,23 @@ class JournalHandler implements JournalItemAssistantHandler {
   }
 
   /// Siri's "record a journal entry". The app is in the foreground now; a real
-  /// app starts its recorder here (and, on iOS, a Live Activity while it
-  /// records, as Apple's AudioRecordingIntent asks).
+  /// app starts its recorder here. Apple's AudioRecordingIntent asks for a
+  /// Live Activity while recording goes on, on iOS: the widget extension
+  /// (`dart run assistant_actions:install --widgets`) shows it on the Lock
+  /// Screen and in the Dynamic Island, with a timer since it started.
   @override
   Future<void> startAudioEntry() async {
     _store.recording = true;
     _store.changed();
+    _store.recordingActivity ??= await AssistantLiveActivity.start(
+      AssistantActivityContent(
+        title: 'Recording a journal entry',
+        subtitle: 'Say "Stop recording" or open the app to stop.',
+        systemImage: 'mic.fill',
+        timerStart: DateTime.now(),
+      ),
+      kind: 'recording',
+    );
   }
 }
 

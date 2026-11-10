@@ -34,9 +34,13 @@ class ExampleApp extends StatelessWidget {
               final store = Store.instance;
               return ListView(
                 children: [
+                  if (store.focusNote case final note?) ListTile(leading: const Icon(Icons.nightlight), title: Text(note)),
                   const ListTile(title: Text('Tasks (reminders.*)')),
-                  for (final t in store.tasks)
-                    CheckboxListTile(value: t.done, onChanged: null, title: Text(t.title)),
+                  if (store.hideTasks)
+                    const ListTile(title: Text('Hidden during this Focus'))
+                  else
+                    for (final t in store.tasks)
+                      CheckboxListTile(value: t.done, onChanged: null, title: Text(t.title)),
                   const ListTile(title: Text('Memories (notes.*)')),
                   for (final m in store.memories) ListTile(title: Text(m.text)),
                   if (store.onScreen case final shown?) ListTile(leading: const Icon(Icons.open_in_new), title: Text(shown)),
@@ -49,10 +53,7 @@ class ExampleApp extends StatelessWidget {
                       leading: const Icon(Icons.mic),
                       title: const Text('Recording an audio entry…'),
                       trailing: TextButton(
-                        onPressed: () {
-                          store.recording = false;
-                          store.changed();
-                        },
+                        onPressed: store.stopRecording,
                         child: const Text('Stop'),
                       ),
                     ),
