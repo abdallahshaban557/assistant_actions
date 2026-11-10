@@ -220,7 +220,7 @@ class ModelReader {
         : 0;
     if (api < _runtimeApi) {
       throw InvalidGenerationSourceError(
-          'This version of assistant_actions_generator needs assistant_actions 0.0.12 or later. '
+          'This version of assistant_actions_generator needs assistant_actions 0.0.14 or later. '
           'Run `flutter pub upgrade assistant_actions`.',
           element: library);
     }

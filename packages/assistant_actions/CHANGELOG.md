@@ -1,3 +1,19 @@
+## 0.0.14
+
+* Siri can confirm, speak results and show result cards.
+  * `@AssistantAction(confirm: 'Remove {recipe}?')` asks before anything runs
+    or is queued.
+  * Schema annotations take `dialogs` (spoken results, such as
+    `{'createReminder': 'Added {title}.'}`), `confirm` and `replies`. Delete
+    intents confirm by default; turn that off with `confirmDeletes: false`.
+  * `AssistantReply` (a dialog, an `AssistantCard`, and `choose` for picking
+    among several items on iOS / macOS 26) for `Runs.withFlutter` actions and
+    for live schema intents listed in `replies`.
+  * New runtime Swift: `AssistantCardView` (SwiftUI), `AssistantDialog`,
+    `assistantConfirm` and `assistantChoose`.
+* Schema libraries are regenerated with the new annotation options.
+* Needs assistant_actions_generator 0.0.11.
+
 ## 0.0.13
 
 * `AssistantHostCalls`: Dart runs Swift features by name
