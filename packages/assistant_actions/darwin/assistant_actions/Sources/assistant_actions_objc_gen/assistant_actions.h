@@ -427,6 +427,11 @@ SWIFT_CLASS("_TtC17assistant_actions21AssistantHostApiSetup")
 - (NSArray<NSObject *> * _Nullable)drainInboxWithWrappedError:(PigeonError * _Nonnull)wrappedError SWIFT_WARN_UNUSED_RESULT;
 /// Saves the snapshot of [collection] that entity queries read.
 - (void)publishWithCollection:(NSString * _Nonnull)collectionArg json:(NSString * _Nonnull)jsonArg wrappedError:(PigeonError * _Nonnull)wrappedError;
+/// Runs the Swift handler registered for [method] (see
+/// <code>AssistantHostCalls.swift</code>) with [argsJson] and returns its result as
+/// JSON, if any. Features that need Swift from Dart use this, so the FFI
+/// surface doesn’t grow with each one.
+- (NSString * _Nullable)invokeWithMethod:(NSString * _Nonnull)methodArg argsJson:(NSString * _Nonnull)argsJsonArg wrappedError:(PigeonError * _Nonnull)wrappedError SWIFT_WARN_UNUSED_RESULT;
 @end
 
 /// Error class for passing custom error details to Dart side.

@@ -1,3 +1,13 @@
+## 0.0.13
+
+* `AssistantHostCalls`: Dart runs Swift features by name
+  (`AssistantActions.callSwift`, internal to the package) over one new
+  Pigeon FFI method, `invoke`, so new features don't change the FFI surface.
+  Swift registers handlers with `AssistantHostCalls.register`; generated code
+  adds its own through `AssistantActionsAppHostCalls`, found by name.
+* The `AssistantHost` test interface is unchanged; hosts that also run
+  Swift calls implement `AssistantHostCalls`.
+
 ## 0.0.12
 
 * People, places, files, recurrence rules and unions cross to Dart as

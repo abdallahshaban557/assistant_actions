@@ -32,4 +32,8 @@ private final class AssistantHostApiImpl: AssistantHostApi {
   func publish(collection: String, json: String) throws {
     try AssistantSnapshot.write(collection: collection, json: json)
   }
+
+  func invoke(method: String, argsJson: String) throws -> String? {
+    try MainActor.assumeIsolated { try AssistantHostCalls.invoke(method, argsJson: argsJson) }
+  }
 }

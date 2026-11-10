@@ -159,6 +159,14 @@ if #available(macOS 15.0, *) {
 }
 check("\(AssistantValues.items([1, "a"])!.count)", "2", "lists decode their items")
 
+// Host calls: Dart runs Swift features by name over one FFI method.
+MainActor.assumeIsolated {
+  AssistantHostCalls.register("double") { args in (args["n"] as? Int ?? 0) * 2 }
+  check((try? AssistantHostCalls.invoke("double", argsJson: #"{"n":21}"#)) ?? "nil", "42", "host calls return JSON")
+  check((try? AssistantHostCalls.invoke("missing", argsJson: "{}")) == nil ? "threw" : "ran", "threw",
+    "unknown host calls throw")
+}
+
 if failures > 0 {
   print("\(failures) failed")
   exit(1)

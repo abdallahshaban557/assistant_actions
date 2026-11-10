@@ -34,6 +34,12 @@ abstract class AssistantHostApi {
 
   /// Saves the snapshot of [collection] that entity queries read.
   void publish(String collection, String json);
+
+  /// Runs the Swift handler registered for [method] (see
+  /// `AssistantHostCalls.swift`) with [argsJson] and returns its result as
+  /// JSON, if any. Features that need Swift from Dart use this, so the FFI
+  /// surface doesn't grow with each one.
+  String? invoke(String method, String argsJson);
 }
 
 /// Implemented in Dart (`lib/src/runtime.dart`), called from Swift.

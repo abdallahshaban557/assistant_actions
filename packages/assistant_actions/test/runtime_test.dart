@@ -179,6 +179,22 @@ void main() {
     expect(AssistantValue.encodeUnion(AssistantUnion('when', DateTime.fromMillisecondsSinceEpoch(1500))),
         {'case': 'when', 'value': 1.5});
   });
+
+  test('callSwift runs a named Swift handler over the host, when it has one', () async {
+    final host = _CallingHost();
+    await AssistantActions.start(const AssistantActionsRegistry(), host: host);
+    expect(await AssistantActions.callSwift('echo', {'a': 1}), {'method': 'echo', 'args': {'a': 1}});
+    await AssistantActions.start(const AssistantActionsRegistry(), host: _FakeHost([]));
+    expect(await AssistantActions.callSwift('echo'), isNull, reason: 'plain hosts have no Swift calls');
+  });
 }
 
 enum _Case { a, b, this$ }
+
+class _CallingHost extends _FakeHost implements AssistantHostCalls {
+  _CallingHost() : super([]);
+
+  @override
+  Future<String?> invoke(String method, String argsJson) async =>
+      jsonEncode({'method': method, 'args': jsonDecode(argsJson)});
+}
