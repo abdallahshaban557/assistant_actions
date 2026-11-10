@@ -48,7 +48,8 @@ import 'package:assistant_actions/assistant_actions.dart';
 @AssistantAction(title: 'Add to Shopping List', dialog: 'Added {recipe} to your list.')
 Future<void> addToShoppingList(Recipe recipe, {int? servings}) async { ... }
 
-/// Runs live; Siri speaks the result.
+/// Runs live; Siri speaks the result. On iOS the app comes to the foreground
+/// first, unless it sets up background execution (below).
 @AssistantAction(
   title: 'Count Open Tasks',
   runs: Runs.withFlutter,
@@ -518,6 +519,56 @@ AssistantActions.publish(recipes);  // whenever they change
 AssistantActions.publish(tasks);
 ```
 
+### Run Dart without opening the app (iOS)
+
+On iOS, Flutter only starts with a scene, so by default a live action
+(`Runs.withFlutter`, schema intents that return an item) asks to open the app
+when it isn't in the foreground. Mark one top-level function that builds your
+registry `@AssistantBackground()`, and Siri runs Dart in the background
+instead:
+
+```dart
+@AssistantBackground()
+Future<AssistantActionsRegistry> appRegistry() async {
+  await Database.open();
+  return assistantActionsRegistry(taskItem: TaskHandler(), ...);
+}
+
+// main.dart
+await AssistantActions.start(await appRegistry());
+```
+
+It goes in `lib/assistant_actions.dart` or a library it imports, takes no
+arguments and returns the registry (or a `Future` of it). The generator writes
+the entrypoint, `assistantActionsBackgroundMain` in `assistant_actions.g.dart`,
+which `main.dart` must import (directly or through the function's library).
+No Runner changes are needed.
+
+- When an intent needs Dart and the app has no engine, the runtime starts a
+  headless `FlutterEngine` at that entrypoint, registers the app's plugins on
+  it (the Runner's `GeneratedPluginRegistrant`, or
+  `AssistantBackground.registerPlugins` if you set it), waits for Dart, and
+  answers there. If the app's engine is already running, it answers there,
+  even with the app in the background.
+- The headless engine has **its own Dart memory**: it starts from what the app
+  persists, not from the running app's state. `AssistantActions.inBackground`
+  tells you which engine you're on.
+- It stays for `AssistantBackground.shared.keepAlive` seconds (30) after the
+  last request, then shuts down. When the app's own engine starts, the
+  headless one stops as soon as it's idle.
+- Intents that open the app still come to the foreground: `system.open`,
+  `journal.createAudioEntry` and other recording intents, schema intents that
+  open the app (`camera.startCapture`), and actions with
+  `@AssistantAction(opensApp: true)`.
+- Queued intents (`Runs.deferred`, schema creates, updates and deletes) are
+  applied right away on the headless engine too, before Siri answers. Pass
+  `@AssistantBackground(applyQueued: false)` to leave them for the next launch.
+- From iOS 26 the background intents declare
+  `supportedModes = [.background, .foreground(.dynamic)]`; before that they
+  keep `ForegroundContinuableIntent`. If Dart can't start, they continue in
+  the foreground as without background execution.
+- macOS starts the engine with the app and answers in place either way.
+
 ## How it works
 
 - Generated intents live in a local plugin (`packages/assistant_actions_app`), so
@@ -536,6 +587,10 @@ AssistantActions.publish(tasks);
   kept in step with Siri's changes, so Siri can find "my reminders in App".
 - Dart and Swift call each other directly over FFI (Pigeon native interop,
   `pigeons/assistant_api.dart`), with no platform channels.
+- With `@AssistantBackground()`, the generated `AssistantActionsAppBackground`
+  class tells the runtime the entrypoint, the way the Spotlight indexer is found
+  by class name. Dart on the headless engine claims it over a host call, so
+  that it stands down if the app's engine started meanwhile.
 
 ## macOS notes
 

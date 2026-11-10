@@ -339,6 +339,7 @@ class ActionModel {
     this.result,
     this.searchKeywords = const [],
     this.isDiscoverable = true,
+    this.opensApp = false,
   });
 
   final String functionName;
@@ -346,6 +347,9 @@ class ActionModel {
   final String title;
   final String? description;
   final RunsModel runs;
+
+  /// Always comes to the foreground, even with background execution.
+  final bool opensApp;
   final String? dialog;
 
   /// The question Siri asks before running it (`confirm:`).
@@ -576,7 +580,12 @@ class AppModel {
     this.appEnums = const {},
     this.intentShortcuts = const [],
     this.shortcutTileColor,
+    this.background,
   });
+
+  /// The `@AssistantBackground()` registry function, when the app lets Siri
+  /// run Dart on a headless engine (iOS).
+  final BackgroundModel? background;
 
   /// The app's `@AssistantEnum` enums, by class name.
   final Map<String, AppEnumModel> appEnums;
@@ -612,5 +621,30 @@ class AppModel {
         for (final a in actions) a.library,
         for (final e in entities) e.library,
         for (final s in schemaEntities) s.library,
+        if (background case final b?) b.library,
       };
+}
+
+/// `@AssistantBackground()` on a top-level function returning the registry.
+class BackgroundModel {
+  const BackgroundModel({
+    required this.functionName,
+    required this.library,
+    required this.entrypointLibrary,
+    this.applyQueued = true,
+  });
+
+  /// The app's registry function and its library.
+  final String functionName;
+  final Uri library;
+
+  /// `package:<app>/assistant_actions.g.dart`, where the generated
+  /// [entrypoint] is.
+  final Uri entrypointLibrary;
+
+  /// Queued intents also start the headless engine, to apply at once.
+  final bool applyQueued;
+
+  /// The `@pragma('vm:entry-point')` function the headless engine runs.
+  static const entrypoint = 'assistantActionsBackgroundMain';
 }

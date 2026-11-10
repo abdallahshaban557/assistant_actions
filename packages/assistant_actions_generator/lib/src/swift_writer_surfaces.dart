@@ -6,8 +6,11 @@ extension _Surfaces on SwiftWriter {
   /// The Swift that calls [a]'s Dart function at once when Dart is running,
   /// and otherwise queues the call for the next start, without bringing the
   /// app forward.
+  ///
+  /// With `@AssistantBackground(applyQueued: true)`, Dart is started on the
+  /// headless engine when the app has none, so the call runs at once there too.
   String _performOrQueue(ActionModel a) => '''
-    if AssistantBridge.shared.isReady {
+    if ${app.background?.applyQueued ?? false ? 'await AssistantBackground.shared.prepare()' : 'AssistantBridge.shared.isReady'} {
       _ = try await AssistantBridge.shared.perform("${a.id}", args: args)
     } else {
       AssistantInbox.call("${a.id}", args: args)
@@ -65,11 +68,20 @@ extension _Surfaces on SwiftWriter {
   /// the app records or plays: when Dart is running, call it at once. If not,
   /// a deferred action is queued and a `Runs.withFlutter` one brings the app
   /// forward first (iOS starts the Flutter engine only with a scene).
+  ///
+  /// With `@AssistantBackground()`, a `Runs.withFlutter` one starts Dart on the
+  /// headless engine instead, like any background action.
   String _liveActivityPerform(ActionModel a, String dialog) {
     if (a.runs == RunsModel.deferred) {
       return '''
 ${_performOrQueue(a)}
     return .result(dialog: IntentDialog(stringLiteral: $dialog))''';
+    }
+    final call = '''
+    ${a.returnsReply ? 'let reply = AssistantReply(json: try await AssistantBridge.shared.perform("${a.id}", args: args))' : 'let reply = try await AssistantBridge.shared.perform("${a.id}", args: args)'}
+    return ${a.returnsReply ? _resultOf(dialog: 'reply.dialog ?? $dialog', snippet: true) : '.result(dialog: IntentDialog(stringLiteral: reply ?? $dialog))'}''';
+    if (_background) {
+      return '${_backgroundPrelude(from26: SwiftWriter._norm(_actionFloor(a))['iOS']! >= 26)}\n$call';
     }
     return '''
     #if os(iOS)

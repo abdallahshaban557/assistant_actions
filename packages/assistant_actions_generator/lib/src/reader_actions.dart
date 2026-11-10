@@ -122,6 +122,18 @@ extension _Actions on ModelReader {
     if (runs == RunsModel.deferred && returnsString) {
       log.warning('${fn.displayName} runs deferred, so Siri says its dialog, not the String it returns.');
     }
+    final opensApp = annotation.peek('opensApp')?.boolValue ?? false;
+    if (opensApp && runs != RunsModel.withFlutter) {
+      throw InvalidGenerationSourceError(
+          '${fn.displayName}: opensApp needs runs: Runs.withFlutter; a deferred action runs later, not in the app.',
+          element: fn);
+    }
+    if (opensApp && liveActivity) {
+      throw InvalidGenerationSourceError(
+          '${fn.displayName}: liveActivity and opensApp don\'t go together: a Live Activity intent runs without '
+          'opening the app.',
+          element: fn);
+    }
     return ActionModel(
       functionName: fn.displayName,
       library: fn.library.uri,
@@ -138,6 +150,7 @@ extension _Actions on ModelReader {
       result: result,
       searchKeywords: _strings(annotation, 'searchKeywords'),
       isDiscoverable: discoverable,
+      opensApp: opensApp,
     );
   }
 

@@ -97,6 +97,7 @@ class ModelReader {
         }
       }
     }
+    final background = _background(libraries, library);
     final ids = <String>{};
     for (final id in [for (final a in actions) a.id, for (final a in snapshotActions) a.id]) {
       if (!ids.add(id)) {
@@ -117,6 +118,47 @@ class ModelReader {
       appEnums: Map.of(_appEnums),
       intentShortcuts: intentShortcuts,
       shortcutTileColor: _tileColor(app),
+      background: background,
+    );
+  }
+
+  /// The `@AssistantBackground()` registry function, if any: one, top-level,
+  /// taking no arguments and returning `AssistantActionsRegistry` (or a
+  /// `Future` of it).
+  BackgroundModel? _background(List<LibraryElement> libraries, LibraryElement root) {
+    final found = [
+      for (final lib in libraries)
+        for (final fn in lib.topLevelFunctions)
+          if (_annotation(fn, 'AssistantBackground') case final a?) (fn, a),
+    ];
+    if (found.isEmpty) return null;
+    if (found.length > 1) {
+      throw InvalidGenerationSourceError(
+          'Only one function can be @AssistantBackground(): ${found.map((f) => f.$1.displayName).join(', ')}.',
+          element: found[1].$1);
+    }
+    final (fn, annotation) = found.single;
+    if (fn.formalParameters.any((p) => p.isRequired)) {
+      throw InvalidGenerationSourceError(
+          '@AssistantBackground() ${fn.displayName} must take no arguments: the headless engine calls it as is.',
+          element: fn);
+    }
+    var result = fn.returnType;
+    if (result.isDartAsyncFuture || result.isDartAsyncFutureOr) {
+      result = (result as InterfaceType).typeArguments.single;
+    }
+    if (!_isFrom(result, 'AssistantActionsRegistry', exact: true) ||
+        result.nullabilitySuffix == NullabilitySuffix.question) {
+      throw InvalidGenerationSourceError(
+          '@AssistantBackground() ${fn.displayName} must return the AssistantActionsRegistry for '
+          'AssistantActions.start (or a Future of it), not ${fn.returnType.getDisplayString()}.',
+          element: fn);
+    }
+    return BackgroundModel(
+      functionName: fn.displayName,
+      library: fn.library.uri,
+      entrypointLibrary: root.uri.replace(path: root.uri.path.replaceFirst(RegExp(r'\.dart$'), '.g.dart')),
+      applyQueued: annotation.peek('applyQueued')?.boolValue ?? true,
     );
   }
 

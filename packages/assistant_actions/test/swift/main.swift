@@ -256,6 +256,92 @@ final class FakeShortcuts: NSObject {
 _ = FakeShortcuts.self
 check(AssistantShortcutParameters.updateNow() ? "updated \(FakeShortcuts.calls)" : "none", "updated 1",
   "a generated shortcuts class updates its parameters")
+// Background execution: the headless engine's lifecycle, with a fake engine
+// whose "Dart" claims and reports ready the way startInBackground does.
+@MainActor
+final class FakeLauncher: AssistantEngineLauncher {
+  var background: AssistantBackground!
+  var starts = 0, stops = 0
+  var dartStarts = true
+  var claimed: Bool?
+  func start() -> Bool {
+    starts += 1
+    if dartStarts {
+      Task { @MainActor in
+        claimed = background.claim()
+        if claimed == true { background.ready() }
+      }
+    }
+    return true
+  }
+  func stop() { stops += 1 }
+}
+
+@MainActor
+func backgroundTests() async {
+  func make(_ launcher: FakeLauncher?) -> (AssistantBackground, AssistantBridge) {
+    let bridge = AssistantBridge()
+    let background = AssistantBackground(bridge: bridge)
+    background.launcher = launcher
+    launcher?.background = background
+    return (background, bridge)
+  }
+  func sleep(_ seconds: Double) async { try? await Task.sleep(nanoseconds: UInt64(seconds * 1e9)) }
+
+  // Without @AssistantBackground there's no launcher: the intent foregrounds.
+  let (plain, _) = make(nil)
+  check("\(await plain.prepare(timeout: 0.2))", "false", "no launcher: prepare says to foreground")
+
+  // No engine: prepare starts the headless one and waits for Dart.
+  let launcher = FakeLauncher()
+  let (headless, bridge) = make(launcher)
+  headless.keepAlive = 0.3
+  check("\(await headless.prepare(timeout: 2))", "true", "prepare starts a headless engine")
+  check("\(launcher.starts),\(bridge.isReady),\(headless.state == .ready)", "1,true,true", "headless Dart claims and is ready")
+  check("\(await headless.prepare(timeout: 2)),\(launcher.starts)", "true,1", "a ready engine is reused")
+  await sleep(0.6)
+  check("\(launcher.stops),\(bridge.isReady),\(headless.isRunning)", "1,false,false", "stops after keepAlive")
+  check("\(await headless.prepare(timeout: 2)),\(launcher.starts)", "true,2", "starts again on the next request")
+
+  // The app's engine starts: the idle headless one stops; the app's Dart serves.
+  bridge.engineStarted()
+  headless.engineRegistered()
+  await sleep(0.2)
+  check("\(launcher.stops),\(headless.isRunning),\(bridge.isReady)", "2,false,false", "app engine retires the headless one")
+  bridge.markReady()
+  check("\(await headless.prepare(timeout: 1)),\(launcher.starts)", "true,2", "then the app's Dart answers")
+
+  // The app's engine registers before headless Dart claims: Dart stands down.
+  let late = FakeLauncher()
+  late.dartStarts = false
+  let (racing, racingBridge) = make(late)
+  async let prepared = racing.prepare(timeout: 1)
+  await sleep(0.1)
+  racingBridge.engineStarted()
+  racing.engineRegistered()
+  check("\(racing.claim()),\(racing.state == .declined)", "false,true", "claim is declined once the app engine started")
+  racingBridge.markReady()
+  check("\(await prepared)", "true", "prepare waits for the app engine instead")
+
+  // A headless engine that never gets ready: prepare times out (foreground).
+  let stuck = FakeLauncher()
+  stuck.dartStarts = false
+  let (slow, _) = make(stuck)
+  check("\(await slow.prepare(timeout: 0.2))", "false", "times out when Dart doesn't start")
+
+  // The host calls Dart makes.
+  AssistantBackground.registerHostCalls()
+  check((try? AssistantHostCalls.invoke("background.claim", argsJson: "{}")) ?? "nil", "false",
+    "background.claim answers JSON false with no headless engine")
+}
+// Top-level code stays synchronous (assumeIsolated above): run the main
+// run loop until the async tests finish.
+var backgroundDone = false
+Task { @MainActor in
+  await backgroundTests()
+  backgroundDone = true
+}
+while !backgroundDone { RunLoop.main.run(until: Date().addingTimeInterval(0.05)) }
 
 if failures > 0 {
   print("\(failures) failed")

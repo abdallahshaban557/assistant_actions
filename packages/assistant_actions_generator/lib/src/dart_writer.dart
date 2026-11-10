@@ -6,6 +6,8 @@ import 'swift_writer.dart' show writeAppShortcuts;
 
 part 'dart_writer_actions.dart';
 
+part 'dart_writer_background.dart';
+
 /// Writes `lib/assistant_actions.g.dart`: the registry `AssistantActions.start`
 /// takes, plus a typed handler interface per schema entity.
 String writeDart(AppModel app) {
@@ -301,6 +303,7 @@ String writeDart(AppModel app) {
   out
     ..writeln('  },')
     ..writeln(');');
+  if (app.background case final b?) _backgroundEntrypoint(out, b, ref);
   return out.toString();
 }
 

@@ -5,7 +5,9 @@ import Foundation
 ///
 /// On iOS the Flutter engine only exists once a scene has connected, so the
 /// generated intents bring the app to the foreground first when it isn't
-/// active. macOS starts the engine with the app, so it answers in place.
+/// active, or, for apps with `@AssistantBackground()`, start a headless
+/// engine ([AssistantBackground]). macOS starts the engine with the app, so it
+/// answers in place.
 @MainActor
 public final class AssistantBridge {
   public static let shared = AssistantBridge()
@@ -23,6 +25,14 @@ public final class AssistantBridge {
     isReady = true
   }
 
+  /// The engine whose Dart was ready stopped (the headless one).
+  func engineStopped() {
+    isReady = false
+  }
+
+  /// `perform` calls waiting for Dart's answer.
+  private(set) var inFlight = 0
+
   /// Polls until Dart reports ready, or the timeout passes.
   public func waitUntilReady(timeout: TimeInterval) async -> Bool {
     let deadline = Date().addingTimeInterval(timeout)
@@ -39,6 +49,8 @@ public final class AssistantBridge {
       throw AssistantActionError.notRunning
     }
     let data = try JSONSerialization.data(withJSONObject: args)
+    inFlight += 1
+    defer { inFlight -= 1 }
     do {
       return try await dart.perform(action: action, argsJson: String(decoding: data, as: UTF8.self))
     } catch let error as PigeonError {

@@ -7,7 +7,25 @@ import 'package:flutter/foundation.dart';
 import 'assistant_actions.g.dart';
 import 'models/models.dart';
 
-/// In-memory data for the example. A real app would persist it.
+/// The app's handlers. `main` starts with it, and so does the headless
+/// engine Siri uses on iOS when the app isn't running
+/// (`@AssistantBackground()`), so live actions answer without opening the app.
+@AssistantBackground()
+AssistantActionsRegistry appRegistry() {
+  final store = Store.instance;
+  return assistantActionsRegistry(
+    findRecipe: (id) => store.recipes.where((r) => r.id == id).firstOrNull,
+    taskItem: TaskHandler(),
+    memoryItem: MemoryHandler(),
+    journalItem: JournalHandler(),
+    countdown: CountdownHandler(),
+    system: SystemHandler(),
+    camera: CameraHandler(),
+  );
+}
+
+/// In-memory data for the example. A real app would persist it: the
+/// headless engine has its own memory, so it starts from an empty store.
 class Store extends ChangeNotifier {
   Store._();
   static final instance = Store._();
