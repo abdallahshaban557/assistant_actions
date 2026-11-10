@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:assistant_actions_generator/src/catalog.dart';
+import 'package:assistant_actions_generator/src/schema_calls.dart';
 import 'package:assistant_actions_generator/src/schema_library.dart';
 import 'package:test/test.dart';
 
@@ -56,10 +57,14 @@ void main() {
   test('typed schema library requires the list container and maps value members only', () {
     final library = generateSchemaLibrary(reminders);
     expect(library, contains('required this.list,'));
-    expect(library, contains("static const dueDate = SchemaMember<ReminderSchema, DateTime?>('reminders.reminder', 'dueDate');"));
+    expect(library,
+        contains("static const dueDate = SchemaMember<RemindersReminderSchema, DateTime?>('reminders.reminder', 'dueDate');"));
     expect(library, isNot(contains('static const tags')), reason: 'sets have no Dart mapping');
-    expect(library, contains('class FixedList extends SchemaContainer'));
-    expect(library, isNot(contains('class FixedLocationTrigger')));
+    expect(library, contains('class FixedRemindersList extends SchemaContainer'));
+    expect(library, isNot(contains('class FixedRemindersLocationTrigger')));
+    // Names from before domain prefixes stay as aliases.
+    expect(library, contains('typedef ReminderField = RemindersReminderField;'));
+    expect(library, contains('typedef FixedList = FixedRemindersList;'));
   });
 
   test('Dart types follow the schema types', () {
@@ -91,11 +96,11 @@ void main() {
       expect(audio.recordsAudio, isTrue);
       expect(audio.opensApp, isFalse, reason: "Apple's schema doesn't open the app; the intent asks to");
       expect(recordMethod(audio), 'startAudioEntry');
-      expect(journal.intents['journal.search']!.opensApp, isTrue);
-      expect(journal.intents['journal.search']!.protocols, ['search']);
+      expect(journal.intents['journal.search'], isNull, reason: 'deprecated for system.searchInApp');
+      expect(journal.skipped['search'], startsWith('deprecated'));
     });
 
-    test('only intents that record audio are record intents', () {
+    test('intents named after the entity that don\'t record audio are calls', () {
       final audio = journal.intents['journal.createAudioEntry']!;
       final plain = IntentSchema(
         id: 'journal.createAudioEntry',
@@ -111,7 +116,7 @@ void main() {
         enums: const {},
         intents: {'journal.createAudioEntry': plain},
       );
-      expect(catalog.intentsFor(journal.entities['journal.entry']!), isEmpty);
+      expect(catalog.intentsFor(journal.entities['journal.entry']!).single.$2, IntentKind.call);
       expect(IntentSchema.fromJson(audio.id, audio.toJson()).recordsAudio, isTrue, reason: 'round-trips');
     });
 
@@ -120,12 +125,12 @@ void main() {
       expect(library, contains('class JournalEntry extends SchemaEntity'));
       expect(library, contains('this.createAudioEntry = false,'));
       expect(library, contains('calls `startAudioEntry()` on the generated handler'));
-      expect(library, contains("static const title = SchemaMember<EntrySchema, String?>('journal.entry', 'title');"));
+      expect(library, contains("static const title = SchemaMember<JournalEntrySchema, String?>('journal.entry', 'title');"));
       expect(
         library,
-        contains("static const message = SchemaMember<EntrySchema, String?>('journal.entry', 'message');"),
+        contains("static const message = SchemaMember<JournalEntrySchema, String?>('journal.entry', 'message');"),
       );
-      expect(library, contains("SchemaMember<EntrySchema, DateTime?>('journal.entry', 'entryDate')"));
+      expect(library, contains("SchemaMember<JournalEntrySchema, DateTime?>('journal.entry', 'entryDate')"));
       expect(library, isNot(contains('static const mediaItems')));
       expect(library, isNot(contains('static const location')));
       expect(library, isNot(contains('this.search')));

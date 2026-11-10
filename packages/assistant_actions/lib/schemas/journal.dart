@@ -6,7 +6,9 @@
 ///
 /// Annotate a class with an entity annotation, such as
 /// `@JournalEntry(...)`, and its fields with
-/// `@EntryField.<member>`.
+/// `@JournalEntryField.<member>`.
+///
+/// Not adoptable: `search` (deprecated: Use .system.searchInApp instead).
 library;
 
 import '../src/schema.dart';
@@ -16,7 +18,7 @@ import '../src/schema.dart';
 
 /// Adopts Apple's `journal.entry` schema ("Journal Entry", iOS 18+, macOS 15+).
 ///
-/// Map fields with [EntryField] and turn on the schema intents the app
+/// Map fields with [JournalEntryField] and turn on the schema intents the app
 /// supports. Each one becomes a method on the generated handler.
 class JournalEntry extends SchemaEntity {
   const JournalEntry({
@@ -43,25 +45,38 @@ class JournalEntry extends SchemaEntity {
 }
 
 /// Marks members of `journal.entry`.
-final class EntrySchema {
-  const EntrySchema._();
+final class JournalEntrySchema {
+  const JournalEntrySchema._();
 }
 
 /// Members of `journal.entry`, used as field annotations:
-/// `@EntryField.title String title;`.
-abstract final class EntryField {
+/// `@JournalEntryField.title …`.
+///
+/// Not mapped to Dart yet: `mediaItems` (`[file]`), `location` (`placeDescriptor?`). Generated entities give them their empty value.
+abstract final class JournalEntryField {
   /// Title
   ///
   /// Read-only in the schema: Siri reads it but never sets it.
-  static const title = SchemaMember<EntrySchema, String?>('journal.entry', 'title');
+  static const title = SchemaMember<JournalEntrySchema, String?>('journal.entry', 'title');
 
   /// Message
   ///
   /// Read-only in the schema: Siri reads it but never sets it.
-  static const message = SchemaMember<EntrySchema, String?>('journal.entry', 'message');
+  static const message = SchemaMember<JournalEntrySchema, String?>('journal.entry', 'message');
 
   /// Entry Date
   ///
   /// Read-only in the schema: Siri reads it but never sets it.
-  static const entryDate = SchemaMember<EntrySchema, DateTime?>('journal.entry', 'entryDate');
+  static const entryDate =
+      SchemaMember<JournalEntrySchema, DateTime?>('journal.entry', 'entryDate');
+}
+
+/// A fixed `journal.entry` instance, for schemas that require one.
+class FixedJournalEntry extends SchemaContainer {
+  const FixedJournalEntry({
+    required String id,
+    this.title,
+  }) : super('journal.entry', id);
+
+  final String? title;
 }

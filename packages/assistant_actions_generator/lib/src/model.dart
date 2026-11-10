@@ -1,13 +1,29 @@
 import 'catalog.dart';
+import 'schema_calls.dart';
 
 /// A Dart value type the generator can pass between Swift and Dart.
-enum ValueKind { string, integer, decimal, boolean, dateTime, uri }
+enum ValueKind { string, integer, decimal, boolean, dateTime, uri, duration, enumeration, entityId }
 
 class ValueType {
-  const ValueType(this.kind, {this.nullable = false});
+  const ValueType(this.kind, {this.nullable = false, this.enumRef, this.entityRef, this.list = false, this.appEnum});
+
+  /// The app's Dart enum for an `openEnum` (whose cases the app defines).
+  final String? appEnum;
+
+  String get _enumDart => appEnum ?? dartEnumName(enumRef!);
+
+  /// The schema entity an [ValueKind.entityId] names items of.
+  final String? entityRef;
+
+  /// An [ValueKind.entityId] list: `List<String>`.
+  final bool list;
 
   final ValueKind kind;
   final bool nullable;
+
+  /// The schema enum of an [ValueKind.enumeration], such as
+  /// `camera.captureMode` (Dart `CameraCaptureMode`).
+  final String? enumRef;
 
   String get dart => '${switch (kind) {
         ValueKind.string => 'String',
@@ -16,6 +32,9 @@ class ValueType {
         ValueKind.boolean => 'bool',
         ValueKind.dateTime => 'DateTime',
         ValueKind.uri => 'Uri',
+        ValueKind.duration => 'Duration',
+        ValueKind.enumeration => _enumDart,
+        ValueKind.entityId => list ? 'List<String>' : 'String',
       }}${nullable ? '?' : ''}';
 
   String get swift => '${switch (kind) {
@@ -25,6 +44,8 @@ class ValueType {
         ValueKind.boolean => 'Bool',
         ValueKind.dateTime => 'Date',
         ValueKind.uri => 'URL',
+        ValueKind.duration => 'Duration',
+        ValueKind.enumeration || ValueKind.entityId => 'String',
       }}${nullable ? '?' : ''}';
 
   /// `AssistantValue.<decoder>` in Dart, `AssistantValues.<decoder>` in Swift.
@@ -35,6 +56,9 @@ class ValueType {
         ValueKind.boolean => 'boolean',
         ValueKind.dateTime => 'date',
         ValueKind.uri => 'uri',
+        ValueKind.duration => 'duration',
+        ValueKind.enumeration => 'enumeration',
+        ValueKind.entityId => 'string',
       };
 
   String get swiftDecoder => switch (kind) {
@@ -44,15 +68,39 @@ class ValueType {
         ValueKind.boolean => 'bool',
         ValueKind.dateTime => 'date',
         ValueKind.uri => 'url',
+        ValueKind.duration => 'duration',
+        ValueKind.enumeration || ValueKind.entityId => 'string',
+      };
+
+  /// Dart expression decoding [expr] (what Swift sent), nullable.
+  String decodeDart(String expr) => switch (kind) {
+        ValueKind.enumeration => 'AssistantValue.enumeration($_enumDart.values, $expr)',
+        ValueKind.entityId when list => 'AssistantValue.list($expr, AssistantValue.string)',
+        _ => 'AssistantValue.$dartDecoder($expr)',
       };
 
   /// Dart expression encoding [expr] for Swift.
   String encodeDart(String expr) => switch (kind) {
         ValueKind.dateTime => 'AssistantValue.encodeDate($expr)',
         ValueKind.uri => nullable ? '$expr?.toString()' : '$expr.toString()',
+        ValueKind.duration => 'AssistantValue.encodeDuration($expr)',
+        ValueKind.enumeration => 'AssistantValue.encodeEnum($expr)',
         _ => expr,
       };
 }
+
+/// The Dart value type an intent parameter's [element] type crosses as.
+ValueType valueTypeFor(SchemaType element, [Map<String, String> openEnums = const {}]) => switch (element.kind) {
+      'bool' => const ValueType(ValueKind.boolean),
+      'int' => const ValueType(ValueKind.integer),
+      'double' => const ValueType(ValueKind.decimal),
+      'date' || 'dateComponents' => const ValueType(ValueKind.dateTime),
+      'url' => const ValueType(ValueKind.uri),
+      'duration' => const ValueType(ValueKind.duration),
+      'enum' => ValueType(ValueKind.enumeration, enumRef: element.ref),
+      'openEnum' => ValueType(ValueKind.enumeration, enumRef: element.ref, appEnum: openEnums[element.ref]),
+      _ => const ValueType(ValueKind.string),
+    };
 
 /// A field (or getter) of an annotated class.
 class FieldModel {
@@ -263,12 +311,58 @@ class SchemaEntityModel {
     return [for (final f in mapping.values) if (seen.add(f.name)) f];
   }
 
+  /// Its domain's own open intent is on (`books.openBook`), which takes the
+  /// place of `system.open`: Apple allows one open intent per target.
+  bool get hasOwnOpen => intents.any((e) =>
+      e.$2 == IntentKind.call && e.$1.protocols.contains('open') && e.$1.parameter('target')?.type.base.ref == schema.id);
+
   Iterable<IntentKind> get kinds => {for (final (_, k) in intents) k == IntentKind.append ? IntentKind.update : k};
 }
 
 /// The action id Swift uses to call [intent]'s handler method live, such as
 /// `JournalItem.startAudioEntry`.
 String recordActionId(SchemaEntityModel s, IntentSchema intent) => '${s.collection}.${recordMethod(intent)}';
+
+/// The action id of a [IntentKind.call]: `<collection>.<intent>` for an
+/// entity's intent, the schema id (`camera.startCapture`) for a domain's.
+String callActionId(SchemaEntityModel? owner, IntentSchema intent) =>
+    owner == null ? intent.id : '${owner.collection}.${intent.name}';
+
+/// `@CameraIntents(...)` on one of the app's classes: the domain's intents
+/// that belong to no entity, handled by `CameraAssistantHandler`.
+class SchemaDomainModel {
+  SchemaDomainModel({required this.className, required this.catalog, required this.intents});
+
+  final String className;
+  final DomainCatalog catalog;
+  final List<IntentSchema> intents;
+
+  String get domain => catalog.domain;
+
+  /// `CameraAssistantHandler`.
+  String get handler => '${pascal(domain)}AssistantHandler';
+
+  /// The registry parameter: `camera`.
+  String get parameter => camel(pascal(domain));
+
+  bool get opensEntities => intents.any((i) => i.id == 'system.open');
+}
+
+/// One of the app's Dart enums giving the cases of a schema enum whose cases
+/// the app defines: `@CameraCaptureMode() enum CaptureMode { photo, video }`.
+class OpenEnumModel {
+  const OpenEnumModel({required this.schema, required this.className, required this.library, required this.cases});
+
+  final String schema;
+  final String className;
+  final Uri library;
+
+  /// Dart value names (`this$` for `this`).
+  final List<String> cases;
+
+  /// The schema case names.
+  List<String> get schemaCases => [for (final c in cases) c.endsWith(r'$') ? c.substring(0, c.length - 1) : c];
+}
 
 /// Everything the builder read from the app.
 class AppModel {
@@ -278,13 +372,31 @@ class AppModel {
     required this.entities,
     required this.schemaEntities,
     this.snapshotActions = const [],
+    this.schemaDomains = const [],
+    this.catalogs = const {},
+    this.openEnums = const {},
   });
+
+  /// The app's enums for schema enums whose cases it defines, by schema id.
+  final Map<String, OpenEnumModel> openEnums;
+
+  /// Schema id → the app's Dart enum name.
+  Map<String, String> get openEnumNames => {for (final e in openEnums.values) e.schema: e.className};
 
   final String appName;
   final List<ActionModel> actions;
   final List<SnapshotActionModel> snapshotActions;
   final List<EntityModel> entities;
   final List<SchemaEntityModel> schemaEntities;
+  final List<SchemaDomainModel> schemaDomains;
+
+  /// Every loaded schema domain, including those only referenced by adopted
+  /// schemas (`files.file` from `presentation`). Writers also look in the
+  /// adopted schemas' own catalogs.
+  final Map<String, DomainCatalog> catalogs;
+
+  /// `system.open` is turned on: each entity gets an open intent.
+  bool get opensEntities => schemaDomains.any((d) => d.opensEntities);
 
   Iterable<Uri> get libraries => {
         for (final a in actions) a.library,

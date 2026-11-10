@@ -1,0 +1,189 @@
+{
+  "domain": "files",
+  "hash": "c2d369abe24cd220fff14cee83825fd529f2ccfa53c02763b34418f1e3b04803",
+  "xcode": "27B52",
+  "entities": {
+    "file": {
+      "title": "File",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "properties": [
+        {
+          "name": "creationDate",
+          "title": "Creation Date",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "date"
+            }
+          },
+          "updatable": false,
+          "indexingKey": "contentCreationDate"
+        },
+        {
+          "name": "fileModificationDate",
+          "title": "Last Modification Date",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "date"
+            }
+          },
+          "updatable": false,
+          "indexingKey": "contentModificationDate"
+        }
+      ],
+      "protocols": [
+        "file"
+      ]
+    }
+  },
+  "enums": {},
+  "intents": {
+    "openFile": {
+      "title": "Open Item",
+      "description": "Opens a selected file or folder.",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "parameters": [
+        {
+          "name": "target",
+          "title": "Item",
+          "type": {
+            "kind": "entity",
+            "ref": "files.file"
+          },
+          "description": "File or folder to open in the owning app."
+        }
+      ],
+      "opensApp": true,
+      "protocols": [
+        "open"
+      ]
+    },
+    "moveFiles": {
+      "title": "Move Items to Folder",
+      "description": "Moves existing files or folders.",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "parameters": [
+        {
+          "name": "entities",
+          "title": "Items",
+          "type": {
+            "kind": "array",
+            "of": {
+              "kind": "entity",
+              "ref": "files.file"
+            }
+          },
+          "description": "Files or folders to move."
+        },
+        {
+          "name": "destinationFolder",
+          "title": "Folder",
+          "type": {
+            "kind": "entity",
+            "ref": "files.file"
+          },
+          "description": "Folder where the files will be moved."
+        }
+      ]
+    },
+    "createFolder": {
+      "title": "Create Folder",
+      "description": "Creates a new folder.",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "parameters": [
+        {
+          "name": "fileName",
+          "title": "Name",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "string"
+            }
+          },
+          "description": "Name to use for the folder to be created."
+        },
+        {
+          "name": "target",
+          "title": "Parent Folder",
+          "type": {
+            "kind": "entity",
+            "ref": "files.file"
+          },
+          "description": "Parent folder where the folder will be created."
+        }
+      ],
+      "result": {
+        "kind": "entity",
+        "ref": "files.file"
+      }
+    },
+    "renameFile": {
+      "title": "Rename Item",
+      "description": "Renames an existing file or folder.",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "parameters": [
+        {
+          "name": "target",
+          "title": "Item",
+          "type": {
+            "kind": "entity",
+            "ref": "files.file"
+          },
+          "description": "File or folder to be renamed."
+        },
+        {
+          "name": "newName",
+          "title": "Name",
+          "type": {
+            "kind": "string"
+          },
+          "description": "New name for the file or folder."
+        }
+      ]
+    },
+    "deleteFiles": {
+      "title": "Delete Items",
+      "description": "Deletes existing files or folders.",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "parameters": [
+        {
+          "name": "entities",
+          "title": "Items",
+          "type": {
+            "kind": "array",
+            "of": {
+              "kind": "entity",
+              "ref": "files.file"
+            }
+          },
+          "description": "Names of the files or folders to trash, with or without extension."
+        }
+      ],
+      "protocols": [
+        "delete"
+      ]
+    }
+  },
+  "skipped": {
+    "showDocumentScanner": "no public definition in the SDK"
+  }
+}

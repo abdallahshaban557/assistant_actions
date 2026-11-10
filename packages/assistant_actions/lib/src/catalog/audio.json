@@ -1,0 +1,1217 @@
+{
+  "domain": "audio",
+  "hash": "c2d369abe24cd220fff14cee83825fd529f2ccfa53c02763b34418f1e3b04803",
+  "xcode": "27B52",
+  "entities": {
+    "album": {
+      "title": "Album",
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "properties": [
+        {
+          "name": "title",
+          "title": "Title",
+          "type": {
+            "kind": "string"
+          },
+          "updatable": false,
+          "indexingKey": "title"
+        },
+        {
+          "name": "artistName",
+          "title": "Artist Name",
+          "type": {
+            "kind": "string"
+          },
+          "updatable": false,
+          "indexingKey": "artist"
+        },
+        {
+          "name": "artists",
+          "title": "Artists",
+          "type": {
+            "kind": "array",
+            "of": {
+              "kind": "entity",
+              "ref": "audio.artist"
+            }
+          },
+          "updatable": false
+        },
+        {
+          "name": "universalProductCode",
+          "title": "Universal Product Code",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "string"
+            }
+          },
+          "updatable": false,
+          "indexingKey": "identifier"
+        }
+      ]
+    },
+    "algorithmicRadioStation": {
+      "title": "Algorithmic Radio Station",
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "properties": [
+        {
+          "name": "title",
+          "title": "Title",
+          "type": {
+            "kind": "string"
+          },
+          "updatable": false,
+          "indexingKey": "title"
+        },
+        {
+          "name": "curatedForMe",
+          "title": "Curated For Me",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "bool"
+            }
+          },
+          "updatable": false
+        }
+      ]
+    },
+    "ambientSound": {
+      "title": "Ambient Sound",
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "properties": [
+        {
+          "name": "title",
+          "title": "Title",
+          "type": {
+            "kind": "string"
+          },
+          "updatable": false,
+          "indexingKey": "title"
+        }
+      ]
+    },
+    "artist": {
+      "title": "Artist",
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "properties": [
+        {
+          "name": "name",
+          "title": "Name",
+          "type": {
+            "kind": "string"
+          },
+          "updatable": false,
+          "indexingKey": "artist"
+        }
+      ]
+    },
+    "audiobook": {
+      "title": "Audiobook",
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "properties": [
+        {
+          "name": "title",
+          "title": "Title",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "string"
+            }
+          },
+          "updatable": false,
+          "indexingKey": "title"
+        },
+        {
+          "name": "author",
+          "title": "Author",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "string"
+            }
+          },
+          "updatable": false,
+          "indexingKey": "authorNames"
+        },
+        {
+          "name": "genre",
+          "title": "Genre",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "string"
+            }
+          },
+          "updatable": false,
+          "indexingKey": "genre"
+        },
+        {
+          "name": "narrator",
+          "title": "Narrator",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "string"
+            }
+          },
+          "updatable": false,
+          "indexingKey": "performers"
+        },
+        {
+          "name": "publisher",
+          "title": "Publisher",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "string"
+            }
+          },
+          "updatable": false,
+          "indexingKey": "publishers"
+        },
+        {
+          "name": "seriesTitle",
+          "title": "Series Title",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "string"
+            }
+          },
+          "updatable": false,
+          "indexingKey": "contentCatalog"
+        },
+        {
+          "name": "releaseDate",
+          "title": "Release Date",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "date"
+            }
+          },
+          "updatable": false,
+          "indexingKey": "releasedDate"
+        },
+        {
+          "name": "purchaseDate",
+          "title": "Purchase Date",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "date"
+            }
+          },
+          "updatable": false,
+          "indexingKey": "purchasedDate"
+        }
+      ]
+    },
+    "classicalMusicRecording": {
+      "title": "Classical Music Recording",
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "properties": [
+        {
+          "name": "title",
+          "title": "Title",
+          "type": {
+            "kind": "string"
+          },
+          "updatable": false,
+          "indexingKey": "title"
+        },
+        {
+          "name": "artistName",
+          "title": "Artist Name",
+          "type": {
+            "kind": "string"
+          },
+          "updatable": false,
+          "indexingKey": "artist"
+        },
+        {
+          "name": "composerName",
+          "title": "Composer Name",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "string"
+            }
+          },
+          "updatable": false,
+          "indexingKey": "composer"
+        },
+        {
+          "name": "artists",
+          "title": "Artists",
+          "type": {
+            "kind": "array",
+            "of": {
+              "kind": "entity",
+              "ref": "audio.artist"
+            }
+          },
+          "updatable": false
+        },
+        {
+          "name": "composers",
+          "title": "Composers",
+          "type": {
+            "kind": "array",
+            "of": {
+              "kind": "entity",
+              "ref": "audio.artist"
+            }
+          },
+          "updatable": false
+        },
+        {
+          "name": "internationalStandardRecordingCode",
+          "title": "International Standard Recording Code",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "string"
+            }
+          },
+          "updatable": false,
+          "indexingKey": "identifier"
+        }
+      ]
+    },
+    "liveRadioStation": {
+      "title": "Live Radio Station",
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "properties": [
+        {
+          "name": "title",
+          "title": "Title",
+          "type": {
+            "kind": "string"
+          },
+          "updatable": false,
+          "indexingKey": "title"
+        },
+        {
+          "name": "providerName",
+          "title": "Provider Name",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "string"
+            }
+          },
+          "updatable": false,
+          "indexingKey": "publishers"
+        }
+      ]
+    },
+    "newsBrief": {
+      "title": "News Brief",
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "properties": [
+        {
+          "name": "title",
+          "title": "Title",
+          "type": {
+            "kind": "string"
+          },
+          "updatable": false,
+          "indexingKey": "title"
+        },
+        {
+          "name": "providerName",
+          "title": "Provider Name",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "string"
+            }
+          },
+          "updatable": false,
+          "indexingKey": "publishers"
+        },
+        {
+          "name": "date",
+          "title": "Date",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "date"
+            }
+          },
+          "updatable": false,
+          "indexingKey": "releasedDate"
+        },
+        {
+          "name": "provider",
+          "title": "Provider",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "entity",
+              "ref": "audio.newsProvider"
+            }
+          },
+          "updatable": false
+        }
+      ]
+    },
+    "newsProvider": {
+      "title": "News Provider",
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "properties": [
+        {
+          "name": "title",
+          "title": "Title",
+          "type": {
+            "kind": "string"
+          },
+          "updatable": false,
+          "indexingKey": "title"
+        }
+      ]
+    },
+    "playlist": {
+      "title": "Playlist",
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "properties": [
+        {
+          "name": "title",
+          "title": "Title",
+          "type": {
+            "kind": "string"
+          },
+          "updatable": false,
+          "indexingKey": "title"
+        },
+        {
+          "name": "owner",
+          "title": "Owner",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "union",
+              "ref": "audio.owner"
+            }
+          },
+          "updatable": false,
+          "indexingKey": "authorNames"
+        },
+        {
+          "name": "createdByMe",
+          "title": "Created by me",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "bool"
+            }
+          },
+          "updatable": false
+        },
+        {
+          "name": "curatedForMe",
+          "title": "Curated for me",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "bool"
+            }
+          },
+          "updatable": false
+        }
+      ]
+    },
+    "podcastCollection": {
+      "title": "Podcast Collection",
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "properties": [
+        {
+          "name": "title",
+          "title": "Title",
+          "type": {
+            "kind": "string"
+          },
+          "updatable": false,
+          "indexingKey": "title"
+        }
+      ]
+    },
+    "podcastEpisode": {
+      "title": "Podcast Episode",
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "properties": [
+        {
+          "name": "title",
+          "title": "Title",
+          "type": {
+            "kind": "string"
+          },
+          "updatable": false,
+          "indexingKey": "title"
+        },
+        {
+          "name": "showName",
+          "title": "Show Name",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "string"
+            }
+          },
+          "updatable": false,
+          "indexingKey": "contentCatalog"
+        },
+        {
+          "name": "show",
+          "title": "Show",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "entity",
+              "ref": "audio.podcastShow"
+            }
+          },
+          "updatable": false
+        },
+        {
+          "name": "releaseDate",
+          "title": "Release Date",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "date"
+            }
+          },
+          "updatable": false,
+          "indexingKey": "releasedDate"
+        },
+        {
+          "name": "duration",
+          "title": "Duration",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "double"
+            }
+          },
+          "updatable": false,
+          "indexingKey": "duration"
+        }
+      ]
+    },
+    "podcastShow": {
+      "title": "Podcast Show",
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "properties": [
+        {
+          "name": "title",
+          "title": "Title",
+          "type": {
+            "kind": "string"
+          },
+          "updatable": false,
+          "indexingKey": "title"
+        },
+        {
+          "name": "showDescription",
+          "title": "Show Description",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "string"
+            }
+          },
+          "updatable": false,
+          "indexingKey": "contentDescription"
+        }
+      ]
+    },
+    "radioShow": {
+      "title": "Radio Show",
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "properties": [
+        {
+          "name": "title",
+          "title": "Title",
+          "type": {
+            "kind": "string"
+          },
+          "updatable": false,
+          "indexingKey": "title"
+        }
+      ]
+    },
+    "radioShowEpisode": {
+      "title": "Radio Show Episode",
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "properties": [
+        {
+          "name": "title",
+          "title": "Title",
+          "type": {
+            "kind": "string"
+          },
+          "updatable": false,
+          "indexingKey": "title"
+        },
+        {
+          "name": "showName",
+          "title": "Show Name",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "string"
+            }
+          },
+          "updatable": false,
+          "indexingKey": "contentCatalog"
+        },
+        {
+          "name": "releaseDate",
+          "title": "Release Date",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "date"
+            }
+          },
+          "updatable": false,
+          "indexingKey": "releasedDate"
+        },
+        {
+          "name": "show",
+          "title": "Show",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "entity",
+              "ref": "audio.radioShow"
+            }
+          },
+          "updatable": false
+        }
+      ]
+    },
+    "song": {
+      "title": "Song",
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "properties": [
+        {
+          "name": "title",
+          "title": "Title",
+          "type": {
+            "kind": "string"
+          },
+          "updatable": false,
+          "indexingKey": "title"
+        },
+        {
+          "name": "artistName",
+          "title": "Artist Name",
+          "type": {
+            "kind": "string"
+          },
+          "updatable": false,
+          "indexingKey": "artist"
+        },
+        {
+          "name": "composerName",
+          "title": "Composer Name",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "string"
+            }
+          },
+          "updatable": false,
+          "indexingKey": "composer"
+        },
+        {
+          "name": "albumTitle",
+          "title": "Album Title",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "string"
+            }
+          },
+          "updatable": false,
+          "indexingKey": "album"
+        },
+        {
+          "name": "artists",
+          "title": "Artists",
+          "type": {
+            "kind": "array",
+            "of": {
+              "kind": "entity",
+              "ref": "audio.artist"
+            }
+          },
+          "updatable": false
+        },
+        {
+          "name": "album",
+          "title": "Album",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "entity",
+              "ref": "audio.album"
+            }
+          },
+          "updatable": false
+        },
+        {
+          "name": "composers",
+          "title": "Composers",
+          "type": {
+            "kind": "array",
+            "of": {
+              "kind": "entity",
+              "ref": "audio.artist"
+            }
+          },
+          "updatable": false
+        },
+        {
+          "name": "internationalStandardRecordingCode",
+          "title": "International Standard Recording Code",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "string"
+            }
+          },
+          "updatable": false,
+          "indexingKey": "identifier"
+        }
+      ]
+    },
+    "songCollection": {
+      "title": "Song Collection",
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "properties": [
+        {
+          "name": "title",
+          "title": "Title",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "string"
+            }
+          },
+          "updatable": false,
+          "indexingKey": "title"
+        }
+      ]
+    },
+    "warmupAudioQueueResult": {
+      "title": "Warmup Audio Queue Result",
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "properties": []
+    }
+  },
+  "enums": {
+    "appViewIdentifier": {
+      "title": "Audio App View Identifier",
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "cases": [
+        "nowPlaying"
+      ]
+    },
+    "affinityState": {
+      "title": "Affinity State",
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "cases": [
+        "like",
+        "dislike",
+        "unset"
+      ]
+    },
+    "activity": {
+      "title": "Audio Activity",
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "cases": [
+        "cooking",
+        "dining",
+        "studying",
+        "focusing",
+        "reading",
+        "gaming",
+        "working",
+        "showering",
+        "cleaning",
+        "relaxing",
+        "sleeping",
+        "indoorActivity",
+        "partying",
+        "commuting",
+        "driving",
+        "traveling",
+        "gardening",
+        "barbecuing",
+        "beachDay",
+        "roadTrip",
+        "outdoorActivity",
+        "meditating",
+        "yoga",
+        "walking",
+        "running",
+        "strength",
+        "cycling",
+        "dance",
+        "hiit",
+        "rowing",
+        "workoutLowIntensity",
+        "workoutMediumIntensity",
+        "workoutHighIntensity"
+      ]
+    },
+    "invocationSource": {
+      "title": "Invocation Source",
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "cases": [
+        "userInitiated",
+        "suggestedByApp"
+      ]
+    },
+    "playbackAttributes": {
+      "title": "Playback Attributes",
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "cases": [
+        "shuffle",
+        "repeat"
+      ]
+    },
+    "queueInsertionLocation": {
+      "title": "Queue Insertion Location",
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "cases": [
+        "next",
+        "tail"
+      ]
+    }
+  },
+  "unions": {
+    "owner": {
+      "title": "Owner",
+      "cases": [
+        {
+          "name": "person",
+          "type": {
+            "kind": "person"
+          }
+        },
+        {
+          "name": "name",
+          "type": {
+            "kind": "string"
+          }
+        }
+      ]
+    },
+    "audioItem": {
+      "title": "Audio Item",
+      "cases": [
+        {
+          "name": "song",
+          "type": {
+            "kind": "entity",
+            "ref": "audio.song"
+          }
+        },
+        {
+          "name": "album",
+          "type": {
+            "kind": "entity",
+            "ref": "audio.album"
+          }
+        },
+        {
+          "name": "artist",
+          "type": {
+            "kind": "entity",
+            "ref": "audio.artist"
+          }
+        },
+        {
+          "name": "playlist",
+          "type": {
+            "kind": "entity",
+            "ref": "audio.playlist"
+          }
+        },
+        {
+          "name": "songCollection",
+          "type": {
+            "kind": "entity",
+            "ref": "audio.songCollection"
+          }
+        },
+        {
+          "name": "classicalMusicRecording",
+          "type": {
+            "kind": "entity",
+            "ref": "audio.classicalMusicRecording"
+          }
+        },
+        {
+          "name": "liveRadioStation",
+          "type": {
+            "kind": "entity",
+            "ref": "audio.liveRadioStation"
+          }
+        },
+        {
+          "name": "algorithmicRadioStation",
+          "type": {
+            "kind": "entity",
+            "ref": "audio.algorithmicRadioStation"
+          }
+        },
+        {
+          "name": "radioShowEpisode",
+          "type": {
+            "kind": "entity",
+            "ref": "audio.radioShowEpisode"
+          }
+        },
+        {
+          "name": "radioShow",
+          "type": {
+            "kind": "entity",
+            "ref": "audio.radioShow"
+          }
+        },
+        {
+          "name": "podcastShow",
+          "type": {
+            "kind": "entity",
+            "ref": "audio.podcastShow"
+          }
+        },
+        {
+          "name": "podcastEpisode",
+          "type": {
+            "kind": "entity",
+            "ref": "audio.podcastEpisode"
+          }
+        },
+        {
+          "name": "podcastCollection",
+          "type": {
+            "kind": "entity",
+            "ref": "audio.podcastCollection"
+          }
+        },
+        {
+          "name": "audiobook",
+          "type": {
+            "kind": "entity",
+            "ref": "audio.audiobook"
+          }
+        },
+        {
+          "name": "ambientSound",
+          "type": {
+            "kind": "entity",
+            "ref": "audio.ambientSound"
+          }
+        },
+        {
+          "name": "newsBrief",
+          "type": {
+            "kind": "entity",
+            "ref": "audio.newsBrief"
+          }
+        },
+        {
+          "name": "newsProvider",
+          "type": {
+            "kind": "entity",
+            "ref": "audio.newsProvider"
+          }
+        }
+      ]
+    }
+  },
+  "intents": {
+    "addToLibrary": {
+      "title": "Add Audio Item to Library",
+      "description": "Add an audio item to the person’s library",
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "parameters": [
+        {
+          "name": "audioEntity",
+          "title": "Audio Item",
+          "type": {
+            "kind": "union",
+            "ref": "audio.audioItem"
+          },
+          "description": "The item to add to the library, such as a song, album, playlist, or audiobook."
+        }
+      ]
+    },
+    "addToPlaylist": {
+      "title": "Add Audio Item to Playlist",
+      "description": "Add an audio item to a playlist",
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "parameters": [
+        {
+          "name": "audioEntity",
+          "title": "Audio Item",
+          "type": {
+            "kind": "union",
+            "ref": "audio.audioItem"
+          },
+          "description": "The item to add to the playlist, such as a song or album."
+        },
+        {
+          "name": "playlist",
+          "title": "Playlist",
+          "type": {
+            "kind": "entity",
+            "ref": "audio.playlist"
+          },
+          "description": "The target playlist."
+        }
+      ]
+    },
+    "createStation": {
+      "title": "Create station",
+      "description": "Start a station based on the now-playing item",
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "parameters": []
+    },
+    "playAudio": {
+      "title": "Play Audio Item",
+      "description": "Play an audio item",
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "parameters": [
+        {
+          "name": "audioEntity",
+          "title": "Audio Item",
+          "type": {
+            "kind": "union",
+            "ref": "audio.audioItem"
+          },
+          "description": "The item to play, such as a song, album, playlist, or podcast episode."
+        },
+        {
+          "name": "playbackAttributes",
+          "title": "Playback Attributes",
+          "type": {
+            "kind": "set",
+            "of": {
+              "kind": "enum",
+              "ref": "audio.playbackAttributes"
+            }
+          },
+          "description": "Attributes that define how the item plays, such as shuffle or repeat mode."
+        },
+        {
+          "name": "warmupAudioQueueResult",
+          "title": "Warmup Audio Queue Result",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "entity",
+              "ref": "audio.warmupAudioQueueResult"
+            }
+          },
+          "description": "Optional pre loaded and warmed up queue."
+        },
+        {
+          "name": "queueLocation",
+          "title": "Queue Location",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "enum",
+              "ref": "audio.queueInsertionLocation"
+            }
+          },
+          "description": "The position in the playback queue to play the item, such as play next or add to the end of the queue."
+        }
+      ],
+      "protocols": [
+        "audioStarting"
+      ]
+    },
+    "recognizeAudio": {
+      "title": "Recognize Audio",
+      "description": "Find out what audio is playing nearby",
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "parameters": [],
+      "result": {
+        "kind": "array",
+        "of": {
+          "kind": "union",
+          "ref": "audio.audioItem"
+        }
+      },
+      "protocols": [
+        "audioRecording"
+      ]
+    },
+    "updateAudioAffinity": {
+      "title": "Like Audio Item",
+      "description": "Set the like state of an audio item to liked, unliked, or unset",
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "parameters": [
+        {
+          "name": "affinityState",
+          "title": "Affinity State",
+          "type": {
+            "kind": "enum",
+            "ref": "audio.affinityState"
+          },
+          "description": "The affinity state to set."
+        },
+        {
+          "name": "target",
+          "title": "Target",
+          "type": {
+            "kind": "union",
+            "ref": "audio.audioItem"
+          },
+          "description": "The audio item whose affinity state will be updated."
+        }
+      ]
+    },
+    "warmupAudioQueue": {
+      "title": "Warmup Audio Item in the Queue",
+      "description": "Warm up an audio item by setting the queue without starting playback",
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "parameters": [
+        {
+          "name": "audioEntity",
+          "title": "Audio Item",
+          "type": {
+            "kind": "union",
+            "ref": "audio.audioItem"
+          },
+          "description": "The item to warmup, such as a song, album, playlist, podcast episode, etc…"
+        },
+        {
+          "name": "playbackAttributes",
+          "title": "Playback Attributes",
+          "type": {
+            "kind": "set",
+            "of": {
+              "kind": "enum",
+              "ref": "audio.playbackAttributes"
+            }
+          },
+          "description": "Attributes that define how the item plays, such as shuffle or repeat mode."
+        }
+      ],
+      "result": {
+        "kind": "entity",
+        "ref": "audio.warmupAudioQueueResult"
+      }
+    }
+  },
+  "skipped": {
+    "contextualMetadata": "no public definition in the SDK",
+    "createPlaylist": "no public definition in the SDK",
+    "openAudioItem": "no public definition in the SDK"
+  }
+}

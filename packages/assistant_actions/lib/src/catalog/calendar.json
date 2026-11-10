@@ -1,0 +1,595 @@
+{
+  "domain": "calendar",
+  "hash": "c2d369abe24cd220fff14cee83825fd529f2ccfa53c02763b34418f1e3b04803",
+  "xcode": "27B52",
+  "entities": {
+    "attendee": {
+      "title": "Attendee",
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "properties": [
+        {
+          "name": "person",
+          "title": "Person",
+          "type": {
+            "kind": "person"
+          },
+          "updatable": false,
+          "indexingKey": "primaryRecipients"
+        },
+        {
+          "name": "status",
+          "title": "Status",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "enum",
+              "ref": "calendar.attendeeStatus"
+            }
+          },
+          "updatable": false
+        },
+        {
+          "name": "isAttendanceOptional",
+          "title": "Is Attendance Optional",
+          "type": {
+            "kind": "bool"
+          },
+          "updatable": false
+        },
+        {
+          "name": "type",
+          "title": "Type",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "openEnum",
+              "ref": "calendar.attendeeType"
+            }
+          },
+          "updatable": false
+        }
+      ]
+    },
+    "calendar": {
+      "title": "Calendar",
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "properties": [
+        {
+          "name": "title",
+          "title": "Title",
+          "type": {
+            "kind": "string"
+          },
+          "updatable": false,
+          "indexingKey": "title"
+        }
+      ]
+    },
+    "event": {
+      "title": "Event",
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "properties": [
+        {
+          "name": "calendar",
+          "title": "Calendar",
+          "type": {
+            "kind": "entity",
+            "ref": "calendar.calendar"
+          },
+          "updatable": false
+        },
+        {
+          "name": "title",
+          "title": "Title",
+          "type": {
+            "kind": "string"
+          },
+          "updatable": false,
+          "indexingKey": "title"
+        },
+        {
+          "name": "startDate",
+          "title": "Start Date",
+          "type": {
+            "kind": "date"
+          },
+          "updatable": false,
+          "indexingKey": "startDate"
+        },
+        {
+          "name": "endDate",
+          "title": "End Date",
+          "type": {
+            "kind": "date"
+          },
+          "updatable": false,
+          "indexingKey": "endDate"
+        },
+        {
+          "name": "isAllDay",
+          "title": "Is All Day",
+          "type": {
+            "kind": "bool"
+          },
+          "updatable": false
+        },
+        {
+          "name": "recurrence",
+          "title": "Recurrence",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "recurrenceRule"
+            }
+          },
+          "updatable": false,
+          "indexingKey": "reminderRecurrenceRule"
+        },
+        {
+          "name": "note",
+          "title": "Note",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "attributedString"
+            }
+          },
+          "updatable": false,
+          "indexingKey": "textContent"
+        },
+        {
+          "name": "travelTime",
+          "title": "Travel Time",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "duration"
+            }
+          },
+          "updatable": false
+        },
+        {
+          "name": "location",
+          "title": "Location",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "union",
+              "ref": "calendar.location"
+            }
+          },
+          "updatable": false,
+          "indexingKey": "place"
+        },
+        {
+          "name": "virtualLocation",
+          "title": "Virtual Location",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "url"
+            }
+          },
+          "updatable": false,
+          "indexingKey": "url"
+        },
+        {
+          "name": "status",
+          "title": "Status",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "enum",
+              "ref": "calendar.eventStatus"
+            }
+          },
+          "updatable": false
+        },
+        {
+          "name": "alarms",
+          "title": "Alarms",
+          "type": {
+            "kind": "array",
+            "of": {
+              "kind": "union",
+              "ref": "calendar.eventAlarm"
+            }
+          },
+          "updatable": false
+        },
+        {
+          "name": "organizers",
+          "title": "Organizers",
+          "type": {
+            "kind": "array",
+            "of": {
+              "kind": "person"
+            }
+          },
+          "updatable": false,
+          "indexingKey": "authors"
+        },
+        {
+          "name": "attendees",
+          "title": "Attendees",
+          "type": {
+            "kind": "array",
+            "of": {
+              "kind": "entity",
+              "ref": "calendar.attendee"
+            }
+          },
+          "updatable": false
+        }
+      ]
+    }
+  },
+  "enums": {
+    "attendeeType": {
+      "title": "Attendee Type",
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "cases": []
+    },
+    "eventStatus": {
+      "title": "Event Status",
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "cases": [
+        "confirmed",
+        "tentative",
+        "cancelled"
+      ]
+    },
+    "eventSpan": {
+      "title": "Event Occurrence",
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "cases": [
+        "this",
+        "future",
+        "all"
+      ]
+    },
+    "attendeeStatus": {
+      "title": "Attendee Status",
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "cases": [
+        "accepted",
+        "declined",
+        "tentative"
+      ]
+    }
+  },
+  "unions": {
+    "location": {
+      "title": "Location",
+      "cases": [
+        {
+          "name": "place",
+          "type": {
+            "kind": "placeDescriptor"
+          }
+        },
+        {
+          "name": "address",
+          "type": {
+            "kind": "string"
+          }
+        }
+      ]
+    },
+    "eventAlarm": {
+      "title": "Alarm",
+      "cases": [
+        {
+          "name": "duration",
+          "type": {
+            "kind": "duration"
+          }
+        },
+        {
+          "name": "date",
+          "type": {
+            "kind": "date"
+          }
+        }
+      ]
+    }
+  },
+  "intents": {
+    "createEvent": {
+      "title": "Create Event",
+      "description": "Creates a calendar event.",
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "parameters": [
+        {
+          "name": "title",
+          "title": "Title",
+          "type": {
+            "kind": "string"
+          },
+          "description": "The title of the event."
+        },
+        {
+          "name": "startDate",
+          "title": "Start Date",
+          "type": {
+            "kind": "date"
+          },
+          "description": "The start date of the event."
+        },
+        {
+          "name": "endDate",
+          "title": "End Date",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "date"
+            }
+          },
+          "description": "The end date of the event."
+        },
+        {
+          "name": "location",
+          "title": "Location",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "union",
+              "ref": "calendar.location"
+            }
+          },
+          "description": "The location of the event. If not provided, the event is not location-based."
+        },
+        {
+          "name": "calendar",
+          "title": "Calendar",
+          "type": {
+            "kind": "entity",
+            "ref": "calendar.calendar"
+          },
+          "description": "The calendar in which to create the event."
+        },
+        {
+          "name": "isAllDay",
+          "title": "All Day",
+          "type": {
+            "kind": "bool"
+          },
+          "description": "A boolean value indicating whether the event is all day."
+        },
+        {
+          "name": "recurrence",
+          "title": "Repeat",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "recurrenceRule"
+            }
+          },
+          "description": "The recurrence rule for the event. If not provided, the event is not recurring."
+        },
+        {
+          "name": "attendees",
+          "title": "Attendees",
+          "type": {
+            "kind": "array",
+            "of": {
+              "kind": "entity",
+              "ref": "calendar.attendee"
+            }
+          },
+          "description": "The attendees of the event."
+        },
+        {
+          "name": "note",
+          "title": "Note",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "attributedString"
+            }
+          },
+          "description": "The note associated with the event."
+        }
+      ],
+      "result": {
+        "kind": "entity",
+        "ref": "calendar.event"
+      }
+    },
+    "deleteEvent": {
+      "title": "Delete Events",
+      "description": "Deletes a calendar event.",
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "parameters": [
+        {
+          "name": "entity",
+          "title": "Event",
+          "type": {
+            "kind": "entity",
+            "ref": "calendar.event"
+          },
+          "description": "Calendar event to be deleted."
+        },
+        {
+          "name": "span",
+          "title": "Occurrence",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "enum",
+              "ref": "calendar.eventSpan"
+            }
+          },
+          "description": "If the event is recurring, specifies whether to delete a single occurrence or multiple."
+        }
+      ]
+    },
+    "updateEvent": {
+      "title": "Update Event",
+      "description": "Updates a calendar event.",
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "parameters": [
+        {
+          "name": "event",
+          "title": "Event",
+          "type": {
+            "kind": "entity",
+            "ref": "calendar.event"
+          },
+          "description": "The calendar event to update."
+        },
+        {
+          "name": "title",
+          "title": "Title",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "string"
+            }
+          },
+          "description": "The title of the event."
+        },
+        {
+          "name": "attendees",
+          "title": "Attendees",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "array",
+              "of": {
+                "kind": "entity",
+                "ref": "calendar.attendee"
+              }
+            }
+          },
+          "description": "An array of attendees for the event."
+        },
+        {
+          "name": "startDate",
+          "title": "Start Date",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "date"
+            }
+          },
+          "description": "The start date of the event."
+        },
+        {
+          "name": "endDate",
+          "title": "End Date",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "date"
+            }
+          },
+          "description": "The end date of the event."
+        },
+        {
+          "name": "isAllDay",
+          "title": "All Day",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "bool"
+            }
+          },
+          "description": "A boolean value indicating whether the event is an all-day event."
+        },
+        {
+          "name": "calendar",
+          "title": "Calendar",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "entity",
+              "ref": "calendar.calendar"
+            }
+          },
+          "description": "The calendar in which to update the event."
+        },
+        {
+          "name": "recurrence",
+          "title": "Repeat",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "recurrenceRule"
+            }
+          },
+          "description": "The recurrence rule for the event."
+        },
+        {
+          "name": "note",
+          "title": "Note",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "string"
+            }
+          },
+          "description": "The note associated with the event."
+        },
+        {
+          "name": "location",
+          "title": "Location",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "union",
+              "ref": "calendar.location"
+            }
+          },
+          "description": "The location of the event."
+        },
+        {
+          "name": "span",
+          "title": "Occurrence",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "enum",
+              "ref": "calendar.eventSpan"
+            }
+          },
+          "description": "If the event is recurring, specifies whether to update a single occurrence or multiple."
+        }
+      ],
+      "result": {
+        "kind": "entity",
+        "ref": "calendar.event"
+      }
+    }
+  }
+}

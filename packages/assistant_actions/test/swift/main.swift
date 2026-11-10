@@ -132,6 +132,15 @@ check(found([], sortedBy: [({ $0.done.assistantKey }, true), ({ $0.minutes?.assi
   "sorts by each key in turn")
 check(day(3) < day(3, hour: 17) ? "yes" : "no", "yes", "DateComponents are Comparable by the date they name")
 
+// Values for schema intents: enums by case name, durations in seconds, id lists.
+enum Mode: String { case photo, `repeat` }
+check("\(AssistantValues.encode(Mode.repeat))", "repeat", "enums encode as their case name")
+check("\(AssistantValues.encode(Optional<Mode>.none))", "<null>", "a missing enum is null")
+check("\(AssistantValues.encode(Duration.milliseconds(1500)))", "1.5", "durations encode as seconds")
+check("\(AssistantValues.duration(90.0)!)", "\(Duration.seconds(90))", "durations decode from seconds")
+check(AssistantValues.stringList(#"["a","b",3]"#).joined(separator: ","), "a,b", "handler id lists decode from JSON")
+check((AssistantValues.strings(["x", 1, "y"]) ?? []).joined(separator: ","), "x,y", "referenced ids decode")
+
 if failures > 0 {
   print("\(failures) failed")
   exit(1)

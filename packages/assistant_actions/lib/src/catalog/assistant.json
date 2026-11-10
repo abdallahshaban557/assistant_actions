@@ -1,0 +1,18 @@
+{
+  "domain": "assistant",
+  "hash": "c2d369abe24cd220fff14cee83825fd529f2ccfa53c02763b34418f1e3b04803",
+  "xcode": "27B52",
+  "entities": {},
+  "enums": {},
+  "intents": {
+    "activate": {
+      "title": "Activate Assistant",
+      "description": "Activates the assistant.",
+      "availability": {
+        "iOS": 26.2
+      },
+      "parameters": [],
+      "opensApp": true
+    }
+  }
+}

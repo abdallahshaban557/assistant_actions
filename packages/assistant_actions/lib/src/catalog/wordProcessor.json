@@ -1,0 +1,329 @@
+{
+  "domain": "wordProcessor",
+  "hash": "c2d369abe24cd220fff14cee83825fd529f2ccfa53c02763b34418f1e3b04803",
+  "xcode": "27B52",
+  "entities": {
+    "document": {
+      "title": "Document",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "properties": [
+        {
+          "name": "name",
+          "title": "Name",
+          "type": {
+            "kind": "string"
+          },
+          "updatable": false,
+          "indexingKey": "displayName"
+        },
+        {
+          "name": "creationDate",
+          "title": "Creation Date",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "date"
+            }
+          },
+          "updatable": false,
+          "indexingKey": "contentCreationDate"
+        },
+        {
+          "name": "modificationDate",
+          "title": "Modification Date",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "date"
+            }
+          },
+          "updatable": false,
+          "indexingKey": "contentModificationDate"
+        }
+      ]
+    },
+    "template": {
+      "title": "Template",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "properties": [
+        {
+          "name": "name",
+          "title": "Name",
+          "type": {
+            "kind": "string"
+          },
+          "updatable": false,
+          "indexingKey": "displayName"
+        }
+      ]
+    },
+    "page": {
+      "title": "Page",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "properties": [
+        {
+          "name": "document",
+          "title": "Document",
+          "type": {
+            "kind": "entity",
+            "ref": "wordProcessor.document"
+          },
+          "updatable": false
+        },
+        {
+          "name": "pageIndex",
+          "title": "Page Index",
+          "type": {
+            "kind": "int"
+          },
+          "updatable": false
+        }
+      ]
+    }
+  },
+  "enums": {},
+  "intents": {
+    "create": {
+      "title": "Create Document",
+      "description": "Opens the app for composing a new text document.",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "parameters": [
+        {
+          "name": "template",
+          "title": "Template",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "entity",
+              "ref": "wordProcessor.template"
+            }
+          },
+          "description": "Template with which to create the document."
+        }
+      ]
+    },
+    "open": {
+      "title": "Open Document",
+      "description": "Opens the app to an editor.",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "parameters": [
+        {
+          "name": "target",
+          "title": "Document",
+          "type": {
+            "kind": "entity",
+            "ref": "wordProcessor.document"
+          },
+          "description": "Document to open."
+        }
+      ],
+      "opensApp": true,
+      "protocols": [
+        "open"
+      ]
+    },
+    "createPage": {
+      "title": "Create Page",
+      "description": "Create a new page in an editor document.",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "parameters": [
+        {
+          "name": "target",
+          "title": "Document",
+          "type": {
+            "kind": "entity",
+            "ref": "wordProcessor.document"
+          },
+          "description": "Document in which to create a page."
+        },
+        {
+          "name": "template",
+          "title": "Template",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "string"
+            }
+          },
+          "description": "Template to use for the new page (optional)."
+        }
+      ]
+    },
+    "openPage": {
+      "title": "Open Page",
+      "description": "Opens an editor document page.",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "parameters": [
+        {
+          "name": "target",
+          "title": "Page",
+          "type": {
+            "kind": "entity",
+            "ref": "wordProcessor.page"
+          },
+          "description": "Page to open."
+        }
+      ],
+      "opensApp": true,
+      "protocols": [
+        "open"
+      ]
+    },
+    "addTextBoxToPage": {
+      "title": "Add Text Box to Page",
+      "description": "Adds a textbox to a page.",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "parameters": [
+        {
+          "name": "text",
+          "title": "Text",
+          "type": {
+            "kind": "string"
+          },
+          "description": "Text to add."
+        },
+        {
+          "name": "target",
+          "title": "Page",
+          "type": {
+            "kind": "entity",
+            "ref": "wordProcessor.page"
+          },
+          "description": "Page to add the textbox to."
+        }
+      ]
+    },
+    "addVideoToPage": {
+      "title": "Add Video to Page",
+      "description": "Adds a video to a page.",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "parameters": [
+        {
+          "name": "video",
+          "title": "Video",
+          "type": {
+            "kind": "file"
+          },
+          "description": "Video to add."
+        },
+        {
+          "name": "target",
+          "title": "Page",
+          "type": {
+            "kind": "entity",
+            "ref": "wordProcessor.page"
+          },
+          "description": "Page to add the video to."
+        }
+      ]
+    },
+    "addImageToPage": {
+      "title": "Add Image to Page",
+      "description": "Adds an image to a page.",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "parameters": [
+        {
+          "name": "image",
+          "title": "Image",
+          "type": {
+            "kind": "file"
+          },
+          "description": "Image to add."
+        },
+        {
+          "name": "target",
+          "title": "Page",
+          "type": {
+            "kind": "entity",
+            "ref": "wordProcessor.page"
+          },
+          "description": "Page to add the image to."
+        }
+      ]
+    },
+    "addAudioToPage": {
+      "title": "Add Audio to Page",
+      "description": "Adds an audio clip to a page.",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "parameters": [
+        {
+          "name": "audio",
+          "title": "Audio",
+          "type": {
+            "kind": "file"
+          },
+          "description": "Audio to add."
+        },
+        {
+          "name": "target",
+          "title": "Page",
+          "type": {
+            "kind": "entity",
+            "ref": "wordProcessor.page"
+          },
+          "description": "Page to add the audio to."
+        }
+      ]
+    },
+    "addWebVideoToPage": {
+      "title": "Add Web Video to Page",
+      "description": "Adds a web video to a page.",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "parameters": [
+        {
+          "name": "url",
+          "title": "URL",
+          "type": {
+            "kind": "url"
+          },
+          "description": "Web video to add."
+        },
+        {
+          "name": "target",
+          "title": "Page",
+          "type": {
+            "kind": "entity",
+            "ref": "wordProcessor.page"
+          },
+          "description": "Page to add the web video to."
+        }
+      ]
+    }
+  }
+}

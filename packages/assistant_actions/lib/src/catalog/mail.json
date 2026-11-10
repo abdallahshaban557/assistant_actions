@@ -1,0 +1,1007 @@
+{
+  "domain": "mail",
+  "hash": "c2d369abe24cd220fff14cee83825fd529f2ccfa53c02763b34418f1e3b04803",
+  "xcode": "27B52",
+  "entities": {
+    "account": {
+      "title": "Account",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "properties": [
+        {
+          "name": "name",
+          "title": "Name",
+          "type": {
+            "kind": "string"
+          },
+          "updatable": false,
+          "indexingKey": "displayName"
+        },
+        {
+          "name": "emailAddress",
+          "title": "Email Address",
+          "type": {
+            "kind": "string"
+          },
+          "updatable": false,
+          "indexingKey": "emailAddresses"
+        }
+      ]
+    },
+    "mailbox": {
+      "title": "Mailbox",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "properties": [
+        {
+          "name": "name",
+          "title": "Name",
+          "type": {
+            "kind": "string"
+          },
+          "updatable": false,
+          "indexingKey": "displayName"
+        },
+        {
+          "name": "account",
+          "title": "Account",
+          "type": {
+            "kind": "entity",
+            "ref": "mail.account"
+          },
+          "updatable": false
+        }
+      ]
+    },
+    "draft": {
+      "title": "Draft Message",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "properties": [
+        {
+          "name": "to",
+          "title": "To",
+          "type": {
+            "kind": "array",
+            "of": {
+              "kind": "person"
+            }
+          },
+          "updatable": false,
+          "indexingKey": "primaryRecipients"
+        },
+        {
+          "name": "cc",
+          "title": "Cc",
+          "type": {
+            "kind": "array",
+            "of": {
+              "kind": "person"
+            }
+          },
+          "updatable": false,
+          "indexingKey": "additionalRecipients"
+        },
+        {
+          "name": "bcc",
+          "title": "Bcc",
+          "type": {
+            "kind": "array",
+            "of": {
+              "kind": "person"
+            }
+          },
+          "updatable": false,
+          "indexingKey": "hiddenAdditionalRecipients"
+        },
+        {
+          "name": "subject",
+          "title": "Subject",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "string"
+            }
+          },
+          "updatable": false,
+          "indexingKey": "subject"
+        },
+        {
+          "name": "body",
+          "title": "Body",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "attributedString"
+            }
+          },
+          "updatable": false,
+          "indexingKey": "textContent"
+        },
+        {
+          "name": "attachments",
+          "title": "Attachments",
+          "type": {
+            "kind": "array",
+            "of": {
+              "kind": "file"
+            }
+          },
+          "updatable": false
+        },
+        {
+          "name": "account",
+          "title": "Account",
+          "type": {
+            "kind": "entity",
+            "ref": "mail.account"
+          },
+          "updatable": false
+        }
+      ]
+    },
+    "message": {
+      "title": "Message",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "properties": [
+        {
+          "name": "to",
+          "title": "To",
+          "type": {
+            "kind": "array",
+            "of": {
+              "kind": "person"
+            }
+          },
+          "updatable": false,
+          "indexingKey": "primaryRecipients"
+        },
+        {
+          "name": "cc",
+          "title": "Cc",
+          "type": {
+            "kind": "array",
+            "of": {
+              "kind": "person"
+            }
+          },
+          "updatable": false,
+          "indexingKey": "additionalRecipients"
+        },
+        {
+          "name": "bcc",
+          "title": "Bcc",
+          "type": {
+            "kind": "array",
+            "of": {
+              "kind": "person"
+            }
+          },
+          "updatable": false,
+          "indexingKey": "hiddenAdditionalRecipients"
+        },
+        {
+          "name": "subject",
+          "title": "Subject",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "string"
+            }
+          },
+          "updatable": false,
+          "indexingKey": "subject"
+        },
+        {
+          "name": "body",
+          "title": "Body",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "attributedString"
+            }
+          },
+          "updatable": false,
+          "indexingKey": "textContent"
+        },
+        {
+          "name": "attachments",
+          "title": "Attachments",
+          "type": {
+            "kind": "array",
+            "of": {
+              "kind": "file"
+            }
+          },
+          "updatable": false
+        },
+        {
+          "name": "sender",
+          "title": "Sender",
+          "type": {
+            "kind": "person"
+          },
+          "updatable": false,
+          "indexingKey": "authors"
+        },
+        {
+          "name": "dateSent",
+          "title": "Date Sent",
+          "type": {
+            "kind": "date"
+          },
+          "updatable": false,
+          "indexingKey": "sentDate"
+        },
+        {
+          "name": "dateReceived",
+          "title": "Date Received",
+          "type": {
+            "kind": "date"
+          },
+          "updatable": false,
+          "indexingKey": "receivedDate"
+        },
+        {
+          "name": "isRead",
+          "title": "Read",
+          "type": {
+            "kind": "bool"
+          },
+          "updatable": false,
+          "indexingKey": "read"
+        },
+        {
+          "name": "isJunk",
+          "title": "Junk",
+          "type": {
+            "kind": "bool"
+          },
+          "updatable": false,
+          "indexingKey": "likelyJunk"
+        },
+        {
+          "name": "isFlagged",
+          "title": "Flag",
+          "type": {
+            "kind": "bool"
+          },
+          "updatable": false,
+          "indexingKey": "flagged"
+        },
+        {
+          "name": "category",
+          "title": "Category",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "openEnum",
+              "ref": "mail.category"
+            }
+          },
+          "updatable": false,
+          "indexingKey": "mailCategoryType"
+        },
+        {
+          "name": "account",
+          "title": "Account",
+          "type": {
+            "kind": "entity",
+            "ref": "mail.account"
+          },
+          "updatable": false
+        },
+        {
+          "name": "mailbox",
+          "title": "Mailbox",
+          "type": {
+            "kind": "entity",
+            "ref": "mail.mailbox"
+          },
+          "updatable": false
+        }
+      ]
+    },
+    "thread": {
+      "title": "Thread",
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "properties": [
+        {
+          "name": "title",
+          "title": "Title",
+          "type": {
+            "kind": "string"
+          },
+          "updatable": false
+        },
+        {
+          "name": "description",
+          "title": "Description",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "string"
+            }
+          },
+          "updatable": false
+        },
+        {
+          "name": "messages",
+          "title": "Messages",
+          "type": {
+            "kind": "array",
+            "of": {
+              "kind": "entity",
+              "ref": "mail.message"
+            }
+          },
+          "updatable": false
+        }
+      ]
+    }
+  },
+  "enums": {
+    "category": {
+      "title": "Mail Category",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "cases": []
+    }
+  },
+  "intents": {
+    "createDraft": {
+      "title": "Compose Message",
+      "description": "Opens an email composer to draft an email. Does not send the email draft.",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "parameters": [
+        {
+          "name": "body",
+          "title": "Body",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "attributedString"
+            }
+          },
+          "description": "Body text of the email message."
+        },
+        {
+          "name": "to",
+          "title": "Recipient",
+          "type": {
+            "kind": "array",
+            "of": {
+              "kind": "person"
+            }
+          },
+          "description": "Recipients of the email message."
+        },
+        {
+          "name": "subject",
+          "title": "Subject",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "string"
+            }
+          },
+          "description": "Subject of the email message."
+        },
+        {
+          "name": "cc",
+          "title": "Cc",
+          "type": {
+            "kind": "array",
+            "of": {
+              "kind": "person"
+            }
+          },
+          "description": "Cc recipients of the email message."
+        },
+        {
+          "name": "bcc",
+          "title": "Bcc",
+          "type": {
+            "kind": "array",
+            "of": {
+              "kind": "person"
+            }
+          },
+          "description": "Bcc recipients of the email message."
+        },
+        {
+          "name": "account",
+          "title": "From",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "entity",
+              "ref": "mail.account"
+            }
+          },
+          "description": "Account to send the email message with."
+        },
+        {
+          "name": "attachments",
+          "title": "Attachments",
+          "type": {
+            "kind": "array",
+            "of": {
+              "kind": "file"
+            }
+          },
+          "description": "Attachments of the email message."
+        }
+      ],
+      "result": {
+        "kind": "entity",
+        "ref": "mail.draft"
+      }
+    },
+    "updateDraft": {
+      "title": "Update Draft",
+      "description": "Makes updates to an email draft.",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "parameters": [
+        {
+          "name": "target",
+          "title": "Draft",
+          "type": {
+            "kind": "entity",
+            "ref": "mail.draft"
+          },
+          "description": "Email draft to update."
+        },
+        {
+          "name": "to",
+          "title": "Recipient",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "array",
+              "of": {
+                "kind": "person"
+              }
+            }
+          },
+          "description": "Recipients of the email message."
+        },
+        {
+          "name": "cc",
+          "title": "Cc",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "array",
+              "of": {
+                "kind": "person"
+              }
+            }
+          },
+          "description": "Cc recipients of the email message."
+        },
+        {
+          "name": "bcc",
+          "title": "Bcc",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "array",
+              "of": {
+                "kind": "person"
+              }
+            }
+          },
+          "description": "Bcc recipients of the email message."
+        },
+        {
+          "name": "subject",
+          "title": "Subject",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "string"
+            }
+          },
+          "description": "Subject of the email message."
+        },
+        {
+          "name": "body",
+          "title": "Body",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "attributedString"
+            }
+          },
+          "description": "Body text of the email message."
+        },
+        {
+          "name": "account",
+          "title": "From",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "entity",
+              "ref": "mail.account"
+            }
+          },
+          "description": "Account to send the email message with."
+        },
+        {
+          "name": "attachments",
+          "title": "Attachments",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "array",
+              "of": {
+                "kind": "file"
+              }
+            }
+          },
+          "description": "Attachments of the email message."
+        }
+      ]
+    },
+    "saveDraft": {
+      "title": "Save Draft",
+      "description": "Saves an email draft.",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "parameters": [
+        {
+          "name": "target",
+          "title": "Draft",
+          "type": {
+            "kind": "entity",
+            "ref": "mail.draft"
+          },
+          "description": "Email draft to save."
+        }
+      ],
+      "opensApp": true
+    },
+    "deleteDraft": {
+      "title": "Delete Drafts",
+      "description": "Deletes one or more email drafts.",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "parameters": [
+        {
+          "name": "entities",
+          "title": "Draft",
+          "type": {
+            "kind": "array",
+            "of": {
+              "kind": "entity",
+              "ref": "mail.draft"
+            }
+          },
+          "description": "Email drafts to delete."
+        }
+      ],
+      "protocols": [
+        "delete"
+      ]
+    },
+    "sendDraft": {
+      "title": "Send Draft",
+      "description": "Sends an email draft or schedules it to be sent later.",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "parameters": [
+        {
+          "name": "target",
+          "title": "Draft",
+          "type": {
+            "kind": "entity",
+            "ref": "mail.draft"
+          },
+          "description": "Email draft to send."
+        },
+        {
+          "name": "sendLaterDate",
+          "title": "Schedule for Date",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "date"
+            }
+          },
+          "description": "Date to send the email message."
+        }
+      ]
+    },
+    "forwardMail": {
+      "title": "Forward Message",
+      "description": "Opens an email composer to forward an email. Does not send the email draft.",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "parameters": [
+        {
+          "name": "target",
+          "title": "Message",
+          "type": {
+            "kind": "entity",
+            "ref": "mail.message"
+          },
+          "description": "Mail thread to forward."
+        },
+        {
+          "name": "to",
+          "title": "Recipient",
+          "type": {
+            "kind": "array",
+            "of": {
+              "kind": "person"
+            }
+          },
+          "description": "Recipients of the email message."
+        },
+        {
+          "name": "body",
+          "title": "Body",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "attributedString"
+            }
+          },
+          "description": "Body text of the email message."
+        },
+        {
+          "name": "cc",
+          "title": "Cc",
+          "type": {
+            "kind": "array",
+            "of": {
+              "kind": "person"
+            }
+          },
+          "description": "Cc recipients of the email message."
+        },
+        {
+          "name": "bcc",
+          "title": "Bcc",
+          "type": {
+            "kind": "array",
+            "of": {
+              "kind": "person"
+            }
+          },
+          "description": "Bcc recipients of the email message."
+        },
+        {
+          "name": "subject",
+          "title": "Subject",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "string"
+            }
+          },
+          "description": "Subject of the email message."
+        },
+        {
+          "name": "account",
+          "title": "From",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "entity",
+              "ref": "mail.account"
+            }
+          },
+          "description": "Account to send the email message with."
+        },
+        {
+          "name": "attachments",
+          "title": "Attachments",
+          "type": {
+            "kind": "array",
+            "of": {
+              "kind": "file"
+            }
+          },
+          "description": "Attachments of the email message."
+        }
+      ],
+      "opensApp": true
+    },
+    "replyMail": {
+      "title": "Reply Message",
+      "description": "Opens an email composer to reply to an email. Does not send the email draft.",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "parameters": [
+        {
+          "name": "isReplyAll",
+          "title": "Reply All",
+          "type": {
+            "kind": "bool"
+          },
+          "description": "Reply to all recipients."
+        },
+        {
+          "name": "target",
+          "title": "Message",
+          "type": {
+            "kind": "entity",
+            "ref": "mail.message"
+          },
+          "description": "Mail thread to reply to."
+        },
+        {
+          "name": "body",
+          "title": "Body",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "attributedString"
+            }
+          },
+          "description": "Body text of the email message."
+        },
+        {
+          "name": "subject",
+          "title": "Subject",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "string"
+            }
+          },
+          "description": "Subject of the email message."
+        },
+        {
+          "name": "account",
+          "title": "From",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "entity",
+              "ref": "mail.account"
+            }
+          },
+          "description": "Account to send the email message with."
+        },
+        {
+          "name": "attachments",
+          "title": "Attachments",
+          "type": {
+            "kind": "array",
+            "of": {
+              "kind": "file"
+            }
+          },
+          "description": "Attachments of the email message."
+        },
+        {
+          "name": "to",
+          "title": "Recipient",
+          "type": {
+            "kind": "array",
+            "of": {
+              "kind": "person"
+            }
+          },
+          "description": "Recipients of the email message."
+        },
+        {
+          "name": "cc",
+          "title": "Cc",
+          "type": {
+            "kind": "array",
+            "of": {
+              "kind": "person"
+            }
+          },
+          "description": "Cc recipients of the email message."
+        },
+        {
+          "name": "bcc",
+          "title": "Bcc",
+          "type": {
+            "kind": "array",
+            "of": {
+              "kind": "person"
+            }
+          },
+          "description": "Bcc recipients of the email message."
+        }
+      ],
+      "opensApp": true
+    },
+    "archiveMail": {
+      "title": "Archive Messages",
+      "description": "Archives one or more email messages.",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "parameters": [
+        {
+          "name": "entities",
+          "title": "Messages",
+          "type": {
+            "kind": "array",
+            "of": {
+              "kind": "entity",
+              "ref": "mail.message"
+            }
+          },
+          "description": "Email messages to archive."
+        }
+      ]
+    },
+    "deleteMail": {
+      "title": "Delete Messages",
+      "description": "Deletes one or more email messages.",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "parameters": [
+        {
+          "name": "entities",
+          "title": "Messages",
+          "type": {
+            "kind": "array",
+            "of": {
+              "kind": "entity",
+              "ref": "mail.message"
+            }
+          },
+          "description": "Email messages to delete."
+        }
+      ],
+      "protocols": [
+        "delete"
+      ]
+    },
+    "updateMail": {
+      "title": "Update Messages",
+      "description": "Makes updates to one or more existing email messages by modifying the status, flags, and location.",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "parameters": [
+        {
+          "name": "target",
+          "title": "Message",
+          "type": {
+            "kind": "array",
+            "of": {
+              "kind": "entity",
+              "ref": "mail.message"
+            }
+          },
+          "description": "Email messages to update."
+        },
+        {
+          "name": "isRead",
+          "title": "Read",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "bool"
+            }
+          },
+          "description": "Whether to mark the emails as read."
+        },
+        {
+          "name": "isFlagged",
+          "title": "Flagged",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "bool"
+            }
+          },
+          "description": "Whether to flag the emails."
+        },
+        {
+          "name": "isJunk",
+          "title": "Junk",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "bool"
+            }
+          },
+          "description": "Whether to junk the emails."
+        },
+        {
+          "name": "mailbox",
+          "title": "Mailbox",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "entity",
+              "ref": "mail.mailbox"
+            }
+          },
+          "description": "Destination mailbox to move email messages to."
+        }
+      ]
+    },
+    "openDraft": {
+      "title": "Open Draft",
+      "description": "Opens an email draft.",
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "parameters": [
+        {
+          "name": "target",
+          "title": "Draft Message",
+          "type": {
+            "kind": "entity",
+            "ref": "mail.draft"
+          },
+          "description": "Email draft to open."
+        }
+      ],
+      "opensApp": true,
+      "protocols": [
+        "open"
+      ]
+    },
+    "openMessage": {
+      "title": "Open Message",
+      "description": "Opens an email message.",
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "parameters": [
+        {
+          "name": "target",
+          "title": "Message",
+          "type": {
+            "kind": "entity",
+            "ref": "mail.message"
+          },
+          "description": "Email message to open."
+        }
+      ],
+      "opensApp": true,
+      "protocols": [
+        "open"
+      ]
+    }
+  }
+}

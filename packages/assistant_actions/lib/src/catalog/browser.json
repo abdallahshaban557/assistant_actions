@@ -1,0 +1,494 @@
+{
+  "domain": "browser",
+  "hash": "c2d369abe24cd220fff14cee83825fd529f2ccfa53c02763b34418f1e3b04803",
+  "xcode": "27B52",
+  "entities": {
+    "tab": {
+      "title": "Tab",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "properties": [
+        {
+          "name": "name",
+          "title": "Name",
+          "type": {
+            "kind": "string"
+          },
+          "updatable": false,
+          "indexingKey": "displayName"
+        },
+        {
+          "name": "url",
+          "title": "URL",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "url"
+            }
+          },
+          "updatable": false,
+          "indexingKey": "url"
+        },
+        {
+          "name": "isPrivate",
+          "title": "Private",
+          "type": {
+            "kind": "bool"
+          },
+          "updatable": false,
+          "indexingKey": "userPrivate"
+        }
+      ]
+    },
+    "tabGroup": {
+      "title": "Tab Group",
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "properties": [
+        {
+          "name": "title",
+          "title": "Title",
+          "type": {
+            "kind": "string"
+          },
+          "updatable": false,
+          "indexingKey": "title"
+        }
+      ]
+    },
+    "readingListItem": {
+      "title": "Reading List Item",
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "properties": [
+        {
+          "name": "title",
+          "title": "Title",
+          "type": {
+            "kind": "string"
+          },
+          "updatable": false,
+          "indexingKey": "title"
+        },
+        {
+          "name": "url",
+          "title": "URL",
+          "type": {
+            "kind": "url"
+          },
+          "updatable": false,
+          "indexingKey": "url"
+        }
+      ]
+    },
+    "bookmark": {
+      "title": "Bookmark",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "properties": [
+        {
+          "name": "name",
+          "title": "Name",
+          "type": {
+            "kind": "string"
+          },
+          "updatable": false,
+          "indexingKey": "displayName"
+        },
+        {
+          "name": "url",
+          "title": "URL",
+          "type": {
+            "kind": "url"
+          },
+          "updatable": false,
+          "indexingKey": "url"
+        }
+      ]
+    },
+    "window": {
+      "title": "Window",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "properties": [
+        {
+          "name": "tabs",
+          "title": "Tabs",
+          "type": {
+            "kind": "array",
+            "of": {
+              "kind": "entity",
+              "ref": "browser.tab"
+            }
+          },
+          "updatable": false
+        },
+        {
+          "name": "isPrivate",
+          "title": "Private",
+          "type": {
+            "kind": "bool"
+          },
+          "updatable": false,
+          "indexingKey": "userPrivate"
+        }
+      ]
+    }
+  },
+  "enums": {
+    "clearHistoryTimeFrame": {
+      "title": "Clear History Time Frame",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "cases": []
+    }
+  },
+  "intents": {
+    "createTab": {
+      "title": "Create Tab",
+      "description": "Creates a new tab with a URL loaded, or blank if omitted.",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "parameters": [
+        {
+          "name": "url",
+          "title": "URL",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "url"
+            }
+          },
+          "description": "URL to open the tab to."
+        },
+        {
+          "name": "isPrivate",
+          "title": "Private Browsing",
+          "type": {
+            "kind": "bool"
+          },
+          "description": "Whether to open the tab with private browsing."
+        }
+      ],
+      "result": {
+        "kind": "entity",
+        "ref": "browser.tab"
+      },
+      "opensApp": true
+    },
+    "switchTab": {
+      "title": "Switch Tab",
+      "description": "Switch to an existing tab.",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "parameters": [
+        {
+          "name": "target",
+          "title": "Tab",
+          "type": {
+            "kind": "entity",
+            "ref": "browser.tab"
+          },
+          "description": "Tab to switch to."
+        }
+      ],
+      "opensApp": true,
+      "protocols": [
+        "open"
+      ]
+    },
+    "closeTabs": {
+      "title": "Close Tabs",
+      "description": "Closes the selected tabs.",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "parameters": [
+        {
+          "name": "target",
+          "title": "Tabs",
+          "type": {
+            "kind": "array",
+            "of": {
+              "kind": "entity",
+              "ref": "browser.tab"
+            }
+          },
+          "description": "Tabs to close."
+        }
+      ]
+    },
+    "createWindow": {
+      "title": "Create Window",
+      "description": "Creates a new browser window.",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "parameters": [
+        {
+          "name": "isPrivate",
+          "title": "Private Browsing",
+          "type": {
+            "kind": "bool"
+          },
+          "description": "Whether to open the window in private browsing."
+        }
+      ],
+      "result": {
+        "kind": "entity",
+        "ref": "browser.window"
+      },
+      "opensApp": true
+    },
+    "closeWindows": {
+      "title": "Close Windows",
+      "description": "Closes the selected windows.",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "parameters": [
+        {
+          "name": "target",
+          "title": "Windows",
+          "type": {
+            "kind": "array",
+            "of": {
+              "kind": "entity",
+              "ref": "browser.window"
+            }
+          },
+          "description": "Windows to close."
+        }
+      ]
+    },
+    "bookmarkTab": {
+      "title": "Bookmark Tab",
+      "description": "Creates a new bookmark for this tab.",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "parameters": [
+        {
+          "name": "tab",
+          "title": "Tab",
+          "type": {
+            "kind": "entity",
+            "ref": "browser.tab"
+          },
+          "description": "Tab to bookmark."
+        },
+        {
+          "name": "name",
+          "title": "Title",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "string"
+            }
+          },
+          "description": "Bookmark name."
+        }
+      ],
+      "result": {
+        "kind": "entity",
+        "ref": "browser.bookmark"
+      },
+      "opensApp": true
+    },
+    "bookmarkURL": {
+      "title": "Bookmark URL",
+      "description": "Creates a new bookmark for a given URL.",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "parameters": [
+        {
+          "name": "url",
+          "title": "URL",
+          "type": {
+            "kind": "url"
+          },
+          "description": "URL to bookmark."
+        },
+        {
+          "name": "name",
+          "title": "Name",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "string"
+            }
+          },
+          "description": "Bookmark name."
+        }
+      ],
+      "result": {
+        "kind": "entity",
+        "ref": "browser.bookmark"
+      },
+      "opensApp": true
+    },
+    "openBookmark": {
+      "title": "Open Bookmark",
+      "description": "Opens the specified bookmark.",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "parameters": [
+        {
+          "name": "target",
+          "title": "Bookmark",
+          "type": {
+            "kind": "entity",
+            "ref": "browser.bookmark"
+          },
+          "description": "Bookmark to open."
+        },
+        {
+          "name": "tab",
+          "title": "Tab",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "entity",
+              "ref": "browser.tab"
+            }
+          },
+          "description": "Tab to open the bookmark in."
+        }
+      ],
+      "opensApp": true,
+      "protocols": [
+        "open"
+      ]
+    },
+    "deleteBookmarks": {
+      "title": "Delete Bookmarks",
+      "description": "Deletes the selected bookmarks.",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "parameters": [
+        {
+          "name": "entities",
+          "title": "Bookmarks",
+          "type": {
+            "kind": "array",
+            "of": {
+              "kind": "entity",
+              "ref": "browser.bookmark"
+            }
+          },
+          "description": "Bookmarks to delete."
+        }
+      ],
+      "protocols": [
+        "delete"
+      ]
+    },
+    "findOnPage": {
+      "title": "Find on Page",
+      "description": "Find the given text on the selected tab.",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "parameters": [
+        {
+          "name": "searchPhrase",
+          "title": "Phrase",
+          "type": {
+            "kind": "string"
+          },
+          "description": "The phrase to find."
+        },
+        {
+          "name": "tab",
+          "title": "Tab",
+          "type": {
+            "kind": "entity",
+            "ref": "browser.tab"
+          },
+          "description": "The tab to find the phrase on."
+        }
+      ],
+      "opensApp": true
+    },
+    "openURLInTab": {
+      "title": "Open Link",
+      "description": "Navigates a tab to the given URL.",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "parameters": [
+        {
+          "name": "url",
+          "title": "URL",
+          "type": {
+            "kind": "url"
+          },
+          "description": "URL to load."
+        },
+        {
+          "name": "tab",
+          "title": "Tab",
+          "type": {
+            "kind": "entity",
+            "ref": "browser.tab"
+          },
+          "description": "Tabs to load URL in."
+        }
+      ],
+      "opensApp": true
+    },
+    "clearHistory": {
+      "title": "Clear History",
+      "description": "Clears history, and related cookies and other website data.",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "parameters": [
+        {
+          "name": "timeFrame",
+          "title": "Time Frame",
+          "type": {
+            "kind": "openEnum",
+            "ref": "browser.clearHistoryTimeFrame"
+          },
+          "description": "Time frame of history to clear."
+        }
+      ]
+    }
+  },
+  "skipped": {
+    "openURL": "no public definition in the SDK",
+    "search": "deprecated: Use .system.searchInApp instead",
+    "searchWebsite": "no public definition in the SDK",
+    "searchableWebsite": "no public definition in the SDK"
+  }
+}

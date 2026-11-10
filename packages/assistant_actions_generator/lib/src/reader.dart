@@ -8,12 +8,13 @@ import 'package:source_gen/source_gen.dart';
 
 import 'catalog.dart';
 import 'model.dart';
+import 'schema_calls.dart';
 
 const _package = 'assistant_actions';
 
 /// The `api` this generator needs in assistant_actions'
 /// `lib/src/catalog/generator_api.json`.
-const _runtimeApi = 5;
+const _runtimeApi = 6;
 
 /// Reads the app's annotations from the definitions library and everything
 /// it imports from the app's own package.
@@ -22,6 +23,7 @@ class ModelReader {
 
   final BuildStep step;
   final _catalogs = <String, DomainCatalog>{};
+  final _openEnums = <String, OpenEnumModel>{};
 
   Future<AppModel?> read(LibraryElement library) async {
     final app = _annotation(library, 'AssistantActionsApp');
@@ -34,12 +36,41 @@ class ModelReader {
     final libraries = _ownLibraries(library);
     final entities = <EntityModel>[];
     final schemaEntities = <SchemaEntityModel>[];
+    final schemaDomains = <SchemaDomainModel>[];
+    for (final lib in libraries) {
+      for (final e in lib.enums) {
+        for (final a in e.metadata.annotations) {
+          final value = a.computeConstantValue();
+          if (value == null || !_isFrom(value.type, 'SchemaEnumCases')) continue;
+          final schema = ConstantReader(value).read('schema').stringValue;
+          if (_openEnums.containsKey(schema)) {
+            throw InvalidGenerationSourceError('Two enums give the cases of $schema.', element: e);
+          }
+          _openEnums[schema] = OpenEnumModel(
+            schema: schema,
+            className: e.displayName,
+            library: e.library.uri,
+            cases: [for (final c in e.fields) if (c.isEnumConstant) c.displayName],
+          );
+        }
+      }
+    }
     for (final lib in libraries) {
       for (final cls in lib.classes) {
         if (_annotation(cls, 'AssistantEntity') case final a?) entities.add(_entity(cls, a));
         if (_schemaAnnotation(cls) case final a?) schemaEntities.add(await _schemaEntity(cls, a));
+        if (_schemaAnnotation(cls, 'SchemaIntents') case final a?) {
+          final domain = await _schemaDomain(cls, a);
+          if (schemaDomains.any((d) => d.domain == domain.domain)) {
+            throw InvalidGenerationSourceError(
+                'Only one class can have @${pascal(domain.domain)}Intents(...).', element: cls);
+          }
+          schemaDomains.add(domain);
+        }
       }
     }
+    _checkCalls(schemaEntities, schemaDomains, entities, library);
+    await _loadReferenced(schemaEntities, schemaDomains, library);
     final actions = <ActionModel>[];
     for (final lib in libraries) {
       for (final fn in lib.topLevelFunctions) {
@@ -66,11 +97,121 @@ class ModelReader {
       entities: entities,
       schemaEntities: schemaEntities,
       snapshotActions: snapshotActions,
+      schemaDomains: schemaDomains,
+      catalogs: Map.of(_catalogs),
+      openEnums: Map.of(_openEnums),
     );
   }
 
+  /// Fails the build for turned-on intents the generator can't serve yet,
+  /// and for id fields naming entities the app doesn't adopt.
+  void _checkCalls(List<SchemaEntityModel> entities, List<SchemaDomainModel> domains, List<EntityModel> plain,
+      Element element) {
+    final adopted = {for (final s in entities) s.schema.id};
+    for (final s in entities) {
+      for (final MapEntry(key: member, value: field) in s.mapping.entries) {
+        if (field.type.entityRef case final r? when !adopted.contains(r)) {
+          throw InvalidGenerationSourceError(
+              '${s.className}.${field.name} holds ids of $r items (${s.schema.id}.$member), but no class adopts $r.',
+              element: element);
+        }
+      }
+    }
+    void check(IntentSchema intent, Element at) {
+      if (callResult(intent) == CallResult.unsupported) {
+        throw InvalidGenerationSourceError(
+            '${intent.id} returns ${intent.result}, which assistant_actions can\'t produce from Dart yet. '
+            'Turn it off.',
+            element: at);
+      }
+      if (resultEntity(intent) case final r? when !adopted.contains(r)) {
+        throw InvalidGenerationSourceError(
+            '${intent.id} returns $r items: adopt $r on one of your classes too, so Siri gets an item back.',
+            element: at);
+      }
+      for (final p in intent.parameters) {
+        if (p.type.element.kind == 'openEnum' && !_openEnums.containsKey(p.type.element.ref)) {
+          throw InvalidGenerationSourceError(
+              '${intent.id} takes ${p.name}, a ${p.type.element.ref} whose cases the app defines: '
+              'annotate one of your enums @${dartEnumName(p.type.element.ref!)}().',
+              element: at);
+        }
+      }
+    }
+
+    for (final s in entities) {
+      for (final (intent, kind) in s.intents) {
+        if (kind == IntentKind.call) {
+          check(intent, element);
+        } else {
+          for (final p in intent.parameters) {
+            if (p.type.element.kind == 'openEnum' && !_openEnums.containsKey(p.type.element.ref)) {
+              throw InvalidGenerationSourceError(
+                  '${intent.id} takes ${p.name}, a ${p.type.element.ref} whose cases the app defines: '
+                  'annotate one of your enums @${dartEnumName(p.type.element.ref!)}().',
+                  element: element);
+            }
+          }
+        }
+      }
+    }
+    for (final d in domains) {
+      for (final intent in d.intents) {
+        if (intent.id == 'system.open') {
+          if (entities.isEmpty && plain.isEmpty) {
+            throw InvalidGenerationSourceError('system.open opens one of the app\'s entities, and there are none.',
+                element: element);
+          }
+          continue;
+        }
+        check(intent, element);
+      }
+    }
+  }
+
+  /// Loads the catalogs of other domains the adopted schemas reference.
+  Future<void> _loadReferenced(
+      List<SchemaEntityModel> entities, List<SchemaDomainModel> domains, Element element) async {
+    final pending = <SchemaType>[
+      for (final s in entities) ...[
+        SchemaType('entity', ref: s.schema.id),
+        for (final (intent, _) in s.intents) ...[
+          for (final p in intent.parameters) p.type,
+          ?intent.result,
+        ],
+      ],
+      for (final d in domains)
+        for (final intent in d.intents) ...[
+          for (final p in intent.parameters) p.type,
+          ?intent.result,
+        ],
+    ];
+    final seen = <String>{};
+    while (pending.isNotEmpty) {
+      final t = pending.removeLast();
+      if (t.of case final of?) {
+        pending.add(of);
+        continue;
+      }
+      final ref = t.ref;
+      if (ref == null || !seen.add(ref)) continue;
+      final catalog = await _catalog(ref.split('.').first, element);
+      switch (t.kind) {
+        case 'entity':
+          for (final p in catalog.entities[ref]?.properties ?? const <SchemaMember>[]) {
+            pending.add(p.type);
+          }
+        case 'union':
+          for (final c in catalog.unions[ref]?.cases ?? const <({String name, SchemaType type})>[]) {
+            pending.add(c.type);
+          }
+      }
+    }
+  }
+
   /// The generated Swift and Dart use runtime APIs added in assistant_actions
-  /// 0.0.8 (entity property queries), marked by `lib/src/catalog/generator_api.json`.
+  /// 0.0.11 (enum, duration and list values; catalogs with intent
+  /// protocols), marked by `lib/src/catalog/generator_api.json`.
   Future<void> _checkRuntime(LibraryElement library) async {
     final marker = AssetId(_package, 'lib/src/catalog/generator_api.json');
     final api = await step.canRead(marker)
@@ -78,7 +219,7 @@ class ModelReader {
         : 0;
     if (api < _runtimeApi) {
       throw InvalidGenerationSourceError(
-          'This version of assistant_actions_generator needs assistant_actions 0.0.8 or later. '
+          'This version of assistant_actions_generator needs assistant_actions 0.0.11 or later. '
           'Run `flutter pub upgrade assistant_actions`.',
           element: library);
     }
@@ -170,6 +311,12 @@ class ModelReader {
     if (id == null || !_type(id.$1).isDartCoreString) {
       throw InvalidGenerationSourceError('A schema entity needs a String field marked @EntityId().', element: cls);
     }
+    if (schema.protocols.contains('file')) {
+      throw InvalidGenerationSourceError(
+          '$schemaId is a file entity: Apple requires file-based ids (FileEntity), which assistant_actions '
+          "doesn't support yet.",
+          element: cls);
+    }
 
     final mapping = <String, FieldModel>{};
     for (final field in cls.fields) {
@@ -186,8 +333,44 @@ class ModelReader {
               element: field);
         }
         final property = schema.property(name)!;
-        final type = _valueType(field.type);
-        final expected = dartTypeFor(property.type)?.replaceAll('?', '');
+        final element = property.type.base;
+        var type = _valueType(field.type);
+        final reference = element.kind == 'entity'
+            ? element.ref
+            : element.isList && element.of!.base.kind == 'entity'
+                ? element.of!.base.ref
+                : null;
+        if (reference != null) {
+          final t = field.type;
+          final nullable = t.nullabilitySuffix == NullabilitySuffix.question;
+          if (element.kind == 'entity' && t.isDartCoreString) {
+            type = ValueType(ValueKind.entityId, nullable: nullable, entityRef: reference);
+          } else if (element.isList && t is InterfaceType && t.isDartCoreList && t.typeArguments.single.isDartCoreString) {
+            type = ValueType(ValueKind.entityId, list: true, entityRef: reference);
+          }
+        }
+        if (element.kind == 'openEnum' && field.type is InterfaceType) {
+          final t = field.type as InterfaceType;
+          final app = _openEnums[element.ref];
+          if (app != null && t.element.displayName == app.className) {
+            type = ValueType(ValueKind.enumeration,
+                nullable: t.nullabilitySuffix == NullabilitySuffix.question, enumRef: element.ref, appEnum: app.className);
+          } else {
+            throw InvalidGenerationSourceError(
+                '${field.displayName} maps $schemaId.$name, a ${element.ref} whose cases the app defines: '
+                'make it an enum annotated @${dartEnumName(element.ref!)}().',
+                element: field);
+          }
+        }
+        if (element.kind == 'enum' && field.type is InterfaceType) {
+          final t = field.type as InterfaceType;
+          if (t.element is EnumElement && t.element.displayName == dartEnumName(element.ref!)) {
+            type = ValueType(ValueKind.enumeration,
+                nullable: t.nullabilitySuffix == NullabilitySuffix.question, enumRef: element.ref);
+          }
+        }
+        final expected = dartTypeFor(property.type, {for (final e in _openEnums.values) e.schema: e.className})
+            ?.replaceAll('?', '');
         if (type == null || type.dart.replaceAll('?', '') != expected) {
           throw InvalidGenerationSourceError(
               '${field.displayName} is ${field.type.getDisplayString()}, but $schemaId.$name '
@@ -253,9 +436,25 @@ class ModelReader {
       type.isOptional ||
       switch (type.kind) {
         'array' || 'set' || 'bool' || 'string' || 'attributedString' => true,
-        'enum' => catalog.enums[type.ref]?.cases.isNotEmpty ?? false,
+        'enum' => _enumHasCases(type.ref!),
+        'openEnum' => _openEnums[type.ref]?.cases.isNotEmpty ?? false,
         _ => false,
       };
+
+  bool _enumHasCases(String ref) => _catalogs[ref.split('.').first]?.enums[ref]?.cases.isNotEmpty ?? false;
+
+  Future<SchemaDomainModel> _schemaDomain(ClassElement cls, ConstantReader annotation) async {
+    final domain = annotation.read('domain').stringValue;
+    final catalog = await _catalog(domain, cls);
+    return SchemaDomainModel(
+      className: cls.displayName,
+      catalog: catalog,
+      intents: [
+        for (final intent in catalog.domainIntents)
+          if (annotation.peek(intent.name)?.boolValue ?? false) intent,
+      ],
+    );
+  }
 
   Future<DomainCatalog> _catalog(String domain, Element element) async {
     if (_catalogs[domain] case final cached?) return cached;
@@ -452,6 +651,8 @@ class ModelReader {
         ValueKind.dateTime,
       InterfaceType(:final element) when element.library.isDartCore && element.displayName == 'Uri' =>
         ValueKind.uri,
+      InterfaceType(:final element) when element.library.isDartCore && element.displayName == 'Duration' =>
+        ValueKind.duration,
       _ => null,
     };
     return kind == null ? null : ValueType(kind, nullable: nullable);
@@ -466,10 +667,10 @@ class ModelReader {
     return null;
   }
 
-  ConstantReader? _schemaAnnotation(ClassElement cls) {
+  ConstantReader? _schemaAnnotation(ClassElement cls, [String base = 'SchemaEntity']) {
     for (final a in cls.metadata.annotations) {
       final value = a.computeConstantValue();
-      if (value != null && _isFrom(value.type, 'SchemaEntity')) return ConstantReader(value);
+      if (value != null && _isFrom(value.type, base)) return ConstantReader(value);
     }
     return null;
   }

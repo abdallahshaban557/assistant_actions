@@ -1,0 +1,500 @@
+{
+  "domain": "presentation",
+  "hash": "c2d369abe24cd220fff14cee83825fd529f2ccfa53c02763b34418f1e3b04803",
+  "xcode": "27B52",
+  "entities": {
+    "slide": {
+      "title": "Slide",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "properties": [
+        {
+          "name": "presentation",
+          "title": "Presentation",
+          "type": {
+            "kind": "entity",
+            "ref": "presentation.document"
+          },
+          "updatable": false
+        },
+        {
+          "name": "slideIndex",
+          "title": "Position",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "int"
+            }
+          },
+          "updatable": false
+        },
+        {
+          "name": "title",
+          "title": "Title",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "string"
+            }
+          },
+          "updatable": false,
+          "indexingKey": "title"
+        }
+      ]
+    },
+    "template": {
+      "title": "Template",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "properties": [
+        {
+          "name": "name",
+          "title": "Name",
+          "type": {
+            "kind": "string"
+          },
+          "updatable": false,
+          "indexingKey": "displayName"
+        }
+      ]
+    },
+    "document": {
+      "title": "Presentation",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "properties": [
+        {
+          "name": "name",
+          "title": "Name",
+          "type": {
+            "kind": "string"
+          },
+          "updatable": false,
+          "indexingKey": "displayName"
+        }
+      ]
+    }
+  },
+  "enums": {},
+  "intents": {
+    "create": {
+      "title": "Create Presentation",
+      "description": "Opens the app for composing a new presentation.",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "parameters": [
+        {
+          "name": "template",
+          "title": "Template",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "entity",
+              "ref": "presentation.template"
+            }
+          },
+          "description": "Template with which to create the presentation."
+        }
+      ],
+      "result": {
+        "kind": "entity",
+        "ref": "presentation.document"
+      },
+      "opensApp": true
+    },
+    "open": {
+      "title": "Open Presentation",
+      "description": "Opens the app into an existing presentation.",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "parameters": [
+        {
+          "name": "target",
+          "title": "Presentation",
+          "type": {
+            "kind": "entity",
+            "ref": "presentation.document"
+          },
+          "description": "Presentation to open."
+        }
+      ],
+      "opensApp": true,
+      "protocols": [
+        "open"
+      ]
+    },
+    "update": {
+      "title": "Rename Presentation",
+      "description": "Renames an existing presentation.",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "parameters": [
+        {
+          "name": "target",
+          "title": "Presentation",
+          "type": {
+            "kind": "entity",
+            "ref": "presentation.document"
+          },
+          "description": "Presentation to rename."
+        },
+        {
+          "name": "name",
+          "title": "Name",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "string"
+            }
+          },
+          "description": "New name of presentation."
+        }
+      ]
+    },
+    "startPlayback": {
+      "title": "Play Presentation",
+      "description": "Plays the presentation from the start or selected slide.",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "parameters": [
+        {
+          "name": "presentation",
+          "title": "Presentation",
+          "type": {
+            "kind": "entity",
+            "ref": "presentation.document"
+          },
+          "description": "Presentation to play."
+        },
+        {
+          "name": "target",
+          "title": "Starting Slide",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "entity",
+              "ref": "presentation.slide"
+            }
+          },
+          "description": "Slide to start presentation from."
+        }
+      ],
+      "opensApp": true
+    },
+    "stopPlayback": {
+      "title": "Stop Presentation",
+      "description": "Stops the currently playing presentation.",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "parameters": [
+        {
+          "name": "presentation",
+          "title": "Presentation",
+          "type": {
+            "kind": "entity",
+            "ref": "presentation.document"
+          },
+          "description": "Presentation to stop."
+        }
+      ]
+    },
+    "createSlide": {
+      "title": "Create Slide",
+      "description": "Creates a new slide in a presentation document.",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "parameters": [
+        {
+          "name": "presentation",
+          "title": "Presentation",
+          "type": {
+            "kind": "entity",
+            "ref": "presentation.document"
+          },
+          "description": "Presentation to add slide to."
+        },
+        {
+          "name": "slideLayout",
+          "title": "Layout",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "string"
+            }
+          },
+          "description": "Layout of the new slide."
+        }
+      ],
+      "result": {
+        "kind": "entity",
+        "ref": "presentation.slide"
+      },
+      "opensApp": true
+    },
+    "openSlide": {
+      "title": "Open Slide",
+      "description": "Opens a slide.",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "parameters": [
+        {
+          "name": "target",
+          "title": "Slide",
+          "type": {
+            "kind": "entity",
+            "ref": "presentation.slide"
+          },
+          "description": "Slide to navigate to."
+        }
+      ],
+      "opensApp": true,
+      "protocols": [
+        "open"
+      ]
+    },
+    "setSlideTitle": {
+      "title": "Rename Slide",
+      "description": "Sets the title of the slide.",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "parameters": [
+        {
+          "name": "target",
+          "title": "Slide",
+          "type": {
+            "kind": "entity",
+            "ref": "presentation.slide"
+          },
+          "description": "Slide to update."
+        },
+        {
+          "name": "title",
+          "title": "Name",
+          "type": {
+            "kind": "string"
+          },
+          "description": "New slide name."
+        }
+      ],
+      "opensApp": true
+    },
+    "addImageToSlide": {
+      "title": "Add Image to Slide",
+      "description": "Adds an image to a slide.",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "parameters": [
+        {
+          "name": "image",
+          "title": "Image",
+          "type": {
+            "kind": "file"
+          },
+          "description": "Image to add."
+        },
+        {
+          "name": "target",
+          "title": "Slide",
+          "type": {
+            "kind": "entity",
+            "ref": "presentation.slide"
+          },
+          "description": "Slide to add the image to."
+        }
+      ],
+      "opensApp": true
+    },
+    "addVideoToSlide": {
+      "title": "Add Video to Slide",
+      "description": "Adds a video to a slide.",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "parameters": [
+        {
+          "name": "video",
+          "title": "Video",
+          "type": {
+            "kind": "file"
+          },
+          "description": "Video to add."
+        },
+        {
+          "name": "target",
+          "title": "Slide",
+          "type": {
+            "kind": "entity",
+            "ref": "presentation.slide"
+          },
+          "description": "Slide to add the video to."
+        }
+      ],
+      "opensApp": true
+    },
+    "addAudioToSlide": {
+      "title": "Add Audio to Slide",
+      "description": "Adds an audio clip to a slide.",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "parameters": [
+        {
+          "name": "audio",
+          "title": "Audio",
+          "type": {
+            "kind": "file"
+          },
+          "description": "Audio to add."
+        },
+        {
+          "name": "target",
+          "title": "Slide",
+          "type": {
+            "kind": "entity",
+            "ref": "presentation.slide"
+          },
+          "description": "Slide to add the audio to."
+        }
+      ],
+      "opensApp": true
+    },
+    "addTextBoxToSlide": {
+      "title": "Add Text Box to Slide",
+      "description": "Adds a text box to a slide.",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "parameters": [
+        {
+          "name": "text",
+          "title": "Text",
+          "type": {
+            "kind": "string"
+          },
+          "description": "Text to add."
+        },
+        {
+          "name": "target",
+          "title": "Slide",
+          "type": {
+            "kind": "entity",
+            "ref": "presentation.slide"
+          },
+          "description": "Slide to add the text box to."
+        }
+      ],
+      "opensApp": true
+    },
+    "addCommentToSlide": {
+      "title": "Add Comment to Slide",
+      "description": "Adds a comment to a slide.",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "parameters": [
+        {
+          "name": "comment",
+          "title": "Comment",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "string"
+            }
+          },
+          "description": "Comment to add."
+        },
+        {
+          "name": "target",
+          "title": "Slide",
+          "type": {
+            "kind": "entity",
+            "ref": "presentation.slide"
+          },
+          "description": "Slide to add the comment to."
+        }
+      ],
+      "opensApp": true
+    },
+    "addWebVideoToSlide": {
+      "title": "Add Web Video to Slide",
+      "description": "Adds a web video to a slide.",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "parameters": [
+        {
+          "name": "url",
+          "title": "URL",
+          "type": {
+            "kind": "url"
+          },
+          "description": "Web video to add."
+        },
+        {
+          "name": "target",
+          "title": "Slide",
+          "type": {
+            "kind": "entity",
+            "ref": "presentation.slide"
+          },
+          "description": "Slide to add the web video to."
+        }
+      ],
+      "opensApp": true
+    },
+    "deleteSlide": {
+      "title": "Delete Slides",
+      "description": "Deletes slides in a presentation.",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "parameters": [
+        {
+          "name": "entities",
+          "title": "Slides",
+          "type": {
+            "kind": "array",
+            "of": {
+              "kind": "entity",
+              "ref": "presentation.slide"
+            }
+          },
+          "description": "Slides to delete."
+        }
+      ],
+      "protocols": [
+        "delete"
+      ]
+    }
+  }
+}

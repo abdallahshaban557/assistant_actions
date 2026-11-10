@@ -4,9 +4,11 @@
 import 'dart:async';
 
 import 'package:assistant_actions/assistant_actions.dart';
+import 'package:assistant_actions/schemas/clock.dart' show ClockTimerState;
 
 import 'package:assistant_actions_example/assistant_actions.dart' as a0;
 import 'package:assistant_actions_example/models/models.dart' as a1;
+import 'package:assistant_actions_example/models/models.dart' show CaptureDelay, CaptureMode, Lens;
 
 /// Siri's values for a `TaskItem` (`reminders.reminder`).
 ///
@@ -111,12 +113,98 @@ abstract interface class JournalItemAssistantHandler {
   Future<void> delete(String id);
 }
 
+/// Siri's values for a `Countdown` (`clock.timer`).
+///
+/// A null field is unchanged, unless its `…Cleared` getter says Siri removed
+/// the value.
+class CountdownValues {
+  const CountdownValues({this.length, this.left, this.label, this.state, this.cleared = const {}});
+
+  final Duration? length;
+  final Duration? left;
+  final String? label;
+  final ClockTimerState? state;
+
+  /// Fields Siri cleared (set to no value), by Dart field name.
+  final Set<String> cleared;
+
+  /// Siri removed `label` (for example, took a due date off a reminder).
+  bool get labelCleared => cleared.contains('label');
+
+  static CountdownValues _from(Map<String, Object?> f, List<String> cleared) => CountdownValues(
+    length: AssistantValue.duration(f['length']),
+    left: AssistantValue.duration(f['left']),
+    label: AssistantValue.string(f['label']),
+    state: AssistantValue.enumeration(ClockTimerState.values, f['state']),
+    cleared: {...cleared},
+  );
+}
+
+/// Applies the changes Siri makes to `Countdown` items through
+/// `clock.createTimer`, `clock.pauseTimer`, `clock.resumeTimer`.
+abstract interface class CountdownAssistantHandler {
+  /// Siri created an item. Keep [id]: later updates and deletes use it.
+  Future<void> create(String id, CountdownValues values);
+
+  /// Siri's `clock.pauseTimer` ("Pause Timer"), applied when the app next runs.
+  /// Pause a timer
+  ///
+  /// `timer` is the id of a `clock.timer` item.
+  Future<void> pauseTimer({required String timer});
+
+  /// Siri's `clock.resumeTimer` ("Resume Timer"), applied when the app next runs.
+  /// Resume a timer
+  ///
+  /// `timer` is the id of a `clock.timer` item.
+  Future<void> resumeTimer({required String timer});
+}
+
+/// Handles Apple's `system` intents turned on with `@SystemIntents` on `SystemHandler`.
+abstract interface class SystemAssistantHandler {
+  /// Siri asked to open the `TaskItem` with [id] (`system.open`): show it.
+  Future<void> openTaskItem(String id);
+
+  /// Siri asked to open the `MemoryItem` with [id] (`system.open`): show it.
+  Future<void> openMemoryItem(String id);
+
+  /// Siri asked to open the `JournalItem` with [id] (`system.open`): show it.
+  Future<void> openJournalItem(String id);
+
+  /// Siri asked to open the `Countdown` with [id] (`system.open`): show it.
+  Future<void> openCountdown(String id);
+
+  /// Siri asked to open the `Recipe` with [id] (`system.open`): show it.
+  Future<void> openRecipe(String id);
+
+  /// Siri's `system.searchInApp` ("Search").
+  /// Navigate to search results.
+  Future<void> searchInApp({required String criteria});
+}
+
+/// Handles Apple's `camera` intents turned on with `@CameraIntents` on `CameraHandler`.
+abstract interface class CameraAssistantHandler {
+  /// Siri's `camera.startCapture` ("Start Capture").
+  /// Starts a capture or opens the camera in a specified mode with a timer setting.
+  Future<void> startCapture({
+    required CaptureMode captureMode,
+    Lens? device,
+    CaptureDelay? timerDuration,
+  });
+
+  /// Siri's `camera.stopCapture` ("Stop Capture"), applied when the app next runs.
+  /// Stops a recording in progress.
+  Future<void> stopCapture();
+}
+
 /// Pass to `AssistantActions.start`.
 AssistantActionsRegistry assistantActionsRegistry({
   required FutureOr<a1.Recipe?> Function(String id) findRecipe,
   required TaskItemAssistantHandler taskItem,
   required MemoryItemAssistantHandler memoryItem,
   required JournalItemAssistantHandler journalItem,
+  required CountdownAssistantHandler countdown,
+  required SystemAssistantHandler system,
+  required CameraAssistantHandler camera,
 }) => AssistantActionsRegistry(
   actions: {
     'addToShoppingList': (args) async {
@@ -131,6 +219,69 @@ AssistantActionsRegistry assistantActionsRegistry({
     },
     'JournalItem.startAudioEntry': (args) async {
       await journalItem.startAudioEntry();
+      return null;
+    },
+    'Countdown.pauseTimer': (args) async {
+      await countdown.pauseTimer(
+        timer: AssistantValue.string(args['timer']) ?? (throw ArgumentError.notNull('timer')),
+      );
+      return null;
+    },
+    'Countdown.resumeTimer': (args) async {
+      await countdown.resumeTimer(
+        timer: AssistantValue.string(args['timer']) ?? (throw ArgumentError.notNull('timer')),
+      );
+      return null;
+    },
+    'system.open.TaskItem': (args) async {
+      await system.openTaskItem(
+        AssistantValue.string(args['id']) ?? (throw ArgumentError.notNull('id')),
+      );
+      return null;
+    },
+    'system.open.MemoryItem': (args) async {
+      await system.openMemoryItem(
+        AssistantValue.string(args['id']) ?? (throw ArgumentError.notNull('id')),
+      );
+      return null;
+    },
+    'system.open.JournalItem': (args) async {
+      await system.openJournalItem(
+        AssistantValue.string(args['id']) ?? (throw ArgumentError.notNull('id')),
+      );
+      return null;
+    },
+    'system.open.Countdown': (args) async {
+      await system.openCountdown(
+        AssistantValue.string(args['id']) ?? (throw ArgumentError.notNull('id')),
+      );
+      return null;
+    },
+    'system.open.Recipe': (args) async {
+      await system.openRecipe(
+        AssistantValue.string(args['id']) ?? (throw ArgumentError.notNull('id')),
+      );
+      return null;
+    },
+    'system.searchInApp': (args) async {
+      await system.searchInApp(
+        criteria:
+            AssistantValue.string(args['criteria']) ?? (throw ArgumentError.notNull('criteria')),
+      );
+      return null;
+    },
+    'camera.startCapture': (args) async {
+      await camera.startCapture(
+        captureMode:
+            AssistantValue.enumeration(CaptureMode.values, args['captureMode']) ??
+            (throw ArgumentError.notNull('captureMode')),
+        device: AssistantValue.enumeration(Lens.values, args['device']),
+        timerDuration: AssistantValue.enumeration(CaptureDelay.values, args['timerDuration']),
+      );
+      return null;
+    },
+    'camera.stopCapture': (args) async {
+      await camera.stopCapture();
       return null;
     },
   },
@@ -159,6 +310,17 @@ AssistantActionsRegistry assistantActionsRegistry({
       id: (e) => e.id,
       title: (e) => e.title ?? '',
       fields: (e) => {'title': e.title, 'text': e.text, 'date': AssistantValue.encodeDate(e.date)},
+    ),
+    a1.Countdown: EntityCodec<a1.Countdown>(
+      'Countdown',
+      id: (e) => e.id,
+      title: (e) => e.label ?? '',
+      fields: (e) => {
+        'length': AssistantValue.encodeDuration(e.length),
+        'left': AssistantValue.encodeDuration(e.left),
+        'label': e.label,
+        'state': AssistantValue.encodeEnum(e.state),
+      },
     ),
   },
   collections: {
@@ -191,6 +353,13 @@ AssistantActionsRegistry assistantActionsRegistry({
           await journalItem.update(change.id, values);
         case 'delete':
           await journalItem.delete(change.id);
+      }
+    },
+    'Countdown': (change) async {
+      final values = CountdownValues._from(change.fields, change.cleared);
+      switch (change.kind) {
+        case 'create':
+          await countdown.create(change.id, values);
       }
     },
   },

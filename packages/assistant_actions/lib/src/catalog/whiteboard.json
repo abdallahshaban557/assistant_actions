@@ -1,0 +1,367 @@
+{
+  "domain": "whiteboard",
+  "hash": "c2d369abe24cd220fff14cee83825fd529f2ccfa53c02763b34418f1e3b04803",
+  "xcode": "27B52",
+  "entities": {
+    "board": {
+      "title": "Board",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "properties": [
+        {
+          "name": "title",
+          "title": "Name",
+          "type": {
+            "kind": "string"
+          },
+          "updatable": false,
+          "indexingKey": "title"
+        },
+        {
+          "name": "creationDate",
+          "title": "Creation Date",
+          "type": {
+            "kind": "date"
+          },
+          "updatable": false,
+          "indexingKey": "contentCreationDate"
+        },
+        {
+          "name": "lastModificationDate",
+          "title": "Last Edited",
+          "type": {
+            "kind": "date"
+          },
+          "updatable": false,
+          "indexingKey": "contentModificationDate"
+        }
+      ]
+    },
+    "item": {
+      "title": "Item",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "properties": [
+        {
+          "name": "type",
+          "title": "Item Type",
+          "type": {
+            "kind": "openEnum",
+            "ref": "whiteboard.itemType"
+          },
+          "updatable": false,
+          "indexingKey": "kind"
+        },
+        {
+          "name": "label",
+          "title": "Label",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "string"
+            }
+          },
+          "updatable": false,
+          "indexingKey": "displayName"
+        },
+        {
+          "name": "x",
+          "title": "X Position",
+          "type": {
+            "kind": "double"
+          },
+          "updatable": false
+        },
+        {
+          "name": "y",
+          "title": "Y Position",
+          "type": {
+            "kind": "double"
+          },
+          "updatable": false
+        },
+        {
+          "name": "width",
+          "title": "Width",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "double"
+            }
+          },
+          "updatable": false
+        },
+        {
+          "name": "height",
+          "title": "Height",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "double"
+            }
+          },
+          "updatable": false
+        }
+      ]
+    }
+  },
+  "enums": {
+    "itemType": {
+      "title": "Item Type",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "cases": []
+    },
+    "color": {
+      "title": "Color",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "cases": []
+    }
+  },
+  "intents": {
+    "createItem": {
+      "title": "Add Item to Board",
+      "description": "Adds an item to a board.",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "parameters": [
+        {
+          "name": "target",
+          "title": "Board",
+          "type": {
+            "kind": "entity",
+            "ref": "whiteboard.board"
+          },
+          "description": "Board to add the item to."
+        },
+        {
+          "name": "itemType",
+          "title": "Item Type",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "openEnum",
+              "ref": "whiteboard.itemType"
+            }
+          },
+          "description": "Type of the added item."
+        },
+        {
+          "name": "text",
+          "title": "Text",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "attributedString"
+            }
+          },
+          "description": "Text to add."
+        },
+        {
+          "name": "mediaItems",
+          "title": "Media",
+          "type": {
+            "kind": "array",
+            "of": {
+              "kind": "file"
+            }
+          },
+          "description": "Media to add."
+        },
+        {
+          "name": "url",
+          "title": "URL",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "url"
+            }
+          },
+          "description": "URL to add."
+        }
+      ],
+      "opensApp": true
+    },
+    "createBoard": {
+      "title": "Create Board",
+      "description": "Creates a new board.",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "parameters": [
+        {
+          "name": "title",
+          "title": "Name",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "string"
+            }
+          },
+          "description": "Name for the new board (optional)."
+        }
+      ],
+      "result": {
+        "kind": "entity",
+        "ref": "whiteboard.board"
+      }
+    },
+    "openBoard": {
+      "title": "Open Board",
+      "description": "Opens an existing board.",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "parameters": [
+        {
+          "name": "target",
+          "title": "Board",
+          "type": {
+            "kind": "entity",
+            "ref": "whiteboard.board"
+          },
+          "description": "Board to open."
+        }
+      ],
+      "opensApp": true,
+      "protocols": [
+        "open"
+      ]
+    },
+    "updateBoard": {
+      "title": "Rename Board",
+      "description": "Renames a board.",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "parameters": [
+        {
+          "name": "target",
+          "title": "Board",
+          "type": {
+            "kind": "entity",
+            "ref": "whiteboard.board"
+          },
+          "description": "Board to rename."
+        },
+        {
+          "name": "title",
+          "title": "Name",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "string"
+            }
+          },
+          "description": "New name for the board."
+        }
+      ]
+    },
+    "deleteBoard": {
+      "title": "Delete Boards",
+      "description": "Deletes one or more boards.",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "parameters": [
+        {
+          "name": "entities",
+          "title": "Boards",
+          "type": {
+            "kind": "array",
+            "of": {
+              "kind": "entity",
+              "ref": "whiteboard.board"
+            }
+          },
+          "description": "One or more boards to delete."
+        }
+      ],
+      "protocols": [
+        "delete"
+      ]
+    },
+    "updateItem": {
+      "title": "Update Board’s Item",
+      "description": "Updates a board item.",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "parameters": [
+        {
+          "name": "target",
+          "title": "Board Item",
+          "type": {
+            "kind": "entity",
+            "ref": "whiteboard.item"
+          },
+          "description": "Board item to update."
+        },
+        {
+          "name": "color",
+          "title": "Item Color",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "openEnum",
+              "ref": "whiteboard.color"
+            }
+          },
+          "description": "Color to update to."
+        },
+        {
+          "name": "label",
+          "title": "Label",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "string"
+            }
+          },
+          "description": "Label to update to."
+        }
+      ]
+    },
+    "deleteItem": {
+      "title": "Delete Canvas’ Items",
+      "description": "Deletes the selected canvas items.",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "parameters": [
+        {
+          "name": "entities",
+          "title": "Items",
+          "type": {
+            "kind": "array",
+            "of": {
+              "kind": "entity",
+              "ref": "whiteboard.item"
+            }
+          },
+          "description": "Board items to delete."
+        }
+      ],
+      "protocols": [
+        "delete"
+      ]
+    }
+  }
+}

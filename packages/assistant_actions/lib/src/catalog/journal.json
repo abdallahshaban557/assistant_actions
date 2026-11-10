@@ -152,28 +152,6 @@
         "audioStarting"
       ]
     },
-    "search": {
-      "title": "Search Entries",
-      "description": "Searches journal entries.",
-      "availability": {
-        "iOS": 18,
-        "macOS": 15
-      },
-      "parameters": [
-        {
-          "name": "criteria",
-          "title": "Text",
-          "type": {
-            "kind": "stringSearchCriteria"
-          },
-          "description": "Term to search for."
-        }
-      ],
-      "opensApp": true,
-      "protocols": [
-        "search"
-      ]
-    },
     "updateEntry": {
       "title": "Update Journal",
       "description": "Updates journal entry.",
@@ -276,5 +254,8 @@
         "delete"
       ]
     }
+  },
+  "skipped": {
+    "search": "deprecated: Use .system.searchInApp instead"
   }
 }

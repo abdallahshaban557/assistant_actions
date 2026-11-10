@@ -252,12 +252,20 @@
   "enums": {
     "listType": {
       "title": "List Type",
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
       "cases": [
         "standard"
       ]
     },
     "locationTriggerEvent": {
       "title": "Location Trigger Event",
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
       "cases": [
         "arrive",
         "depart"

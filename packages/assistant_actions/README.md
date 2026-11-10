@@ -78,14 +78,14 @@ compile error:
 import 'package:assistant_actions/schemas/reminders.dart';
 
 @RemindersReminder(
-  list: FixedList(id: 'tasks', name: 'Tasks'),   // required by reminders.reminder
+  list: FixedRemindersList(id: 'tasks', name: 'Tasks'),   // required by reminders.reminder
   createReminder: true, updateReminder: true, deleteReminders: true,
 )
 class TaskItem {
   @EntityId() final String id;
-  @ReminderField.title String title;
-  @ReminderField.dueDate DateTime? due;
-  @ReminderField.isCompleted bool done;
+  @RemindersReminderField.title String title;
+  @RemindersReminderField.dueDate DateTime? due;
+  @RemindersReminderField.isCompleted bool done;
 }
 ```
 
@@ -103,7 +103,36 @@ class TaskHandler implements TaskItemAssistantHandler {
 }
 ```
 
-Available now: `reminders`, `notes` and `journal`.
+Available now: all 23 domains the SDK defines publicly, including
+`reminders`, `notes`, `journal`, `calendar`, `clock`, `camera`, `mail`,
+`photos`, `browser`, `books`, `presentation` and `system`. See
+[doc/schemas.md](doc/schemas.md) for what each one supports and the gaps.
+Names carry their domain (`RemindersReminderField`, `FixedRemindersList`), so
+libraries of several domains import together; reminders and notes keep their
+older names (`ReminderField`, `FixedList`, …) as aliases.
+
+Beyond creating, updating and deleting items:
+
+- **Other intents call a handler method** named after the intent, with its
+  parameters as Dart values (`pauseTimer({required String timer})`). Entities
+  arrive as ids. Intents that open the app or return an item run live; the
+  rest are queued, like `Runs.deferred`, and run when the app next does. One
+  that returns an item gets its id back from Dart: publish the item first.
+- **Intents of no entity** (`camera.startCapture`, `system.searchInApp`) go on
+  the domain's annotation, on the class implementing its handler:
+
+  ```dart
+  @CameraIntents(startCapture: true, stopCapture: true)
+  class CameraHandler implements CameraAssistantHandler { ... }
+  ```
+
+  `@SystemIntents(open: true)` gives every entity an `open<Class>(id)` method
+  for "open … in App", unless its own domain has an open intent.
+- **Schema enums** are Dart enums (`ClockTimerState`). Some, such as
+  `camera.captureMode`, leave their cases to the app: annotate your own enum,
+  `@CameraCaptureMode() enum CaptureMode { photo, video }`.
+- **Members that are other entities** map to ids of an entity the app also
+  adopts: `@WordProcessorPageField.document String documentId;`.
 
 ### Journal entries and audio recording
 
@@ -117,9 +146,9 @@ import 'package:assistant_actions/schemas/journal.dart';
 @JournalEntry(createEntry: true, updateEntry: true, deleteEntry: true, createAudioEntry: true)
 class JournalItem {
   @EntityId() final String id;
-  @EntryField.title String? title;
-  @EntryField.message String text;
-  @EntryField.entryDate DateTime? date;
+  @JournalEntryField.title String? title;
+  @JournalEntryField.message String text;
+  @JournalEntryField.entryDate DateTime? date;
 }
 ```
 
@@ -134,8 +163,9 @@ recording continues in the background, or the system stops it.
 
 Not mapped yet: `mediaItems` (files) and `location` (`PlaceDescriptor`) have no
 Dart field type. Generated entries declare them empty, and Siri's values for
-them are dropped. `journal.search` (open the app on search results) isn't
-adopted; Siri searches entries through the generated entity queries instead.
+them are dropped. `journal.search` is deprecated in favour of
+`system.searchInApp` (`@SystemIntents(searchInApp: true)`), so it isn't
+offered.
 The journal schemas date from iOS 18, but `location`'s `PlaceDescriptor`
 needs iOS / macOS 26, so the generated journal types are available from 26.
 

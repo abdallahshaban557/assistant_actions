@@ -2,6 +2,7 @@ import 'package:source_gen/source_gen.dart';
 
 import 'catalog.dart';
 import 'model.dart';
+import 'schema_calls.dart';
 
 /// Writes `AssistantActions.g.swift`, compiled into the generated
 /// `assistant_actions_app` plugin.
@@ -10,7 +11,8 @@ class SwiftWriter {
 
   final AppModel app;
   final _out = StringBuffer();
-  var _usesPlaces = false;
+  /// Frameworks the schema types need: GeoToolbox for `PlaceDescriptor`, ….
+  final _imports = <String>{};
 
   /// Schema id → the app class adopting it.
   late final Map<String, SchemaEntityModel> _adopted = {for (final s in app.schemaEntities) s.schema.id: s};
@@ -34,7 +36,7 @@ class SwiftWriter {
     for (final a in app.snapshotActions) {
       _snapshotAction(a);
     }
-    if (app.schemaEntities.isNotEmpty) _schemas();
+    if (app.schemaEntities.isNotEmpty || app.schemaDomains.isNotEmpty) _schemas();
     _spotlight();
     body.write(_out);
 
@@ -45,7 +47,11 @@ class SwiftWriter {
       'import AppIntents',
       'import CoreSpotlight',
       'import Foundation',
-      if (_usesPlaces) 'import GeoToolbox',
+      for (final framework in _imports.toList()..sort())
+        if (_optionalFrameworks.contains(framework))
+          '#if canImport($framework)\n  import $framework\n#endif'
+        else
+          'import $framework',
       'import assistant_actions',
       '',
       '#if os(iOS)',
@@ -143,7 +149,7 @@ ${_propertyQuery(name, [const _Queryable('title', 'Title', 'string', optional: f
               ValueKind.decimal => 'double',
               ValueKind.boolean => 'bool',
               ValueKind.dateTime => 'date',
-              ValueKind.uri => null,
+              ValueKind.uri || ValueKind.duration || ValueKind.enumeration || ValueKind.entityId => null,
             }
             case final kind?)
           _Queryable(
@@ -477,24 +483,31 @@ extension ${e.swiftName}: IndexedEntity {
   // ── App Schemas ───────────────────────────────────────────────────────
 
   void _schemas() {
-    // Every entity and enum schema the adopted entities and their intents
-    // reach, so each gets a Swift type.
+    // Every entity, enum and union schema the adopted entities and the
+    // turned-on intents reach, so each gets a Swift type.
     final entities = <String>{};
     final enums = <String>{};
+    final unions = <String>{};
     void visitType(SchemaType t) {
       switch (t.kind) {
         case 'optional' || 'array' || 'set':
           visitType(t.of!);
         case 'entity':
-          if (entities.add(t.ref!)) {
+          if (t.ref != null && entities.add(t.ref!)) {
             for (final p in _entitySchema(t.ref!).properties) {
               visitType(p.type);
             }
           }
-        case 'enum':
+        case 'enum' || 'openEnum':
           enums.add(t.ref!);
-        case 'placeDescriptor':
-          _usesPlaces = true;
+        case 'union':
+          if (unions.add(t.ref!)) {
+            for (final c in _unionSchema(t.ref!).cases) {
+              visitType(c.type);
+            }
+          }
+        default:
+          if (_frameworks[t.kind] case final framework?) _imports.add(framework);
       }
     }
 
@@ -506,9 +519,19 @@ extension ${e.swiftName}: IndexedEntity {
         }
       }
     }
+    for (final d in app.schemaDomains) {
+      for (final intent in d.intents) {
+        for (final p in intent.parameters) {
+          visitType(p.type);
+        }
+      }
+    }
 
     for (final id in enums) {
       _enum(_enumSchema(id));
+    }
+    for (final id in unions) {
+      _union(_unionSchema(id));
     }
     for (final id in entities) {
       if (_adopted[id] case final s?) {
@@ -522,40 +545,112 @@ extension ${e.swiftName}: IndexedEntity {
         _schemaIntent(s, intent, kind);
       }
     }
+    for (final d in app.schemaDomains) {
+      for (final intent in d.intents) {
+        if (intent.id == 'system.open') {
+          _openIntents(d, intent);
+        } else {
+          _callIntent(null, intent, d.handler);
+        }
+      }
+    }
   }
+
+  /// Frameworks some platforms lack (VisualIntelligence isn't in the iOS
+  /// simulator SDK): intents that need them are left out there.
+  static const _optionalFrameworks = {'VisualIntelligence'};
+
+  /// The optional framework [intent]'s types need, if any.
+  String? _optionalFramework(IntentSchema intent) {
+    for (final p in intent.parameters) {
+      if (_frameworks[p.type.element.kind] case final f? when _optionalFrameworks.contains(f)) return f;
+    }
+    return null;
+  }
+
+  /// Frameworks to import for schema value types.
+  static const _frameworks = {
+    'placeDescriptor': 'GeoToolbox',
+    'linkMetadata': 'LinkPresentation',
+    'sceneDescriptor': 'VisualIntelligence',
+  };
+
+  Iterable<DomainCatalog> get _allCatalogs => [...app.catalogs.values, for (final s in app.schemaEntities) s.catalog];
 
   EntitySchema _entitySchema(String id) {
-    for (final s in app.schemaEntities) {
-      if (s.catalog.entities[id] case final e?) return e;
+    for (final c in _allCatalogs) {
+      if (c.entities[id] case final e?) return e;
     }
     throw InvalidGenerationSourceError('$id is referenced but its domain catalog is not loaded.');
   }
 
+  /// The enum schema [id], with the app's cases for one whose cases the app
+  /// defines.
   EnumSchema _enumSchema(String id) {
-    for (final s in app.schemaEntities) {
-      if (s.catalog.enums[id] case final e?) return e;
+    for (final c in _allCatalogs) {
+      if (c.enums[id] case final e?) {
+        if (e.cases.isNotEmpty) return e;
+        // The app's cases; or, for one only reached through members Dart never
+        // fills (the reader requires the app's enum for mapped fields and
+        // parameters), a placeholder so the Swift type exists.
+        final cases = app.openEnums[id]?.schemaCases;
+        return EnumSchema(
+            id: id,
+            title: e.title,
+            cases: cases == null || cases.isEmpty ? const ['unspecified'] : cases,
+            availability: e.availability);
+      }
     }
     throw InvalidGenerationSourceError('$id is referenced but its domain catalog is not loaded.');
   }
 
-  String _availability(Map<String, num> availability) {
-    final (iOS, macOS) = _versions(availability);
-    return '@available(iOS $iOS.0, macOS $macOS.0, *)';
+  UnionSchema _unionSchema(String id) {
+    for (final c in _allCatalogs) {
+      if (c.unions[id] case final u?) return u;
+    }
+    throw InvalidGenerationSourceError('$id is referenced but its domain catalog is not loaded.');
   }
 
-  (int, int) _versions(Map<String, num> availability) =>
-      ((availability['iOS'] ?? 27).toInt(), (availability['macOS'] ?? 27).toInt());
+  /// `@available(...)`: a platform missing from a catalog that names the
+  /// other is unavailable there (`assistant.activate` is iOS-only).
+  String _availability(Map<String, num> availability) {
+    final a = _norm(availability);
+    final iOS = a['iOS']!, macOS = a['macOS']!;
+    if (macOS.isInfinite) return '@available(iOS ${_version(iOS)}, *)\n@available(macOS, unavailable)';
+    if (iOS.isInfinite) return '@available(macOS ${_version(macOS)}, *)\n@available(iOS, unavailable)';
+    return '@available(iOS ${_version(iOS)}, macOS ${_version(macOS)}, *)';
+  }
+
+  /// `27` → `27.0`, `26.2` → `26.2`.
+  static String _version(num v) => v == v.truncate() ? '${v.toInt()}.0' : '$v';
+
+  (num, num) _versions(Map<String, num> availability) {
+    final a = _norm(availability);
+    return (a['iOS']!, a['macOS']!);
+  }
+
+  /// Fills in platforms: none given means 27 (the first SDK with schemas
+  /// whose catalog leaves it out); one given means the other is unavailable.
+  static Map<String, num> _norm(Map<String, num> a) {
+    if (a['iOS'] == null && a['macOS'] == null) return const {'iOS': 27, 'macOS': 27};
+    return {'iOS': a['iOS'] ?? double.infinity, 'macOS': a['macOS'] ?? double.infinity};
+  }
 
   /// The OS versions Swift types need beyond what Apple's catalog says: the
   /// journal schemas date from iOS 18, but `PlaceDescriptor` is iOS 26.
   static const _typeFloors = {
     'placeDescriptor': {'iOS': 26, 'macOS': 26},
+    'sceneDescriptor': {'iOS': 26, 'macOS': 27},
+    // `AppUnionValue`.
+    'union': {'iOS': 27, 'macOS': 27},
   };
 
-  static Map<String, num> _max(Map<String, num> a, Map<String, num> b) => {
-        for (final platform in ['iOS', 'macOS'])
-          platform: [a[platform] ?? 27, b[platform] ?? 27].reduce((x, y) => x > y ? x : y),
-      };
+  static Map<String, num> _max(Map<String, num> a, Map<String, num> b) {
+    final x = _norm(a), y = _norm(b);
+    return {
+      for (final platform in ['iOS', 'macOS']) platform: x[platform]! > y[platform]! ? x[platform]! : y[platform]!,
+    };
+  }
 
   /// The earliest OS that has [entity]'s Swift type and every type its
   /// members use.
@@ -571,9 +666,39 @@ extension ${e.swiftName}: IndexedEntity {
     const none = {'iOS': 0, 'macOS': 0};
     return switch (t.kind) {
       'optional' || 'array' || 'set' => _typeFloor(t.of!, seen),
-      'entity' when !seen.contains(t.ref) => _entityFloor(_entitySchema(t.ref!), seen),
+      'entity' when t.ref != null && !seen.contains(t.ref) => _entityFloor(_entitySchema(t.ref!), seen),
+      'enum' || 'openEnum' => _enumSchema(t.ref!).availability.isEmpty ? none : _enumSchema(t.ref!).availability,
+      'union' when !seen.contains(t.ref) => _unionFloor(_unionSchema(t.ref!), {...seen, t.ref!}),
       _ => _typeFloors[t.kind] ?? none,
     };
+  }
+
+  Map<String, num> _unionFloor(UnionSchema u, Set<String> seen) {
+    var floor = _max(_typeFloors['union']!, u.availability);
+    for (final c in u.cases) {
+      floor = _max(floor, _typeFloor(c.type, seen));
+    }
+    return floor;
+  }
+
+  String _unionName(String id) {
+    final [domain, name] = id.split('.');
+    return '${pascal(domain)}${pascal(name)}Union';
+  }
+
+  /// A schema union as a Swift `@UnionValue` enum, one case per type.
+  void _union(UnionSchema u) {
+    _out
+      ..writeln('/// `${u.id}` ("${_escape(u.title)}"): one of ${u.cases.map((c) => c.name).join(', ')}.')
+      ..writeln(_availability(_unionFloor(u, {u.id})))
+      ..writeln('@UnionValue')
+      ..writeln('enum ${_unionName(u.id)} {');
+    for (final c in u.cases) {
+      _out.writeln('  case ${swiftName(c.name)}(${_swiftType(c.type)})');
+    }
+    _out
+      ..writeln('}')
+      ..writeln();
   }
 
   /// The earliest OS for [intent]: its catalog availability, its parameters'
@@ -601,8 +726,10 @@ extension ${e.swiftName}: IndexedEntity {
         'optional' => '${_swiftType(t.of!)}?',
         'array' => '[${_swiftType(t.of!)}]',
         'set' => 'Set<${_swiftType(t.of!)}>',
+        'entity' when t.ref == null =>
+          throw InvalidGenerationSourceError('An "any entity" member needs a concrete entity type.'),
         'entity' => _adopted[t.ref]?.swiftName ?? _containerName(t.ref!),
-        'enum' => _enumName(t.ref!),
+        'enum' || 'openEnum' => _enumName(t.ref!),
         'string' => 'String',
         'attributedString' => 'AttributedString',
         'bool' => 'Bool',
@@ -614,12 +741,29 @@ extension ${e.swiftName}: IndexedEntity {
         'file' => 'IntentFile',
         'recurrenceRule' => 'Calendar.RecurrenceRule',
         'placeDescriptor' => 'PlaceDescriptor',
+        'duration' => 'Duration',
+        'person' => 'IntentPerson',
+        'stringSearchCriteria' => 'StringSearchCriteria',
+        'linkMetadata' => 'LPLinkMetadata',
+        'sceneDescriptor' => 'SemanticContentDescriptor',
+        'union' => _unionName(t.ref!),
         _ => throw InvalidGenerationSourceError(
             'Schema type "${t.kind}" is not supported by this version of assistant_actions yet.'),
       };
 
   /// Swift expression decoding [value] (an `Any?`) for a member of type [t].
-  String _decode(SchemaType t, String value, EntitySchema owner) {
+  /// Entity references look the item up when [resolve] (a Swift Bool) is true.
+  String _decode(SchemaType t, String value, EntitySchema owner, {String resolve = 'true'}) {
+    final base = t.base;
+    if (base.kind == 'entity' || (base.isList && base.of!.base.kind == 'entity')) {
+      final target = _adopted[base.kind == 'entity' ? base.ref : base.of!.base.ref]!.swiftName;
+      final lookup = '{ $target.reference(\$0, resolve: $resolve) }';
+      if (base.kind == 'entity') {
+        final one = 'AssistantValues.string($value).map $lookup';
+        return t.isOptional ? one : '$one ?? $target.reference("", resolve: false)';
+      }
+      return t.isOptional ? 'AssistantValues.strings($value)?.map $lookup' : '(AssistantValues.strings($value) ?? []).map $lookup';
+    }
     final decoder = switch (t.base.kind) {
       'string' => 'AssistantValues.string($value)',
       'attributedString' => 'AssistantValues.attributed($value)',
@@ -629,18 +773,47 @@ extension ${e.swiftName}: IndexedEntity {
       'date' => 'AssistantValues.date($value)',
       'dateComponents' => 'AssistantValues.dateComponents($value)',
       'url' => 'AssistantValues.url($value)',
+      'duration' => 'AssistantValues.duration($value)',
+      'enum' || 'openEnum' => 'AssistantValues.string($value).flatMap(${_enumName(t.base.ref!)}.init(rawValue:))',
       _ => throw StateError('Cannot decode ${t.kind}'),
     };
-    return t.isOptional ? decoder : '$decoder ?? ${_default(t, owner, null)}';
+    return t.isOptional ? decoder : '$decoder ?? ${_fallback(t, owner)}';
+  }
+
+  /// What a mapped required member is when Dart sent nothing for it (an item
+  /// Siri created that Dart hasn't published yet).
+  String _fallback(SchemaType t, EntitySchema owner) => switch (t.kind) {
+        'date' => 'Date(timeIntervalSince1970: 0)',
+        'dateComponents' => 'DateComponents()',
+        'int' => '0',
+        'double' => '0',
+        'url' => 'URL(fileURLWithPath: "/")',
+        'duration' => '.zero',
+        _ => _default(t, owner, null),
+      };
+
+  /// Swift expression encoding member-typed parameter [p] (or [expr], a
+  /// value of its type) for Dart: entities as their ids.
+  String _encodeMember(SchemaMember p, [String? expr]) {
+    final n = expr ?? swiftName(p.name);
+    final optional = expr == null && p.type.isOptional;
+    final t = p.type.base;
+    if (t.kind == 'entity') return optional ? 'AssistantValues.encode($n?.id)' : '$n.id';
+    if (t.isList && t.of!.base.kind == 'entity') {
+      return optional ? 'AssistantValues.encode($n?.map(\\.id))' : '$n.map(\\.id)';
+    }
+    return 'AssistantValues.encode($n)';
   }
 
   /// The value an unmapped member of type [t] gets.
   String _default(SchemaType t, EntitySchema owner, FixedInstance? fixed) {
-    if (t.kind == 'entity' && fixed != null) return '${_swiftType(t)}.fixed';
+    // A fixed container the app also adopts is the adopted item with its id.
+    String fixedValue(SchemaType e) => _adopted.containsKey(e.ref)
+        ? '${_swiftType(e)}.reference("${_escape(fixed!.id)}", resolve: true)'
+        : '${_swiftType(e)}.fixed';
+    if (t.kind == 'entity' && fixed != null) return fixedValue(t);
     if (t.isOptional) {
-      if (t.base.kind == 'entity' && t.base.ref != owner.id && fixed != null) {
-        return '${_swiftType(t.base)}.fixed';
-      }
+      if (t.base.kind == 'entity' && t.base.ref != owner.id && fixed != null) return fixedValue(t.base);
       return 'nil';
     }
     return switch (t.kind) {
@@ -648,7 +821,7 @@ extension ${e.swiftName}: IndexedEntity {
       'bool' => 'false',
       'string' => '""',
       'attributedString' => 'AttributedString("")',
-      'enum' => '.${_enumSchema(t.ref!).cases.first}',
+      'enum' || 'openEnum' => '.${swiftName(_enumSchema(t.ref!).cases.first)}',
       _ => throw InvalidGenerationSourceError('${owner.id}: no default for a required ${t.kind}.'),
     };
   }
@@ -668,17 +841,17 @@ extension ${e.swiftName}: IndexedEntity {
   void _enum(EnumSchema e) {
     final name = _enumName(e.id);
     _out
-      ..writeln(_availability({}))
+      ..writeln(_availability(e.availability))
       ..writeln('@AppEnum(schema: .${e.id})')
       ..writeln('enum $name: String {');
     for (final c in e.cases) {
-      _out.writeln('  case $c');
+      _out.writeln('  case ${swiftName(c)}');
     }
     _out
       ..writeln()
       ..writeln('  static let caseDisplayRepresentations: [$name: DisplayRepresentation] = [');
     for (final c in e.cases) {
-      _out.writeln('    .$c: "${pascal(c)}",');
+      _out.writeln('    .${swiftName(c)}: "${_escape(_words(c))}",');
     }
     _out
       ..writeln('  ]')
@@ -781,22 +954,32 @@ struct ${name}Query: EntityStringQuery {
       ..writeln('  var displayRepresentation: DisplayRepresentation {'
           ' DisplayRepresentation(title: "\\(${_titleExpr(schema, '')})") }')
       ..writeln()
-      ..writeln('  init(record: AssistantRecord) {')
+      ..writeln('  init(record: AssistantRecord) { self.init(record: record, resolve: true) }')
+      ..writeln()
+      ..writeln('  /// [resolve] looks referenced items up in the snapshot. They get')
+      ..writeln('  /// `resolve: false`, so references only go one level deep and cycles end.')
+      ..writeln('  init(record: AssistantRecord, resolve: Bool) {')
       ..writeln('    id = record.id');
     for (final p in schema.properties) {
       final field = s.mapping[p.name];
       final value = field != null
-          ? _decode(p.type, 'record.fields["${field.name}"]', schema)
+          ? _decode(p.type, 'record.fields["${field.name}"]', schema, resolve: 'resolve')
           : _default(p.type, schema, s.containers[p.name]);
       _out.writeln('    ${p.name} = $value');
     }
     final collection = s.collection;
     _out.writeln('''
   }
+
+  /// The item with [id], from the snapshot when [resolve], else just its id.
+  static func reference(_ id: String, resolve: Bool) -> $name {
+    let record = resolve ? AssistantSnapshot.records("$collection").first { \$0.id == id } : nil
+    return $name(record: record ?? AssistantRecord(id: id, title: "", fields: [:]), resolve: false)
+  }
 }
 
 ${_availability(_entityFloor(schema))}
-struct ${name}Query: EntityStringQuery, EnumerableEntityQuery${queryables.isEmpty ? '' : ', EntityPropertyQuery'} {
+struct ${name}Query: ${schema.protocols.contains('unique') ? 'UniqueAppEntityQuery, ' : ''}EntityStringQuery, EnumerableEntityQuery${queryables.isEmpty ? '' : ', EntityPropertyQuery'} {
   /// Words that only name the type, schema or app, so they never narrow a search.
   static let typeWords: Set<String> = ${_typeWords([s.className, schema.title, schema.name, schema.domain])}
 
@@ -813,7 +996,12 @@ struct ${name}Query: EntityStringQuery, EnumerableEntityQuery${queryables.isEmpt
   }
 
   func suggestedEntities() async throws -> [$name] { Array(all().prefix(20)) }
-
+${schema.protocols.contains('unique') ? '''
+  /// The one item (`UniqueAppEntity`): the first published.
+  func uniqueEntity() async throws -> $name {
+    all().first ?? $name(record: AssistantRecord(id: "${schema.name}", title: "", fields: [:]))
+  }
+''' : ''}
   /// Everything published, plus Siri's pending changes, for general requests
   /// like "do I have any ${schema.name}s".
   func allEntities() async throws -> [$name] { all() }
@@ -837,11 +1025,17 @@ ${queryables.isEmpty ? '' : '\n${_propertyQuery(name, queryables, 'all()')}'}}
 
   void _schemaIntent(SchemaEntityModel s, IntentSchema intent, IntentKind kind) {
     if (kind == IntentKind.record) return _recordIntent(s, intent);
+    if (kind == IntentKind.call) return _callIntent(s, intent, '${s.className}AssistantHandler');
     final entity = s.swiftName;
     final returnsEntity = intent.result?.base.kind == 'entity' && intent.result!.base.ref == s.schema.id;
+    // `valueState` (clearing a field) is iOS 18.2 / macOS 15.2.
+    final clears = kind == IntentKind.update &&
+        intent.parameters.any((p) =>
+            p.name != 'target' && p.type.isOptional && (s.mapping[p.name]?.type.nullable ?? false));
+    final clearFloor = clears ? const {'iOS': 18.2, 'macOS': 15.2} : const <String, num>{'iOS': 0, 'macOS': 0};
     _out
       ..writeln('/// `${intent.id}` → ${kind.name}s `${s.className}` items through the inbox.')
-      ..writeln(_availability(_max(_intentFloor(intent), _entityFloor(s.schema))))
+      ..writeln(_availability(_max(_max(_intentFloor(intent), _entityFloor(s.schema)), clearFloor)))
       ..writeln('@AppIntent(schema: .${intent.id})')
       ..writeln('struct ${s.className}${pascal(intent.name)}Intent {');
     for (final p in intent.parameters) {
@@ -861,7 +1055,7 @@ ${queryables.isEmpty ? '' : '\n${_propertyQuery(name, queryables, 'all()')}'}}
 
     switch (kind) {
       case IntentKind.create:
-        _out.writeln('    var fields: [String: Any] = [:]');
+        _out.writeln('    ${byField.isEmpty ? 'let' : 'var'} fields: [String: Any] = [:]');
         for (final MapEntry(key: field, value: params) in byField.entries) {
           _out.writeln('    fields["$field"] = ${_encodeParams(params, s)}');
         }
@@ -876,7 +1070,7 @@ ${queryables.isEmpty ? '' : '\n${_propertyQuery(name, queryables, 'all()')}'}}
             params.single.type.isOptional &&
             s.mapping[params.single.name]!.type.nullable;
         _out
-          ..writeln('    var fields: [String: Any] = [:]')
+          ..writeln('    ${byField.isEmpty ? 'let' : 'var'} fields: [String: Any] = [:]')
           // Only intents that can clear a field append to `cleared`.
           ..writeln(byField.values.any(clearable)
               ? '    var cleared: [String] = []'
@@ -888,7 +1082,7 @@ ${queryables.isEmpty ? '' : '\n${_propertyQuery(name, queryables, 'all()')}'}}
             _out.writeln('''
     switch \$$p.valueState {
     case .unset: break
-    case .set(let value?): fields["$field"] = AssistantValues.encode(value)
+    case .set(let value?): fields["$field"] = ${_encodeMember(params.single, 'value')}
     case .set(nil): cleared.append("$field")
     @unknown default: break
     }''');
@@ -928,8 +1122,8 @@ ${queryables.isEmpty ? '' : '\n${_propertyQuery(name, queryables, 'all()')}'}}
           _out.writeln('    }');
         }
         _out.writeln('    return .result(value: updated)');
-      case IntentKind.record:
-        throw StateError('handled by _recordIntent');
+      case IntentKind.record || IntentKind.call:
+        throw StateError('handled by _recordIntent / _callIntent');
       case IntentKind.delete:
         _out.writeln('''
     for item in entities {
@@ -974,14 +1168,147 @@ struct ${s.className}${pascal(intent.name)}Intent: ForegroundContinuableIntent {
 ''');
   }
 
+  /// The iOS / macOS lines that bring the app forward for a live call:
+  /// Flutter on iOS needs a scene; macOS answers in place, and activates only
+  /// for intents that open the app.
+  String _foreground({required bool activateOnMac}) => [
+        '    #if os(iOS)',
+        '      if UIApplication.shared.applicationState != .active {',
+        '        try await requestToContinueInForeground()',
+        '      }',
+        if (activateOnMac) ...['    #elseif os(macOS)', '      NSApplication.shared.activate()'],
+        '    #endif',
+      ].join('\n');
+
+  /// Swift expression encoding parameter [a] for Dart.
+  String _encodeArg(CallArg a) {
+    final n = swiftName(a.member.name);
+    String one(String v) => switch ((a.shape, a.element.kind)) {
+          (ArgShape.entity, _) => '$v.id',
+          (_, 'stringSearchCriteria') => '$v.term',
+          _ => 'AssistantValues.encode($v)',
+        };
+    if (a.list) {
+      final map = a.shape == ArgShape.entity ? '.map(\\.id)' : '.map { ${one(r'$0')} }';
+      return a.optional ? '$n.map { \$0$map as Any } ?? NSNull()' : '$n$map';
+    }
+    if (a.optional) {
+      return switch ((a.shape, a.element.kind)) {
+        (ArgShape.entity, _) => 'AssistantValues.encode($n?.id)',
+        (_, 'stringSearchCriteria') => 'AssistantValues.encode($n?.term)',
+        _ => 'AssistantValues.encode($n)',
+      };
+    }
+    return one(n);
+  }
+
+  /// A schema intent that calls a Dart handler method with its parameters
+  /// (a [IntentKind.call]): live when [IntentSchema.isLive], else queued in
+  /// the inbox like a `Runs.deferred` action.
+  void _callIntent(SchemaEntityModel? owner, IntentSchema intent, String handler) {
+    final method = callMethod(intent, owner?.schema);
+    final id = callActionId(owner, intent);
+    final name = '${owner?.className ?? pascal(intent.domain)}${pascal(intent.name)}Intent';
+    final live = intent.isLive;
+    final result = resultEntity(intent);
+    final resultType = result == null ? null : _adopted[result]!.swiftName;
+    final returns = switch (callResult(intent)) {
+      CallResult.entity => 'ReturnsValue<$resultType>',
+      CallResult.entities => 'ReturnsValue<[$resultType]>',
+      _ => 'IntentResult',
+    };
+    final floor = _max(_intentFloor(intent), owner == null ? const {'iOS': 0, 'macOS': 0} : _entityFloor(owner.schema));
+    // From iOS 26 an intent that opens the app declares it (`supportedModes`),
+    // and the system brings the app forward before `perform`.
+    final modes = live && intent.opensApp && _norm(floor)['iOS']! >= 26;
+    final args = [
+      for (final p in intent.parameters)
+        if (callArg(p) case final a?) '      "${p.name}": ${_encodeArg(a)},',
+    ];
+    final dropped = droppedArgs(intent);
+    final framework = _optionalFramework(intent);
+    if (framework != null) _out.writeln('#if canImport($framework)');
+    _out.writeln('/// `${intent.id}` → ${live ? 'calls' : 'queues a call to'} `$method` on `$handler`'
+        '${live ? '' : ', applied when the app next runs'}.');
+    if (dropped.isNotEmpty) _out.writeln('/// Not passed to Dart: ${dropped.map((p) => p.name).join(', ')}.');
+    _out
+      ..writeln(_availability(floor))
+      ..writeln('@AppIntent(schema: .${intent.id})')
+      ..writeln('struct $name${live && !modes ? ': ForegroundContinuableIntent' : ''} {');
+    if (modes) _out.writeln('  static let supportedModes: IntentModes = .foreground\n');
+    for (final p in intent.parameters) {
+      _out.writeln('  var ${swiftName(p.name)}: ${_swiftType(p.type)}');
+    }
+    if (intent.parameters.isNotEmpty) _out.writeln();
+    _out
+      ..writeln('  @MainActor')
+      ..writeln('  func perform() async throws -> some $returns {')
+      ..writeln(args.isEmpty ? '    let args: [String: Any] = [:]' : '    let args: [String: Any] = [\n${args.join('\n')}\n    ]');
+    if (!live) {
+      _out
+        ..writeln('    AssistantInbox.call("$id", args: args)')
+        ..writeln('    AssistantBridge.shared.inboxChanged()')
+        ..writeln('    return .result()');
+    } else {
+      if (!modes) _out.writeln(_foreground(activateOnMac: intent.opensApp));
+      _out.writeln('    ${result == null ? '_' : 'let reply'} = try await AssistantBridge.shared.perform("$id", args: args)');
+      switch (callResult(intent)) {
+        case CallResult.entity:
+          _out
+            ..writeln('    guard let id = reply, let value = try await ${resultType}Query().entities(for: [id]).first else {')
+            ..writeln('      throw AssistantActionError.failed("$method returned no ${_escape(result!)} item")')
+            ..writeln('    }')
+            ..writeln('    return .result(value: value)');
+        case CallResult.entities:
+          _out
+            ..writeln('    let ids = AssistantValues.stringList(reply)')
+            ..writeln('    return .result(value: try await ${resultType}Query().entities(for: ids))');
+        default:
+          _out.writeln('    return .result()');
+      }
+    }
+    _out
+      ..writeln('  }')
+      ..writeln('}');
+    if (framework != null) _out.writeln('#endif');
+    _out.writeln();
+  }
+
+  /// `system.open`, once per adopted entity: Siri opens an item in the app,
+  /// which `open<Class>(id)` shows.
+  void _openIntents(SchemaDomainModel d, IntentSchema intent) {
+    final targets = [
+      for (final s in app.schemaEntities)
+        if (!s.hasOwnOpen) (s.className, s.swiftName, _max(intent.availability, _entityFloor(s.schema))),
+      for (final e in app.entities) (e.className, e.swiftName, _max(intent.availability, const {'iOS': 18, 'macOS': 15})),
+    ];
+    for (final (className, swift, floor) in targets) {
+      _out.writeln('''
+/// `system.open` for `$className` → calls `open$className(id)` on `${d.handler}`.
+${_availability(floor)}
+@AppIntent(schema: .system.open)
+struct Open${className}Intent: ForegroundContinuableIntent {
+  var target: $swift
+
+  @MainActor
+  func perform() async throws -> some IntentResult {
+${_foreground(activateOnMac: true)}
+    _ = try await AssistantBridge.shared.perform("system.open.$className", args: ["id": target.id])
+    return .result()
+  }
+}
+''');
+    }
+  }
+
   /// Encodes the parameters that set one Dart field. Several string
   /// parameters (a note's name and content) are joined.
   String _encodeParams(List<SchemaMember> params, SchemaEntityModel s) {
-    if (params.length == 1) return 'AssistantValues.encode(${params.single.name})';
+    if (params.length == 1) return _encodeMember(params.single);
     if (s.mapping[params.first.name]!.type.kind == ValueKind.string) {
       return 'AssistantValues.encodeJoined([${params.map((p) => 'AssistantValues.encode(${p.name})').join(', ')}])';
     }
-    return 'AssistantValues.encode(${params.first.name})';
+    return _encodeMember(params.first);
   }
 
   static String _escape(String s) => s.replaceAll(r'\', r'\\').replaceAll('"', r'\"').replaceAll('\n', r'\n');

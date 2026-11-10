@@ -37,3 +37,24 @@ abstract class SchemaContainer {
   /// A stable id for the instance.
   final String id;
 }
+
+/// An annotation giving the cases of a schema enum whose cases the app
+/// defines, such as `@CameraCaptureMode()` on
+/// `enum CaptureMode { photo, video }`. Each Dart case becomes one case of
+/// the schema enum, by name.
+abstract class SchemaEnumCases {
+  const SchemaEnumCases(this.schema);
+
+  /// The schema enum, such as `camera.captureMode`.
+  final String schema;
+}
+
+/// An annotation that turns on a domain's App Schema intents that belong to
+/// no entity, such as `@CameraIntents(startCapture: true)`. Put it on the
+/// class implementing the generated handler (`CameraAssistantHandler`).
+abstract class SchemaIntents {
+  const SchemaIntents(this.domain);
+
+  /// The schema domain, such as `camera`.
+  final String domain;
+}

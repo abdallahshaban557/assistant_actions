@@ -16,7 +16,30 @@ public enum AssistantValues {
 
   public static func encode(_ url: URL?) -> Any { url?.absoluteString ?? NSNull() }
 
+  /// Seconds.
+  public static func encode(_ duration: Duration?) -> Any {
+    duration.map { Double($0.components.seconds) + Double($0.components.attoseconds) / 1e18 } ?? NSNull()
+  }
+
+  /// A schema enum, by its case name.
+  public static func encode<E: RawRepresentable>(_ value: E?) -> Any where E.RawValue == String {
+    value?.rawValue ?? NSNull()
+  }
+
   public static func encode<T>(_ value: T?) -> Any { value ?? NSNull() }
+
+  public static func duration(_ value: Any?) -> Duration? {
+    (value as? Double).map { Duration.milliseconds(Int64(($0 * 1000).rounded())) }
+      ?? (value as? Int).map { Duration.seconds($0) }
+  }
+
+  /// The ids a Dart handler returned, as a JSON array.
+  public static func stringList(_ reply: String?) -> [String] {
+    guard let data = reply?.data(using: .utf8),
+      let list = try? JSONSerialization.jsonObject(with: data) as? [Any]
+    else { return [] }
+    return list.compactMap { $0 as? String }
+  }
 
   public static func date(_ value: Any?) -> Date? {
     (value as? Double).map(Date.init(timeIntervalSince1970:))
@@ -35,6 +58,9 @@ public enum AssistantValues {
   }
 
   public static func string(_ value: Any?) -> String? { value as? String }
+
+  /// Ids of referenced items.
+  public static func strings(_ value: Any?) -> [String]? { (value as? [Any])?.compactMap { $0 as? String } }
 
   public static func attributed(_ value: Any?) -> AttributedString? {
     (value as? String).map { AttributedString($0) }

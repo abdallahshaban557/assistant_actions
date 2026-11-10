@@ -6,34 +6,62 @@
 ///
 /// Annotate a class with an entity annotation, such as
 /// `@RemindersGroup(...)`, and its fields with
-/// `@GroupField.<member>`.
+/// `@RemindersGroupField.<member>`.
 library;
 
 import '../src/schema.dart';
+
+/// `reminders.listType` ("List Type").
+enum RemindersListType {
+  standard,
+}
+
+/// `reminders.locationTriggerEvent` ("Location Trigger Event").
+enum RemindersLocationTriggerEvent {
+  arrive,
+  depart,
+}
 
 // ──────────────────────────────────────────────────────────────────────
 // reminders.group
 
 /// Adopts Apple's `reminders.group` schema ("Group", iOS 27+, macOS 27+).
 ///
-/// Map fields with [GroupField] and turn on the schema intents the app
+/// Map fields with [RemindersGroupField] and turn on the schema intents the app
 /// supports. Each one becomes a method on the generated handler.
 class RemindersGroup extends SchemaEntity {
   const RemindersGroup() : super('reminders.group');
 }
 
 /// Marks members of `reminders.group`.
-final class GroupSchema {
-  const GroupSchema._();
+final class RemindersGroupSchema {
+  const RemindersGroupSchema._();
 }
 
 /// Members of `reminders.group`, used as field annotations:
-/// `@GroupField.name String title;`.
-abstract final class GroupField {
+/// `@RemindersGroupField.name …`.
+abstract final class RemindersGroupField {
   /// Name
   ///
   /// Read-only in the schema: Siri reads it but never sets it.
-  static const name = SchemaMember<GroupSchema, String>('reminders.group', 'name');
+  static const name = SchemaMember<RemindersGroupSchema, String>('reminders.group', 'name');
+
+  /// Lists
+  ///
+  /// Read-only in the schema: Siri reads it but never sets it.
+  ///
+  /// The ids of `reminders.list` items, which the app must adopt too.
+  static const lists = SchemaMember<RemindersGroupSchema, List<String>>('reminders.group', 'lists');
+}
+
+/// A fixed `reminders.group` instance, for schemas that require one.
+class FixedRemindersGroup extends SchemaContainer {
+  const FixedRemindersGroup({
+    required String id,
+    required this.name,
+  }) : super('reminders.group', id);
+
+  final String name;
 }
 
 // ──────────────────────────────────────────────────────────────────────
@@ -41,7 +69,7 @@ abstract final class GroupField {
 
 /// Adopts Apple's `reminders.list` schema ("List", iOS 27+, macOS 27+).
 ///
-/// Map fields with [ListField] and turn on the schema intents the app
+/// Map fields with [RemindersListField] and turn on the schema intents the app
 /// supports. Each one becomes a method on the generated handler.
 class RemindersList extends SchemaEntity {
   const RemindersList({
@@ -53,22 +81,28 @@ class RemindersList extends SchemaEntity {
 }
 
 /// Marks members of `reminders.list`.
-final class ListSchema {
-  const ListSchema._();
+final class RemindersListSchema {
+  const RemindersListSchema._();
 }
 
 /// Members of `reminders.list`, used as field annotations:
-/// `@ListField.name String title;`.
-abstract final class ListField {
+/// `@RemindersListField.name …`.
+abstract final class RemindersListField {
   /// Name
   ///
   /// Read-only in the schema: Siri reads it but never sets it.
-  static const name = SchemaMember<ListSchema, String>('reminders.list', 'name');
+  static const name = SchemaMember<RemindersListSchema, String>('reminders.list', 'name');
+
+  /// Type
+  ///
+  /// Read-only in the schema: Siri reads it but never sets it.
+  static const type =
+      SchemaMember<RemindersListSchema, RemindersListType>('reminders.list', 'type');
 }
 
 /// A fixed `reminders.list` instance, for schemas that require one.
-class FixedList extends SchemaContainer {
-  const FixedList({
+class FixedRemindersList extends SchemaContainer {
+  const FixedRemindersList({
     required String id,
     required this.name,
   }) : super('reminders.list', id);
@@ -81,7 +115,7 @@ class FixedList extends SchemaContainer {
 
 /// Adopts Apple's `reminders.reminder` schema ("Reminder", iOS 27+, macOS 27+).
 ///
-/// Map fields with [ReminderField] and turn on the schema intents the app
+/// Map fields with [RemindersReminderField] and turn on the schema intents the app
 /// supports. Each one becomes a method on the generated handler.
 class RemindersReminder extends SchemaEntity {
   const RemindersReminder({
@@ -92,7 +126,7 @@ class RemindersReminder extends SchemaEntity {
   }) : super('reminders.reminder');
 
   /// The fixed `reminders.list` every item belongs to (required by the schema).
-  final FixedList list;
+  final FixedRemindersList list;
 
   /// Handle `reminders.createReminder` ("Create Reminder"): creates items.
   final bool createReminder;
@@ -105,40 +139,55 @@ class RemindersReminder extends SchemaEntity {
 }
 
 /// Marks members of `reminders.reminder`.
-final class ReminderSchema {
-  const ReminderSchema._();
+final class RemindersReminderSchema {
+  const RemindersReminderSchema._();
 }
 
 /// Members of `reminders.reminder`, used as field annotations:
-/// `@ReminderField.title String title;`.
-abstract final class ReminderField {
+/// `@RemindersReminderField.title …`.
+///
+/// Not mapped to Dart yet: `tags` (`Set<string>`), `urls` (`[url]`), `recurrence` (`recurrenceRule?`). Generated entities give them their empty value.
+abstract final class RemindersReminderField {
   /// Title
-  static const title = SchemaMember<ReminderSchema, String>('reminders.reminder', 'title');
+  static const title = SchemaMember<RemindersReminderSchema, String>('reminders.reminder', 'title');
 
   /// Note
-  static const note = SchemaMember<ReminderSchema, String?>('reminders.reminder', 'note');
+  static const note = SchemaMember<RemindersReminderSchema, String?>('reminders.reminder', 'note');
 
   /// Due Date
-  static const dueDate = SchemaMember<ReminderSchema, DateTime?>('reminders.reminder', 'dueDate');
+  static const dueDate =
+      SchemaMember<RemindersReminderSchema, DateTime?>('reminders.reminder', 'dueDate');
 
   /// Is Completed
   static const isCompleted =
-      SchemaMember<ReminderSchema, bool>('reminders.reminder', 'isCompleted');
+      SchemaMember<RemindersReminderSchema, bool>('reminders.reminder', 'isCompleted');
 
   /// Is Flagged
-  static const isFlagged = SchemaMember<ReminderSchema, bool?>('reminders.reminder', 'isFlagged');
+  static const isFlagged =
+      SchemaMember<RemindersReminderSchema, bool?>('reminders.reminder', 'isFlagged');
 
   /// Creation Date
   ///
   /// Read-only in the schema: Siri reads it but never sets it.
   static const creationDate =
-      SchemaMember<ReminderSchema, DateTime?>('reminders.reminder', 'creationDate');
+      SchemaMember<RemindersReminderSchema, DateTime?>('reminders.reminder', 'creationDate');
 
   /// Completion Date
   ///
   /// Read-only in the schema: Siri reads it but never sets it.
   static const completionDate =
-      SchemaMember<ReminderSchema, DateTime?>('reminders.reminder', 'completionDate');
+      SchemaMember<RemindersReminderSchema, DateTime?>('reminders.reminder', 'completionDate');
+
+  /// List
+  ///
+  /// The id of `reminders.list` items, which the app must adopt too.
+  static const list = SchemaMember<RemindersReminderSchema, String>('reminders.reminder', 'list');
+
+  /// Location
+  ///
+  /// The id of `reminders.locationTrigger` items, which the app must adopt too.
+  static const locationTrigger =
+      SchemaMember<RemindersReminderSchema, String?>('reminders.reminder', 'locationTrigger');
 }
 
 // ──────────────────────────────────────────────────────────────────────
@@ -146,7 +195,7 @@ abstract final class ReminderField {
 
 /// Adopts Apple's `reminders.section` schema ("Section", iOS 27+, macOS 27+).
 ///
-/// Map fields with [SectionField] and turn on the schema intents the app
+/// Map fields with [RemindersSectionField] and turn on the schema intents the app
 /// supports. Each one becomes a method on the generated handler.
 class RemindersSection extends SchemaEntity {
   const RemindersSection({
@@ -155,36 +204,43 @@ class RemindersSection extends SchemaEntity {
   }) : super('reminders.section');
 
   /// The fixed `reminders.list` every item belongs to (required by the schema).
-  final FixedList list;
+  final FixedRemindersList list;
 
   /// Handle `reminders.createSection` ("Create Section"): creates items.
   final bool createSection;
 }
 
 /// Marks members of `reminders.section`.
-final class SectionSchema {
-  const SectionSchema._();
+final class RemindersSectionSchema {
+  const RemindersSectionSchema._();
 }
 
 /// Members of `reminders.section`, used as field annotations:
-/// `@SectionField.name String title;`.
-abstract final class SectionField {
+/// `@RemindersSectionField.name …`.
+abstract final class RemindersSectionField {
   /// Name
   ///
   /// Read-only in the schema: Siri reads it but never sets it.
-  static const name = SchemaMember<SectionSchema, String>('reminders.section', 'name');
+  static const name = SchemaMember<RemindersSectionSchema, String>('reminders.section', 'name');
+
+  /// List
+  ///
+  /// Read-only in the schema: Siri reads it but never sets it.
+  ///
+  /// The id of `reminders.list` items, which the app must adopt too.
+  static const list = SchemaMember<RemindersSectionSchema, String>('reminders.section', 'list');
 }
 
 /// A fixed `reminders.section` instance, for schemas that require one.
-class FixedSection extends SchemaContainer {
-  const FixedSection({
+class FixedRemindersSection extends SchemaContainer {
+  const FixedRemindersSection({
     required String id,
     required this.name,
     required this.list,
   }) : super('reminders.section', id);
 
   final String name;
-  final FixedList list;
+  final FixedRemindersList list;
 }
 
 // ──────────────────────────────────────────────────────────────────────
@@ -192,17 +248,52 @@ class FixedSection extends SchemaContainer {
 
 /// Adopts Apple's `reminders.locationTrigger` schema ("Location Trigger", iOS 27+, macOS 27+).
 ///
-/// Map fields with [LocationTriggerField] and turn on the schema intents the app
+/// Map fields with [RemindersLocationTriggerField] and turn on the schema intents the app
 /// supports. Each one becomes a method on the generated handler.
 class RemindersLocationTrigger extends SchemaEntity {
   const RemindersLocationTrigger() : super('reminders.locationTrigger');
 }
 
 /// Marks members of `reminders.locationTrigger`.
-final class LocationTriggerSchema {
-  const LocationTriggerSchema._();
+final class RemindersLocationTriggerSchema {
+  const RemindersLocationTriggerSchema._();
 }
 
 /// Members of `reminders.locationTrigger`, used as field annotations:
-/// `@LocationTriggerField.place String title;`.
-abstract final class LocationTriggerField {}
+/// `@RemindersLocationTriggerField.event …`.
+///
+/// Not mapped to Dart yet: `place` (`placeDescriptor`). Generated entities give them their empty value.
+abstract final class RemindersLocationTriggerField {
+  /// Event
+  ///
+  /// Read-only in the schema: Siri reads it but never sets it.
+  static const event = SchemaMember<RemindersLocationTriggerSchema, RemindersLocationTriggerEvent>(
+      'reminders.locationTrigger', 'event');
+}
+
+// ──────────────────────────────────────────────────────────────────────
+// Names from before 0.0.10, when they had no domain prefix.
+
+/// [RemindersGroupField], by its name before 0.0.10.
+typedef GroupField = RemindersGroupField;
+
+/// [FixedRemindersGroup], by its name before 0.0.10.
+typedef FixedGroup = FixedRemindersGroup;
+
+/// [RemindersListField], by its name before 0.0.10.
+typedef ListField = RemindersListField;
+
+/// [FixedRemindersList], by its name before 0.0.10.
+typedef FixedList = FixedRemindersList;
+
+/// [RemindersReminderField], by its name before 0.0.10.
+typedef ReminderField = RemindersReminderField;
+
+/// [RemindersSectionField], by its name before 0.0.10.
+typedef SectionField = RemindersSectionField;
+
+/// [FixedRemindersSection], by its name before 0.0.10.
+typedef FixedSection = FixedRemindersSection;
+
+/// [RemindersLocationTriggerField], by its name before 0.0.10.
+typedef LocationTriggerField = RemindersLocationTriggerField;

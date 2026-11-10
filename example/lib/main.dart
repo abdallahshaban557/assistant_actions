@@ -12,6 +12,9 @@ Future<void> main() async {
     taskItem: TaskHandler(),
     memoryItem: MemoryHandler(),
     journalItem: JournalHandler(),
+    countdown: CountdownHandler(),
+    system: SystemHandler(),
+    camera: CameraHandler(),
   ));
   store.changed();
   runApp(const ExampleApp());
@@ -36,6 +39,10 @@ class ExampleApp extends StatelessWidget {
                     CheckboxListTile(value: t.done, onChanged: null, title: Text(t.title)),
                   const ListTile(title: Text('Memories (notes.*)')),
                   for (final m in store.memories) ListTile(title: Text(m.text)),
+                  if (store.onScreen case final shown?) ListTile(leading: const Icon(Icons.open_in_new), title: Text(shown)),
+                  const ListTile(title: Text('Timers (clock.*)')),
+                  for (final t in store.timers)
+                    ListTile(title: Text(t.label ?? 'Timer'), subtitle: Text('${t.length.inMinutes} min, ${t.state.name}')),
                   const ListTile(title: Text('Journal (journal.*)')),
                   if (store.recording)
                     ListTile(
