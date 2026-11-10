@@ -1,3 +1,31 @@
+## 0.0.16
+
+* Every generated entity is `Transferable`: as text, a file entity also as
+  its file, and with the exports Apple's query schemas ask for when the
+  member is mapped (`IntentValueRepresentation`, iOS / macOS 26.4).
+* Importing query schemas become `IntentValueQuery`s (with
+  `maps.placeIntentValueQuery` on, the processor reports "Start Navigation"
+  as implemented), answered by the handler while Dart runs, else from the
+  published items.
+* Deep links: `url:` makes a `URLRepresentableEntity`, and its `system.open`
+  a `URLRepresentableIntent` that opens the link (App Shortcuts for it, with
+  `@IntentShortcut`, keep working).
+* Plain actions and snapshot answers are `PredictableIntent`s; generated
+  `AssistantDonations` and the donation host calls. Focus filters are left
+  out.
+* `AssistantActionsAppHostCalls`: on-screen entity identifiers and
+  donations.
+* Visual Intelligence search: one `IntentValueQuery` over a
+  `SemanticContentDescriptor` (a union of the types from iOS 27) and the
+  registry's `visualSearch` callback. Queries start the headless engine with
+  `@AssistantBackground()`, else wait briefly for the app's Dart, then answer
+  from the published items.
+* `tool/export_catalog.dart` exports `querySchema`;
+  `tool/validate_schemas.dart` turns on every importing query, deep links
+  and Visual Intelligence search, adds a plain entity and action, and
+  reports queries.
+* Needs assistant_actions 0.0.19.
+
 ## 0.0.15
 
 * Every live intent (`Runs.withFlutter` and Live Activity actions, live
