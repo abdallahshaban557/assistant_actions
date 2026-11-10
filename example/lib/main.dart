@@ -11,6 +11,7 @@ Future<void> main() async {
     findRecipe: (id) => store.recipes.where((r) => r.id == id).firstOrNull,
     taskItem: TaskHandler(),
     memoryItem: MemoryHandler(),
+    journalItem: JournalHandler(),
   ));
   store.changed();
   runApp(const ExampleApp());
@@ -35,6 +36,20 @@ class ExampleApp extends StatelessWidget {
                     CheckboxListTile(value: t.done, onChanged: null, title: Text(t.title)),
                   const ListTile(title: Text('Memories (notes.*)')),
                   for (final m in store.memories) ListTile(title: Text(m.text)),
+                  const ListTile(title: Text('Journal (journal.*)')),
+                  if (store.recording)
+                    ListTile(
+                      leading: const Icon(Icons.mic),
+                      title: const Text('Recording an audio entry…'),
+                      trailing: TextButton(
+                        onPressed: () {
+                          store.recording = false;
+                          store.changed();
+                        },
+                        child: const Text('Stop'),
+                      ),
+                    ),
+                  for (final e in store.journal) ListTile(title: Text(e.title ?? e.text), subtitle: e.title == null ? null : Text(e.text)),
                   const ListTile(title: Text('Shopping list')),
                   for (final s in store.shopping) ListTile(title: Text(s)),
                 ],

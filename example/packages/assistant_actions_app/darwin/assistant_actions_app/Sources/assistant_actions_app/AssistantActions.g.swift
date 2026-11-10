@@ -9,6 +9,8 @@ import assistant_actions
 
 #if os(iOS)
   import UIKit
+#elseif os(macOS)
+  import AppKit
 #endif
 
 /// `Recipe`, published from Dart with `AssistantActions.publish`.
@@ -570,6 +572,104 @@ struct NotesAccountEntityQuery: EntityStringQuery {
   func suggestedEntities() async throws -> [NotesAccountEntity] { [.fixed] }
 }
 
+/// `JournalItem` in Dart, as `journal.entry`.
+@available(iOS 26.0, macOS 26.0, *)
+@AppEntity(schema: .journal.entry)
+struct JournalItemEntity {
+  static let defaultQuery = JournalItemEntityQuery()
+
+  let id: String
+  @Property(title: "Title")
+  var title: String?
+  @Property(title: "Message")
+  var message: AttributedString?
+  var mediaItems: [IntentFile]
+  @Property(title: "Entry Date")
+  var entryDate: Date?
+  var location: PlaceDescriptor?
+
+  var displayRepresentation: DisplayRepresentation { DisplayRepresentation(title: "\((title ?? ""))") }
+
+  init(record: AssistantRecord) {
+    id = record.id
+    title = AssistantValues.string(record.fields["title"])
+    message = AssistantValues.attributed(record.fields["text"])
+    mediaItems = []
+    entryDate = AssistantValues.date(record.fields["date"])
+    location = nil
+  }
+}
+
+@available(iOS 26.0, macOS 26.0, *)
+struct JournalItemEntityQuery: EntityStringQuery, EnumerableEntityQuery, EntityPropertyQuery {
+  /// Words that only name the type, schema or app, so they never narrow a search.
+  static let typeWords: Set<String> = ["actions", "assistant", "assistantactionsexample", "entry", "example", "item", "journal", "journalentry", "journalitem"]
+
+  private func all() -> [JournalItemEntity] { AssistantSnapshot.records("JournalItem").map(JournalItemEntity.init(record:)) }
+
+  func entities(for identifiers: [String]) async throws -> [JournalItemEntity] {
+    let wanted = Set(identifiers)
+    return all().filter { wanted.contains($0.id) }
+  }
+
+  func entities(matching string: String) async throws -> [JournalItemEntity] {
+    AssistantMatch.records(AssistantSnapshot.records("JournalItem"), matching: string, ignoring: Self.typeWords)
+      .map(JournalItemEntity.init(record:))
+  }
+
+  func suggestedEntities() async throws -> [JournalItemEntity] { Array(all().prefix(20)) }
+
+  /// Everything published, plus Siri's pending changes, for general requests
+  /// like "do I have any entrys".
+  func allEntities() async throws -> [JournalItemEntity] { all() }
+
+  typealias ComparatorMappingType = AssistantPredicate<JournalItemEntity>
+
+  /// EntityPropertyQuery and EnumerableEntityQuery both provide a default.
+  static var findIntentDescription: IntentDescription? { nil }
+
+  static let properties = QueryProperties {
+    Property(\JournalItemEntity.$title) {
+      ContainsComparator { value in AssistantPredicate({ $0.title }, .contains, value) }
+    }
+    Property(\JournalItemEntity.$message) {
+      ContainsComparator { value in AssistantPredicate({ $0.message }, .contains, value) }
+    }
+    Property(\JournalItemEntity.$entryDate) {
+      EqualToComparator { value in AssistantPredicate({ $0.entryDate }, .equal, value) }
+      NotEqualToComparator { value in AssistantPredicate({ $0.entryDate }, .notEqual, value) }
+      LessThanComparator { value in AssistantPredicate({ $0.entryDate }, .less, value) }
+      LessThanOrEqualToComparator { value in AssistantPredicate({ $0.entryDate }, .lessOrEqual, value) }
+      GreaterThanComparator { value in AssistantPredicate({ $0.entryDate }, .greater, value) }
+      GreaterThanOrEqualToComparator { value in AssistantPredicate({ $0.entryDate }, .greaterOrEqual, value) }
+      IsBetweenComparator { low, high in AssistantPredicate({ $0.entryDate }, .between, low, high) }
+    }
+  }
+
+  static let sortingOptions = SortingOptions {
+    SortableBy(\JournalItemEntity.$title)
+    SortableBy(\JournalItemEntity.$entryDate)
+  }
+
+  func entities(
+    matching comparators: [AssistantPredicate<JournalItemEntity>], mode: ComparatorMode,
+    sortedBy: [EntityQuerySort<JournalItemEntity>], limit: Int?
+  ) async throws -> [JournalItemEntity] {
+    let sorts = sortedBy.compactMap { sort in
+      Self.sortKey(sort.by).map { (key: $0, ascending: sort.order == .ascending) }
+    }
+    return AssistantPredicate.apply(comparators, all: mode == .and, to: all(), sortedBy: sorts, limit: limit)
+  }
+
+  private static func sortKey(_ path: PartialKeyPath<JournalItemEntity>) -> ((JournalItemEntity) -> AssistantKey?)? {
+    switch path {
+    case \JournalItemEntity.$title: return { $0.title?.assistantKey }
+    case \JournalItemEntity.$entryDate: return { $0.entryDate?.assistantKey }
+    default: return nil
+    }
+  }
+}
+
 /// `reminders.createReminder` → creates `TaskItem` items through the inbox.
 @available(iOS 27.0, macOS 27.0, *)
 @AppIntent(schema: .reminders.createReminder)
@@ -737,6 +837,114 @@ struct MemoryItemAppendTextIntent {
   }
 }
 
+/// `journal.createEntry` → creates `JournalItem` items through the inbox.
+@available(iOS 26.0, macOS 26.0, *)
+@AppIntent(schema: .journal.createEntry)
+struct JournalItemCreateEntryIntent {
+  var message: AttributedString
+  var title: String?
+  var location: PlaceDescriptor?
+  var mediaItems: [IntentFile]
+  var entryDate: Date?
+
+  @MainActor
+  func perform() async throws -> some ReturnsValue<JournalItemEntity> {
+    var fields: [String: Any] = [:]
+    fields["text"] = AssistantValues.encode(message)
+    fields["title"] = AssistantValues.encode(title)
+    fields["date"] = AssistantValues.encode(entryDate)
+    let id = AssistantInbox.create("JournalItem", fields: fields)
+    AssistantBridge.shared.inboxChanged()
+    return .result(value: JournalItemEntity(record: AssistantRecord(id: id, title: "", fields: fields)))
+  }
+}
+
+/// `journal.createAudioEntry` → opens the app and calls `startAudioEntry()` on the `JournalItem` handler.
+@available(iOS 26.0, macOS 26.0, *)
+@AppIntent(schema: .journal.createAudioEntry)
+struct JournalItemCreateAudioEntryIntent: ForegroundContinuableIntent {
+  @MainActor
+  func perform() async throws -> some IntentResult {
+    #if os(iOS)
+      // Recording needs the microphone, which iOS only starts in the foreground,
+      // and the Flutter engine needs a scene.
+      if UIApplication.shared.applicationState != .active {
+        try await requestToContinueInForeground()
+      }
+    #elseif os(macOS)
+      NSApplication.shared.activate()
+    #endif
+    _ = try await AssistantBridge.shared.perform("JournalItem.startAudioEntry", args: [:])
+    return .result()
+  }
+}
+
+/// `journal.updateEntry` → updates `JournalItem` items through the inbox.
+@available(iOS 26.0, macOS 26.0, *)
+@AppIntent(schema: .journal.updateEntry)
+struct JournalItemUpdateEntryIntent {
+  var target: JournalItemEntity
+  var title: String?
+  var message: AttributedString?
+  var mediaItems: [IntentFile]?
+  var entryDate: Date?
+  var location: PlaceDescriptor?
+
+  @MainActor
+  func perform() async throws -> some IntentResult {
+    var fields: [String: Any] = [:]
+    var cleared: [String] = []
+    switch $title.valueState {
+    case .unset: break
+    case .set(let value?): fields["title"] = AssistantValues.encode(value)
+    case .set(nil): cleared.append("title")
+    @unknown default: break
+    }
+    if message != nil { fields["text"] = AssistantValues.encode(message) }
+    switch $entryDate.valueState {
+    case .unset: break
+    case .set(let value?): fields["date"] = AssistantValues.encode(value)
+    case .set(nil): cleared.append("date")
+    @unknown default: break
+    }
+    AssistantInbox.update("JournalItem", id: target.id, fields: fields, cleared: cleared)
+    AssistantBridge.shared.inboxChanged()
+    let updated = target
+    if let value = fields["title"] {
+      updated.title = AssistantValues.string(value)
+    } else if cleared.contains("title") {
+      updated.title = nil
+    }
+    if let value = fields["text"] {
+      updated.message = AssistantValues.attributed(value)
+    } else if cleared.contains("text") {
+      updated.message = nil
+    }
+    if let value = fields["date"] {
+      updated.entryDate = AssistantValues.date(value)
+    } else if cleared.contains("date") {
+      updated.entryDate = nil
+    }
+    return .result(value: updated)
+  }
+}
+
+/// `journal.deleteEntry` → deletes `JournalItem` items through the inbox.
+@available(iOS 26.0, macOS 26.0, *)
+@AppIntent(schema: .journal.deleteEntry)
+struct JournalItemDeleteEntryIntent {
+  var entities: [JournalItemEntity]
+
+  @MainActor
+  func perform() async throws -> some IntentResult {
+    for item in entities {
+      AssistantInbox.delete("JournalItem", id: item.id)
+    }
+    AssistantBridge.shared.inboxChanged()
+    return .result()
+  }
+}
+
 @available(iOS 18.0, macOS 15.0, *)
 extension RecipeEntity: IndexedEntity {
   public var attributeSet: CSSearchableItemAttributeSet {
@@ -773,6 +981,17 @@ extension MemoryItemEntity: IndexedEntity {
   }
 }
 
+@available(iOS 26.0, macOS 26.0, *)
+extension JournalItemEntity: IndexedEntity {
+  var attributeSet: CSSearchableItemAttributeSet {
+    let attributes = defaultAttributeSet
+    attributes.title = title
+    attributes.textContent = message.map { String($0.characters) }
+    attributes.contentCreationDate = entryDate
+    return attributes
+  }
+}
+
 /// Found by name by `AssistantSpotlight` in the runtime; apps register nothing.
 @objc(AssistantActionsAppSpotlight)
 public final class AssistantActionsAppSpotlight: NSObject, AssistantSpotlightIndexer {
@@ -793,6 +1012,12 @@ public final class AssistantActionsAppSpotlight: NSObject, AssistantSpotlightInd
       if #available(iOS 27.0, macOS 27.0, *) {
         try await Self.update(
           AssistantSnapshot.records("MemoryItem").map(MemoryItemEntity.init(record:)),
+          removed: removedIDs, clearFirst: clearFirst)
+      }
+    case "JournalItem":
+      if #available(iOS 26.0, macOS 26.0, *) {
+        try await Self.update(
+          AssistantSnapshot.records("JournalItem").map(JournalItemEntity.init(record:)),
           removed: removedIDs, clearFirst: clearFirst)
       }
     default:

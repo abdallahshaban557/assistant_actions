@@ -69,6 +69,16 @@ String generateSchemaLibrary(DomainCatalog catalog) {
         ..writeln();
     }
     for (final (intent, kind) in intents) {
+      if (kind == IntentKind.record) {
+        out
+          ..writeln('  /// Handle `${intent.id}` ("${intent.title}"): Siri brings the app to the')
+          ..writeln('  /// foreground and calls `${recordMethod(intent)}()` on the generated handler.')
+          ..writeln('  /// The app records the audio itself (iOS only lets the microphone start in')
+          ..writeln('  /// the foreground).')
+          ..writeln('  final bool ${intent.name};')
+          ..writeln();
+        continue;
+      }
       out
         ..writeln('  /// Handle `${intent.id}` ("${intent.title}"): ${kind.name}s items.')
         ..writeln('  final bool ${intent.name};')

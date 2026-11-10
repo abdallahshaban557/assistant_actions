@@ -266,6 +266,10 @@ class SchemaEntityModel {
   Iterable<IntentKind> get kinds => {for (final (_, k) in intents) k == IntentKind.append ? IntentKind.update : k};
 }
 
+/// The action id Swift uses to call [intent]'s handler method live, such as
+/// `JournalItem.startAudioEntry`.
+String recordActionId(SchemaEntityModel s, IntentSchema intent) => '${s.collection}.${recordMethod(intent)}';
+
 /// Everything the builder read from the app.
 class AppModel {
   AppModel({

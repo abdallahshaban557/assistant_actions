@@ -1,4 +1,5 @@
 import 'package:assistant_actions/assistant_actions.dart';
+import 'package:assistant_actions/schemas/journal.dart';
 import 'package:assistant_actions/schemas/notes.dart';
 import 'package:assistant_actions/schemas/reminders.dart';
 
@@ -61,4 +62,29 @@ class MemoryItem {
 
   @NoteField.isPinned
   bool pinned;
+}
+
+/// Level 3: a voice journal entry Siri understands as `journal.entry`.
+/// `createAudioEntry` lets "record a journal entry in …" open the app and
+/// call `JournalHandler.startAudioEntry`; the app records the audio.
+@JournalEntry(
+  createEntry: true,
+  createAudioEntry: true,
+  updateEntry: true,
+  deleteEntry: true,
+)
+class JournalItem {
+  JournalItem({required this.id, required this.text, this.title, this.date});
+
+  @EntityId()
+  final String id;
+
+  @EntryField.title
+  String? title;
+
+  @EntryField.message
+  String text;
+
+  @EntryField.entryDate
+  DateTime? date;
 }

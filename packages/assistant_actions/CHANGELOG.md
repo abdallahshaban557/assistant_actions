@@ -1,3 +1,17 @@
+## 0.0.10
+
+* `journal` App Schemas (`package:assistant_actions/schemas/journal.dart`):
+  `@JournalEntry` adopts `journal.entry` with `EntryField.title`, `.message`
+  and `.entryDate`, and the create, update and delete intents.
+  `createAudioEntry: true` adopts `journal.createAudioEntry`: Siri brings the
+  app forward and calls `startAudioEntry()` on the generated handler; the app
+  records. `mediaItems` and `location` have no Dart mapping yet, and
+  `journal.search` isn't adopted. Exported from Xcode 27.2 (27B52, catalog
+  c2d369abe24c), like `reminders` and `notes`.
+* The bundled catalogs record each schema intent's system protocols (such as
+  `audioStarting`) and whether it opens the app.
+* Journal needs assistant_actions_generator 0.0.8.
+
 ## 0.0.9
 
 * Docs: bump the app's build number whenever the generated actions or

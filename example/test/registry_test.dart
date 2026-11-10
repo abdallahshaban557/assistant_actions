@@ -25,10 +25,13 @@ void main() {
 
   setUp(() async {
     store.tasks.clear();
+    store.journal.clear();
+    store.recording = false;
     registry = assistantActionsRegistry(
       findRecipe: (id) => store.recipes.where((r) => r.id == id).firstOrNull,
       taskItem: TaskHandler(),
       memoryItem: MemoryHandler(),
+      journalItem: JournalHandler(),
     );
     // The handlers republish after each change, which needs a started runtime.
     await AssistantActions.start(registry, host: _NoHost());
@@ -71,5 +74,29 @@ void main() {
   test('plain entities publish their fields for snapshot answers', () {
     final codec = registry.codecs[Recipe]!;
     expect(codec.encode(store.recipes.first)['fields'], {'name': 'Pancakes', 'minutes': 20});
+  });
+
+  test('createAudioEntry calls startAudioEntry live', () async {
+    expect(await AssistantActions.perform('JournalItem.startAudioEntry', '{}'), isNull);
+    expect(store.recording, isTrue);
+  });
+
+  test('Siri creates, updates and deletes journal entries', () async {
+    final date = DateTime(2026, 11, 9, 8);
+    await apply(InboxChange(
+        kind: 'create',
+        collection: 'JournalItem',
+        id: 'j1',
+        fields: {'text': 'Walked to the lake', 'date': AssistantValue.encodeDate(date)}));
+    expect(store.journal.single.text, 'Walked to the lake');
+    expect(store.journal.single.date, date);
+
+    await apply(const InboxChange(
+        kind: 'update', collection: 'JournalItem', id: 'j1', fields: {'title': 'Morning'}, cleared: ['date']));
+    expect(store.journal.single.title, 'Morning');
+    expect(store.journal.single.date, isNull);
+
+    await apply(const InboxChange(kind: 'delete', collection: 'JournalItem', id: 'j1'));
+    expect(store.journal, isEmpty);
   });
 }

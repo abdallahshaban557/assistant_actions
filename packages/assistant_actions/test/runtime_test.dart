@@ -1,6 +1,8 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:assistant_actions/assistant_actions.dart';
+import 'package:assistant_actions/schemas/journal.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 class _Item {
@@ -115,5 +117,24 @@ void main() {
     });
     expect(change.fields, {'done': true});
     expect(change.cleared, ['due']);
+  });
+
+  test('every schema library ships the catalog the generator reads', () {
+    final libraries = Directory('lib/schemas').listSync().map((f) => f.uri.pathSegments.last.replaceAll('.dart', ''));
+    expect(libraries, containsAll(['reminders', 'notes', 'journal']));
+    for (final domain in libraries) {
+      final catalog = jsonDecode(File('lib/src/catalog/$domain.json').readAsStringSync()) as Map;
+      expect(catalog['domain'], domain);
+    }
+  });
+
+  test('journal.entry adopts createAudioEntry as an opt-in', () {
+    const entry = JournalEntry(createEntry: true, createAudioEntry: true);
+    expect(entry.schema, 'journal.entry');
+    expect(entry.createAudioEntry, isTrue);
+    expect(entry.updateEntry, isFalse);
+    expect(EntryField.message.name, 'message');
+    final catalog = jsonDecode(File('lib/src/catalog/journal.json').readAsStringSync()) as Map;
+    expect((catalog['intents'] as Map)['createAudioEntry']['protocols'], ['audioStarting']);
   });
 }

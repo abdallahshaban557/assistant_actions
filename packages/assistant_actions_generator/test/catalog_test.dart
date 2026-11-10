@@ -14,10 +14,12 @@ DomainCatalog _load(String domain) {
 void main() {
   late DomainCatalog reminders;
   late DomainCatalog notes;
+  late DomainCatalog journal;
 
   setUpAll(() {
     reminders = _load('reminders');
     notes = _load('notes');
+    journal = _load('journal');
   });
 
   test('reminders.reminder has the members Mira needed', () {
@@ -64,5 +66,69 @@ void main() {
     expect(dartTypeFor(const SchemaType('attributedString')), 'String');
     expect(dartTypeFor(const SchemaType('optional', of: SchemaType('dateComponents'))), 'DateTime?');
     expect(dartTypeFor(const SchemaType('file')), isNull);
+  });
+
+  group('journal', () {
+    test('journal.entry has its members, titled by title', () {
+      final entry = journal.entities['journal.entry']!;
+      expect(entry.properties.map((p) => p.name), ['title', 'message', 'mediaItems', 'entryDate', 'location']);
+      expect(entry.titleProperty!.name, 'title');
+      expect(entry.property('message')!.type.base.kind, 'attributedString');
+      expect(entry.property('location')!.type.base.kind, 'placeDescriptor');
+    });
+
+    test('createAudioEntry is a record intent; search is not adopted', () {
+      final kinds = {
+        for (final (intent, kind) in journal.intentsFor(journal.entities['journal.entry']!)) intent.name: kind,
+      };
+      expect(kinds, {
+        'createEntry': IntentKind.create,
+        'createAudioEntry': IntentKind.record,
+        'updateEntry': IntentKind.update,
+        'deleteEntry': IntentKind.delete,
+      });
+      final audio = journal.intents['journal.createAudioEntry']!;
+      expect(audio.recordsAudio, isTrue);
+      expect(audio.opensApp, isFalse, reason: "Apple's schema doesn't open the app; the intent asks to");
+      expect(recordMethod(audio), 'startAudioEntry');
+      expect(journal.intents['journal.search']!.opensApp, isTrue);
+      expect(journal.intents['journal.search']!.protocols, ['search']);
+    });
+
+    test('only intents that record audio are record intents', () {
+      final audio = journal.intents['journal.createAudioEntry']!;
+      final plain = IntentSchema(
+        id: 'journal.createAudioEntry',
+        title: 't',
+        availability: const {},
+        parameters: const [],
+      );
+      final catalog = DomainCatalog(
+        domain: 'journal',
+        hash: journal.hash,
+        xcode: journal.xcode,
+        entities: journal.entities,
+        enums: const {},
+        intents: {'journal.createAudioEntry': plain},
+      );
+      expect(catalog.intentsFor(journal.entities['journal.entry']!), isEmpty);
+      expect(IntentSchema.fromJson(audio.id, audio.toJson()).recordsAudio, isTrue, reason: 'round-trips');
+    });
+
+    test('typed schema library maps title, message and entryDate, not files or places', () {
+      final library = generateSchemaLibrary(journal);
+      expect(library, contains('class JournalEntry extends SchemaEntity'));
+      expect(library, contains('this.createAudioEntry = false,'));
+      expect(library, contains('calls `startAudioEntry()` on the generated handler'));
+      expect(library, contains("static const title = SchemaMember<EntrySchema, String?>('journal.entry', 'title');"));
+      expect(
+        library,
+        contains("static const message = SchemaMember<EntrySchema, String?>('journal.entry', 'message');"),
+      );
+      expect(library, contains("SchemaMember<EntrySchema, DateTime?>('journal.entry', 'entryDate')"));
+      expect(library, isNot(contains('static const mediaItems')));
+      expect(library, isNot(contains('static const location')));
+      expect(library, isNot(contains('this.search')));
+    });
   });
 }

@@ -1,0 +1,280 @@
+{
+  "domain": "journal",
+  "hash": "c2d369abe24cd220fff14cee83825fd529f2ccfa53c02763b34418f1e3b04803",
+  "xcode": "27B52",
+  "entities": {
+    "entry": {
+      "title": "Journal Entry",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "properties": [
+        {
+          "name": "title",
+          "title": "Title",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "string"
+            }
+          },
+          "updatable": false,
+          "indexingKey": "title"
+        },
+        {
+          "name": "message",
+          "title": "Message",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "attributedString"
+            }
+          },
+          "updatable": false,
+          "indexingKey": "textContent"
+        },
+        {
+          "name": "mediaItems",
+          "title": "Media Items",
+          "type": {
+            "kind": "array",
+            "of": {
+              "kind": "file"
+            }
+          },
+          "updatable": false
+        },
+        {
+          "name": "entryDate",
+          "title": "Entry Date",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "date"
+            }
+          },
+          "updatable": false,
+          "indexingKey": "contentCreationDate"
+        },
+        {
+          "name": "location",
+          "title": "Location",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "placeDescriptor"
+            }
+          },
+          "updatable": false,
+          "indexingKey": "place"
+        }
+      ]
+    }
+  },
+  "enums": {},
+  "intents": {
+    "createEntry": {
+      "title": "Create Entry",
+      "description": "Creates a new journal entry.",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "parameters": [
+        {
+          "name": "message",
+          "title": "Message",
+          "type": {
+            "kind": "attributedString"
+          },
+          "description": "Message to add to the entry."
+        },
+        {
+          "name": "title",
+          "title": "Title",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "string"
+            }
+          },
+          "description": "Title to add to the entry."
+        },
+        {
+          "name": "location",
+          "title": "Location",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "placeDescriptor"
+            }
+          },
+          "description": "Current location to add to the entry."
+        },
+        {
+          "name": "mediaItems",
+          "title": "Media Items",
+          "type": {
+            "kind": "array",
+            "of": {
+              "kind": "file"
+            }
+          },
+          "description": "New entry media items."
+        },
+        {
+          "name": "entryDate",
+          "title": "Date",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "date"
+            }
+          },
+          "description": "Date to add to the entry."
+        }
+      ],
+      "result": {
+        "kind": "entity",
+        "ref": "journal.entry"
+      }
+    },
+    "createAudioEntry": {
+      "title": "Create Audio Entry",
+      "description": "Creates a new audio journal entry.",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "parameters": [],
+      "protocols": [
+        "audioStarting"
+      ]
+    },
+    "search": {
+      "title": "Search Entries",
+      "description": "Searches journal entries.",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "parameters": [
+        {
+          "name": "criteria",
+          "title": "Text",
+          "type": {
+            "kind": "stringSearchCriteria"
+          },
+          "description": "Term to search for."
+        }
+      ],
+      "opensApp": true,
+      "protocols": [
+        "search"
+      ]
+    },
+    "updateEntry": {
+      "title": "Update Journal",
+      "description": "Updates journal entry.",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "parameters": [
+        {
+          "name": "target",
+          "title": "Journal",
+          "type": {
+            "kind": "entity",
+            "ref": "journal.entry"
+          },
+          "description": "Journal to update."
+        },
+        {
+          "name": "title",
+          "title": "Title",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "string"
+            }
+          },
+          "description": "Title to add to the entry."
+        },
+        {
+          "name": "message",
+          "title": "Message",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "attributedString"
+            }
+          },
+          "description": "Message to add to the entry."
+        },
+        {
+          "name": "mediaItems",
+          "title": "Media Items",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "array",
+              "of": {
+                "kind": "file"
+              }
+            }
+          },
+          "description": "New entry media items."
+        },
+        {
+          "name": "entryDate",
+          "title": "Date",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "date"
+            }
+          },
+          "description": "Date to add to the entry."
+        },
+        {
+          "name": "location",
+          "title": "Location",
+          "type": {
+            "kind": "optional",
+            "of": {
+              "kind": "placeDescriptor"
+            }
+          },
+          "description": "Current location to add to the entry."
+        }
+      ]
+    },
+    "deleteEntry": {
+      "title": "Delete Journal Entries",
+      "description": "Deletes the specified journal entries.",
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "parameters": [
+        {
+          "name": "entities",
+          "title": "Journal Entries",
+          "type": {
+            "kind": "array",
+            "of": {
+              "kind": "entity",
+              "ref": "journal.entry"
+            }
+          },
+          "description": "Journal entries to delete."
+        }
+      ],
+      "protocols": [
+        "delete"
+      ]
+    }
+  }
+}

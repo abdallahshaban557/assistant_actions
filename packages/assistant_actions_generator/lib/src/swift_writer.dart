@@ -50,6 +50,8 @@ class SwiftWriter {
       '',
       '#if os(iOS)',
       '  import UIKit',
+      '#elseif os(macOS)',
+      '  import AppKit',
       '#endif',
       '',
       body.toString(),
@@ -356,7 +358,7 @@ extension ${e.swiftName}: IndexedEntity {
     }
     for (final s in app.schemaEntities) {
       _out
-        ..writeln(_availability(s.schema.availability))
+        ..writeln(_availability(_entityFloor(s.schema)))
         ..writeln('extension ${s.swiftName}: IndexedEntity {')
         ..writeln('  var attributeSet: CSSearchableItemAttributeSet {')
         ..writeln('    let attributes = defaultAttributeSet');
@@ -389,14 +391,25 @@ extension ${e.swiftName}: IndexedEntity {
         ..writeln('        removed: removedIDs, clearFirst: clearFirst)');
     }
     for (final s in app.schemaEntities) {
-      final v = s.schema.availability;
-      _out
-        ..writeln('    case "${s.collection}":')
-        ..writeln('      if #available(iOS ${(v['iOS'] ?? 27).toInt()}.0, macOS ${(v['macOS'] ?? 27).toInt()}.0, *) {')
-        ..writeln('        try await Self.update(')
-        ..writeln('          AssistantSnapshot.records("${s.collection}").map(${s.swiftName}.init(record:)),')
-        ..writeln('          removed: removedIDs, clearFirst: clearFirst)')
-        ..writeln('      }');
+      final (iOS, macOS) = _versions(_entityFloor(s.schema));
+      final update = [
+        'try await Self.update(',
+        '  AssistantSnapshot.records("${s.collection}").map(${s.swiftName}.init(record:)),',
+        '  removed: removedIDs, clearFirst: clearFirst)',
+      ];
+      _out.writeln('    case "${s.collection}":');
+      // The guard above already covers iOS 18 / macOS 15.
+      if (iOS <= 18 && macOS <= 15) {
+        for (final line in update) {
+          _out.writeln('      $line');
+        }
+      } else {
+        _out.writeln('      if #available(iOS $iOS.0, macOS $macOS.0, *) {');
+        for (final line in update) {
+          _out.writeln('        $line');
+        }
+        _out.writeln('      }');
+      }
     }
     _out.writeln('''
     default:
@@ -526,8 +539,52 @@ extension ${e.swiftName}: IndexedEntity {
   }
 
   String _availability(Map<String, num> availability) {
-    String v(String platform) => '${(availability[platform] ?? 27).toInt()}.0';
-    return '@available(iOS ${v('iOS')}, macOS ${v('macOS')}, *)';
+    final (iOS, macOS) = _versions(availability);
+    return '@available(iOS $iOS.0, macOS $macOS.0, *)';
+  }
+
+  (int, int) _versions(Map<String, num> availability) =>
+      ((availability['iOS'] ?? 27).toInt(), (availability['macOS'] ?? 27).toInt());
+
+  /// The OS versions Swift types need beyond what Apple's catalog says: the
+  /// journal schemas date from iOS 18, but `PlaceDescriptor` is iOS 26.
+  static const _typeFloors = {
+    'placeDescriptor': {'iOS': 26, 'macOS': 26},
+  };
+
+  static Map<String, num> _max(Map<String, num> a, Map<String, num> b) => {
+        for (final platform in ['iOS', 'macOS'])
+          platform: [a[platform] ?? 27, b[platform] ?? 27].reduce((x, y) => x > y ? x : y),
+      };
+
+  /// The earliest OS that has [entity]'s Swift type and every type its
+  /// members use.
+  Map<String, num> _entityFloor(EntitySchema entity, [Set<String> seen = const {}]) {
+    var floor = entity.availability;
+    for (final p in entity.properties) {
+      floor = _max(floor, _typeFloor(p.type, {...seen, entity.id}));
+    }
+    return floor;
+  }
+
+  Map<String, num> _typeFloor(SchemaType t, Set<String> seen) {
+    const none = {'iOS': 0, 'macOS': 0};
+    return switch (t.kind) {
+      'optional' || 'array' || 'set' => _typeFloor(t.of!, seen),
+      'entity' when !seen.contains(t.ref) => _entityFloor(_entitySchema(t.ref!), seen),
+      _ => _typeFloors[t.kind] ?? none,
+    };
+  }
+
+  /// The earliest OS for [intent]: its catalog availability, its parameters'
+  /// types and the entity it returns.
+  Map<String, num> _intentFloor(IntentSchema intent) {
+    var floor = intent.availability;
+    for (final p in intent.parameters) {
+      floor = _max(floor, _typeFloor(p.type, const {}));
+    }
+    if (intent.result case final result?) floor = _max(floor, _typeFloor(result, const {}));
+    return floor;
   }
 
   String _containerName(String id) {
@@ -635,7 +692,7 @@ extension ${e.swiftName}: IndexedEntity {
     _out
       ..writeln('/// `${schema.id}`, required by the adopted schemas.'
           '${fixed == null ? ' No instances.' : ' One fixed instance.'}')
-      ..writeln(_availability(schema.availability))
+      ..writeln(_availability(_entityFloor(schema)))
       ..writeln('@AppEntity(schema: .${schema.id})')
       ..writeln('struct $name {')
       ..writeln('  static let defaultQuery = ${name}Query()');
@@ -689,7 +746,7 @@ extension ${e.swiftName}: IndexedEntity {
     _out.writeln('''
 }
 
-${_availability(schema.availability)}
+${_availability(_entityFloor(schema))}
 struct ${name}Query: EntityStringQuery {
   func entities(for identifiers: [String]) async throws -> [$name] {
     $instances.filter { identifiers.contains(\$0.id) }
@@ -707,7 +764,7 @@ struct ${name}Query: EntityStringQuery {
     final name = s.swiftName;
     _out
       ..writeln('/// `${s.className}` in Dart, as `${schema.id}`.')
-      ..writeln(_availability(schema.availability))
+      ..writeln(_availability(_entityFloor(schema)))
       ..writeln('@AppEntity(schema: .${schema.id})')
       ..writeln('struct $name {')
       ..writeln('  static let defaultQuery = ${name}Query()')
@@ -738,7 +795,7 @@ struct ${name}Query: EntityStringQuery {
   }
 }
 
-${_availability(schema.availability)}
+${_availability(_entityFloor(schema))}
 struct ${name}Query: EntityStringQuery, EnumerableEntityQuery${queryables.isEmpty ? '' : ', EntityPropertyQuery'} {
   /// Words that only name the type, schema or app, so they never narrow a search.
   static let typeWords: Set<String> = ${_typeWords([s.className, schema.title, schema.name, schema.domain])}
@@ -779,11 +836,12 @@ ${queryables.isEmpty ? '' : '\n${_propertyQuery(name, queryables, 'all()')}'}}
   ];
 
   void _schemaIntent(SchemaEntityModel s, IntentSchema intent, IntentKind kind) {
+    if (kind == IntentKind.record) return _recordIntent(s, intent);
     final entity = s.swiftName;
     final returnsEntity = intent.result?.base.kind == 'entity' && intent.result!.base.ref == s.schema.id;
     _out
       ..writeln('/// `${intent.id}` → ${kind.name}s `${s.className}` items through the inbox.')
-      ..writeln(_availability(intent.availability))
+      ..writeln(_availability(_max(_intentFloor(intent), _entityFloor(s.schema))))
       ..writeln('@AppIntent(schema: .${intent.id})')
       ..writeln('struct ${s.className}${pascal(intent.name)}Intent {');
     for (final p in intent.parameters) {
@@ -870,6 +928,8 @@ ${queryables.isEmpty ? '' : '\n${_propertyQuery(name, queryables, 'all()')}'}}
           _out.writeln('    }');
         }
         _out.writeln('    return .result(value: updated)');
+      case IntentKind.record:
+        throw StateError('handled by _recordIntent');
       case IntentKind.delete:
         _out.writeln('''
     for item in entities {
@@ -882,6 +942,36 @@ ${queryables.isEmpty ? '' : '\n${_propertyQuery(name, queryables, 'all()')}'}}
       ..writeln('  }')
       ..writeln('}')
       ..writeln();
+  }
+
+  /// A schema intent that starts recording a new item in the app, such as
+  /// `journal.createAudioEntry`. Its schema adopts `AudioRecordingIntent`
+  /// (the macro adds it) and takes no parameters. The microphone can only
+  /// start in the foreground on iOS, so the intent brings the app forward,
+  /// like a `Runs.withFlutter` action, then calls the Dart handler live.
+  void _recordIntent(SchemaEntityModel s, IntentSchema intent) {
+    final method = recordMethod(intent);
+    _out.writeln('''
+/// `${intent.id}` → opens the app and calls `$method()` on the `${s.className}` handler.
+${_availability(_max(_intentFloor(intent), _entityFloor(s.schema)))}
+@AppIntent(schema: .${intent.id})
+struct ${s.className}${pascal(intent.name)}Intent: ForegroundContinuableIntent {
+  @MainActor
+  func perform() async throws -> some IntentResult {
+    #if os(iOS)
+      // Recording needs the microphone, which iOS only starts in the foreground,
+      // and the Flutter engine needs a scene.
+      if UIApplication.shared.applicationState != .active {
+        try await requestToContinueInForeground()
+      }
+    #elseif os(macOS)
+      NSApplication.shared.activate()
+    #endif
+    _ = try await AssistantBridge.shared.perform("${recordActionId(s, intent)}", args: [:])
+    return .result()
+  }
+}
+''');
   }
 
   /// Encodes the parameters that set one Dart field. Several string
