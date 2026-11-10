@@ -39,6 +39,8 @@ class SpreadsheetSheet extends SchemaEntity {
     super.confirm,
     super.confirmDeletes,
     super.replies,
+    super.url,
+    super.visualSearch,
   }) : super('spreadsheet.sheet');
 
   /// The fixed `spreadsheet.document` every item belongs to (required by the schema).
@@ -156,6 +158,8 @@ class SpreadsheetDocument extends SchemaEntity {
     super.confirm,
     super.confirmDeletes,
     super.replies,
+    super.url,
+    super.visualSearch,
   }) : super('spreadsheet.document');
 
   /// Handle `spreadsheet.create` ("Create Spreadsheet"): creates items.
@@ -208,7 +212,7 @@ class FixedSpreadsheetDocument extends SchemaContainer {
 /// Map fields with [SpreadsheetTemplateField] and turn on the schema intents the app
 /// supports. Each one becomes a method on the generated handler.
 class SpreadsheetTemplate extends SchemaEntity {
-  const SpreadsheetTemplate() : super('spreadsheet.template');
+  const SpreadsheetTemplate({super.url, super.visualSearch}) : super('spreadsheet.template');
 }
 
 /// Marks members of `spreadsheet.template`.

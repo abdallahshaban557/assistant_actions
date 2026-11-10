@@ -597,5 +597,19 @@
         "ref": "calendar.event"
       }
     }
+  },
+  "queries": {
+    "attendeeTransferable": {
+      "entity": "calendar.attendee",
+      "direction": "exporting",
+      "type": {
+        "kind": "person"
+      },
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "property": "person"
+    }
   }
 }

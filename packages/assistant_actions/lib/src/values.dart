@@ -121,6 +121,39 @@ class AssistantFile {
   String toString() => 'AssistantFile($path)';
 }
 
+/// What Visual Intelligence saw (`SemanticContentDescriptor`): the labels it
+/// recognised, such as `dog` or `golden retriever`, and the image itself.
+///
+/// The image is written as a PNG into the app's Application Support folder
+/// (`assistant_actions/files/`), like files Siri passes; delete it when done.
+class AssistantSemanticContent {
+  const AssistantSemanticContent({this.labels = const [], this.image});
+
+  factory AssistantSemanticContent.fromJson(Map<String, Object?> json) => AssistantSemanticContent(
+        labels: [for (final l in (json['labels'] as List?) ?? const []) if (l is String) l],
+        image: json['image'] is Map && (json['image'] as Map)['path'] is String
+            ? AssistantFile.fromJson((json['image'] as Map).cast())
+            : null,
+      );
+
+  final List<String> labels;
+
+  /// The camera frame or screenshot region, when Visual Intelligence gave one.
+  final AssistantFile? image;
+
+  Map<String, Object?> toJson() => {'labels': labels, if (image != null) 'image': image!.toJson()};
+
+  @override
+  bool operator ==(Object other) =>
+      other is AssistantSemanticContent && _deepEquals(other.labels, labels) && other.image == image;
+
+  @override
+  int get hashCode => Object.hash(Object.hashAll(labels), image);
+
+  @override
+  String toString() => 'AssistantSemanticContent(${labels.join(', ')}${image == null ? '' : ', ${image!.path}'})';
+}
+
 /// A recurrence rule (`Calendar.RecurrenceRule`), as Foundation encodes it.
 /// Pass one Siri gave back unchanged to keep it, or read [frequency] and
 /// [interval].

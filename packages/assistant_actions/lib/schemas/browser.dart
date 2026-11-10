@@ -43,6 +43,8 @@ class BrowserTab extends SchemaEntity {
     super.dialogs,
     super.confirm,
     super.replies,
+    super.url,
+    super.visualSearch,
   }) : super('browser.tab');
 
   /// Handle `browser.createTab` ("Create Tab"): calls
@@ -123,7 +125,7 @@ class FixedBrowserTab extends SchemaContainer {
 /// Map fields with [BrowserTabGroupField] and turn on the schema intents the app
 /// supports. Each one becomes a method on the generated handler.
 class BrowserTabGroup extends SchemaEntity {
-  const BrowserTabGroup() : super('browser.tabGroup');
+  const BrowserTabGroup({super.url, super.visualSearch}) : super('browser.tabGroup');
 }
 
 /// Marks members of `browser.tabGroup`.
@@ -158,7 +160,7 @@ class FixedBrowserTabGroup extends SchemaContainer {
 /// Map fields with [BrowserReadingListItemField] and turn on the schema intents the app
 /// supports. Each one becomes a method on the generated handler.
 class BrowserReadingListItem extends SchemaEntity {
-  const BrowserReadingListItem() : super('browser.readingListItem');
+  const BrowserReadingListItem({super.url, super.visualSearch}) : super('browser.readingListItem');
 }
 
 /// Marks members of `browser.readingListItem`.
@@ -203,6 +205,8 @@ class BrowserBookmark extends SchemaEntity {
     super.confirm,
     super.confirmDeletes,
     super.replies,
+    super.url,
+    super.visualSearch,
   }) : super('browser.bookmark');
 
   /// Handle `browser.bookmarkTab` ("Bookmark Tab"): calls
@@ -267,6 +271,8 @@ class BrowserWindow extends SchemaEntity {
     super.dialogs,
     super.confirm,
     super.replies,
+    super.url,
+    super.visualSearch,
   }) : super('browser.window');
 
   /// Handle `browser.createWindow` ("Create Window"): calls

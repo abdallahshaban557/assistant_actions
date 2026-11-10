@@ -1,6 +1,9 @@
 import 'package:assistant_actions/assistant_actions.dart';
 import 'package:flutter/material.dart';
 
+import 'assistant_actions.dart';
+import 'assistant_actions.g.dart';
+import 'models/models.dart';
 import 'store.dart';
 
 Future<void> main() async {
@@ -10,8 +13,33 @@ Future<void> main() async {
   runApp(const ExampleApp());
 }
 
-class ExampleApp extends StatelessWidget {
+class ExampleApp extends StatefulWidget {
   const ExampleApp({super.key});
+
+  @override
+  State<ExampleApp> createState() => _ExampleAppState();
+}
+
+/// Routes deep links, such as the `assistantactions://recipes/<id>` that
+/// `system.open` opens for a recipe. On iOS, Flutter passes them on
+/// (`FlutterDeepLinkingEnabled` in Info.plist); macOS needs a package such as
+/// `app_links`.
+class _ExampleAppState extends State<ExampleApp> with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  Future<bool> didPushRouteInformation(RouteInformation routeInformation) async =>
+      Store.instance.openLink(routeInformation.uri);
 
   @override
   Widget build(BuildContext context) => MaterialApp(
@@ -25,6 +53,13 @@ class ExampleApp extends StatelessWidget {
               return ListView(
                 children: [
                   if (store.focusNote case final note?) ListTile(leading: const Icon(Icons.nightlight), title: Text(note)),
+                  const ListTile(title: Text('Recipes')),
+                  for (final r in store.recipes)
+                    ListTile(
+                      title: Text(r.name),
+                      subtitle: Text(r.subtitle),
+                      onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => RecipePage(r))),
+                    ),
                   const ListTile(title: Text('Tasks (reminders.*)')),
                   if (store.hideTasks)
                     const ListTile(title: Text('Hidden during this Focus'))
@@ -55,6 +90,47 @@ class ExampleApp extends StatelessWidget {
                 ],
               );
             },
+          ),
+        ),
+      );
+}
+
+/// One recipe. While it's open, Siri and Apple Intelligence know it's on
+/// screen ("add this to my shopping list"), and opening it is donated.
+class RecipePage extends StatefulWidget {
+  const RecipePage(this.recipe, {super.key});
+
+  final Recipe recipe;
+
+  @override
+  State<RecipePage> createState() => _RecipePageState();
+}
+
+class _RecipePageState extends State<RecipePage> {
+  @override
+  void initState() {
+    super.initState();
+    AssistantActions.showing(widget.recipe);
+    AssistantActions.donate(widget.recipe);
+  }
+
+  @override
+  void dispose() {
+    AssistantActions.stopShowing();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+        appBar: AppBar(title: Text(widget.recipe.name)),
+        body: Center(
+          child: FilledButton(
+            onPressed: () async {
+              await addToShoppingList(widget.recipe, servings: 2);
+              // Siri learns the user does this, and can suggest it.
+              await AssistantDonations.addToShoppingList(widget.recipe, servings: 2);
+            },
+            child: const Text('Add to shopping list'),
           ),
         ),
       );

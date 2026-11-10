@@ -718,4 +718,346 @@ void main() {
     ])).write();
     expect(reminders, contains(r'tags = Set((AssistantValues.items(record.fields["tags"]) ?? []).compactMap { AssistantValues.string($0) })'));
   });
+
+  group('Apple Intelligence in context', () {
+    /// [_recipe] with a deep link and Visual Intelligence search.
+    EntityModel linkedRecipe({bool visualSearch = true}) {
+      final r = _recipe();
+      return EntityModel(
+        className: r.className,
+        library: r.library,
+        title: r.title,
+        idField: r.idField,
+        titleGetter: r.titleGetter,
+        fields: r.fields,
+        url: 'cook://recipes/{id}?from="siri"',
+        visualSearch: visualSearch,
+      );
+    }
+
+    /// `cook(Recipe recipe, {int? servings, required DateTime at})`.
+    ActionModel cook(EntityModel recipe) => ActionModel(
+          functionName: 'cook',
+          library: Uri.parse('package:app/actions.dart'),
+          title: 'Cook',
+          runs: RunsModel.deferred,
+          dialog: 'Cooking.',
+          returnsString: false,
+          params: [
+            ParamModel(name: 'recipe', title: 'Recipe', named: false, entity: recipe),
+            ParamModel(name: 'servings', title: 'Servings', named: true, value: const ValueType(ValueKind.integer, nullable: true)),
+            ParamModel(name: 'at', title: 'At', named: true, value: const ValueType(ValueKind.dateTime)),
+          ],
+        );
+
+    String block(String text, String start) {
+      final i = text.indexOf(start);
+      expect(i, isNot(-1), reason: start);
+      return text.substring(i, text.indexOf('\n}\n', i) + 2);
+    }
+
+    test('every entity is Transferable as text', () {
+      final swift = SwiftWriter(AppModel(appName: 'Cook', actions: const [], entities: [_recipe()], schemaEntities: [_memories()])).write();
+      expect(swift, contains('import CoreTransferable'));
+      expect(block(swift, 'extension RecipeEntity: Transferable {'), contains('''
+  public static var transferRepresentation: some TransferRepresentation {
+    ProxyRepresentation(exporting: { (item: RecipeEntity) in item.transferText })
+  }
+
+  /// The item as text: its title, subtitle and text fields.
+  public var transferText: String { AssistantValues.text([title, AssistantValues.encode(subtitle)]) }'''));
+      final memory = block(swift, 'extension MemoryItemEntity: Transferable {');
+      expect(memory, contains('var transferText: String { AssistantValues.text([String(name.characters), AssistantValues.encode(content)]) }'));
+      expect(swift, contains('@available(iOS 27.0, macOS 27.0, *)\nextension MemoryItemEntity: Transferable {'));
+    });
+
+    test('a journal entry exports its location as a place, from iOS 26.4', () {
+      final journal = _journal();
+      final entry = SchemaEntityModel(
+        className: journal.className,
+        library: journal.library,
+        catalog: journal.catalog,
+        schema: journal.schema,
+        idField: 'id',
+        mapping: {...journal.mapping, 'location': const FieldModel('place', ValueType(ValueKind.place, nullable: true))},
+        intents: journal.intents,
+        containers: const {},
+      );
+      final swift = SwiftWriter(AppModel(appName: 'Mira', actions: const [], entities: const [], schemaEntities: [entry])).write();
+      expect(swift, contains('@available(iOS 26.0, macOS 26.0, *)\nextension JournalItemEntity: Sendable {}'));
+      final ext = block(swift, 'extension JournalItemEntity: Transferable {');
+      expect(swift, contains('@available(iOS 26.4, macOS 26.4, *)\nextension JournalItemEntity: Transferable {'));
+      expect(ext, contains('''
+    IntentValueRepresentation(exporting: { (item: JournalItemEntity) throws -> PlaceDescriptor in
+      guard let value = item.location else { throw AssistantTransferError.noValue("location") }
+      return value
+    })'''));
+      // Without the location mapped there is nothing to export.
+      final plain = SwiftWriter(_journalApp()).write();
+      expect(plain, contains('@available(iOS 26.0, macOS 26.0, *)\nextension JournalItemEntity: Transferable {'));
+      expect(plain, isNot(contains('IntentValueRepresentation')));
+      expect(plain, isNot(contains('extension JournalItemEntity: Sendable')));
+    });
+
+    test('people export as IntentPerson', () {
+      final person = _adopt('messages.messagePerson', const {'person': FieldModel('who', ValueType(ValueKind.person))},
+          className: 'Contact');
+      final swift = SwiftWriter(AppModel(appName: 'Mira', actions: const [], entities: const [], schemaEntities: [person])).write();
+      expect(block(swift, 'extension ContactEntity: Transferable {'),
+          contains('IntentValueRepresentation(exporting: { (item: ContactEntity) -> IntentPerson in item.person })'));
+    });
+
+    test('deep links make URL-representable entities, and system.open opens them', () {
+      final recipe = linkedRecipe();
+      final app = AppModel(
+          appName: 'Cook',
+          actions: const [],
+          entities: [recipe],
+          schemaEntities: const [],
+          schemaDomains: [_domain('system')],
+          catalogs: _catalogs(['system']));
+      final swift = SwiftWriter(app).write();
+      expect(swift, contains(r'''
+@available(iOS 18.0, macOS 15.0, *)
+extension RecipeEntity: URLRepresentableEntity {
+  public static var urlRepresentation: URLRepresentation { "cook://recipes/\(.id)?from=\"siri\"" }
+}'''));
+      expect(swift, contains('@AppIntent(schema: .system.open)\nstruct OpenRecipeIntent: URLRepresentableIntent {\n  var target: RecipeEntity\n}'));
+      expect(swift, isNot(contains('"system.open.Recipe"')));
+      final dart = writeDart(app);
+      expect(dart, isNot(contains('openRecipe')));
+      expect(dart, isNot(contains("'system.open.Recipe'")));
+    });
+
+    test('plain actions are predictable and donatable', () {
+      final recipe = _recipe();
+      final app = AppModel(appName: 'Cook', actions: [cook(recipe)], entities: [recipe], schemaEntities: const []);
+      final swift = SwiftWriter(app).write();
+      expect(block(swift, 'extension CookAction: PredictableIntent {'), contains(r'''
+    IntentPrediction(parameters: (\.$recipe, \.$servings, \.$at)) { recipe, servings, at in
+      DisplayRepresentation(
+        title: "Cook",
+        subtitle: "\(AssistantValues.text([recipe.title, servings.map { "\($0)" } ?? "", at.formatted(date: .abbreviated, time: .shortened)], separator: ", "))")
+    }'''));
+      final donate = block(swift, '  private static func donateAction(');
+      expect(donate, contains('''
+    case "cook":
+      guard let recipeValue = AssistantValues.string(values["recipe"]).flatMap({ id in AssistantSnapshot.records("Recipe").first(where: { \$0.id == id }) }).map(RecipeEntity.init(record:)) else { return false }
+      guard let atValue = AssistantValues.date(values["at"]) else { return false }
+      let intent = CookAction()
+      intent.recipe = recipeValue
+      intent.servings = AssistantValues.int(values["servings"])
+      intent.at = atValue
+      IntentDonationManager.shared.donate(intent: intent)
+      return true'''));
+      expect(swift, contains('AssistantHostCalls.register("donate.action") { args in donateAction(args) }'));
+      expect(swift, isNot(contains('"donate.entity"')), reason: 'no open intents to donate');
+      final dart = writeDart(app);
+      expect(dart, contains('static Future<bool> cook(a1.Recipe recipe, {int? servings, required DateTime at}) =>'));
+      expect(dart, contains("AssistantActions.donateAction('cook', {'recipe': recipe.id, 'servings': servings, 'at': AssistantValue.encodeDate(at)});"));
+    });
+
+    test('snapshot answers are donatable too', () {
+      final swift = SwiftWriter(_app()).write();
+      expect(swift, contains('extension ShowTasksAction: PredictableIntent {'));
+      expect(swift, contains('    case "showTasks":\n      let intent = ShowTasksAction()'));
+      expect(writeDart(_app()), contains("static Future<bool> showTasks() => AssistantActions.donateAction('showTasks', const {});"));
+    });
+
+    test('collections register their entity identifiers for on-screen items', () {
+      final swift = SwiftWriter(AppModel(appName: 'Mira', actions: const [], entities: [_recipe()], schemaEntities: [_journal()])).write();
+      final calls = block(swift, 'public final class AssistantActionsAppHostCalls');
+      expect(swift, contains('@objc(AssistantActionsAppHostCalls)\npublic final class AssistantActionsAppHostCalls: NSObject, AssistantHostCallsProvider {'));
+      expect(calls, contains(r'AssistantContext.register("Recipe") { EntityIdentifier(for: RecipeEntity.self, identifier: $0) }'));
+      expect(calls, contains('''
+    AssistantContext.register("JournalItem") { id in
+      guard #available(iOS 26.0, macOS 26.0, *) else { return nil }
+      return EntityIdentifier(for: JournalItemEntity.self, identifier: id)
+    }'''));
+    });
+
+    test('opened items donate their system.open intent', () {
+      final app = AppModel(
+          appName: 'Mira',
+          actions: const [],
+          entities: [_recipe()],
+          schemaEntities: [_journal()],
+          schemaDomains: [_domain('system')],
+          catalogs: _catalogs(['system']));
+      final donate = block(SwiftWriter(app).write(), '  private static func donateEntity(');
+      expect(donate, contains('''
+    case "JournalItem":
+      guard #available(iOS 27.0, macOS 27.0, *),
+        let record = AssistantSnapshot.records("JournalItem").first(where: { \$0.id == id })
+      else { return false }
+      let intent = OpenJournalItemIntent()
+      intent.target = JournalItemEntity(record: record)
+      IntentDonationManager.shared.donate(intent: intent)
+      return true'''));
+      expect(donate, contains('    case "Recipe":'));
+    });
+
+    test('maps places import from a PlaceDescriptor, through Dart or the snapshot', () {
+      final maps = _load('maps');
+      final schema = maps.entities['maps.place']!;
+      final place = SchemaEntityModel(
+        className: 'Spot',
+        library: Uri.parse('package:app/models.dart'),
+        catalog: maps,
+        schema: schema,
+        idField: 'id',
+        mapping: const {
+          'place': FieldModel('where', ValueType(ValueKind.place)),
+          'name': FieldModel('name', ValueType(ValueKind.string, nullable: true)),
+        },
+        intents: const [],
+        containers: const {},
+        queries: [maps.queries['maps.placeIntentValueQuery']!],
+      );
+      final app = AppModel(appName: 'Mira', actions: const [], entities: const [], schemaEntities: [place]);
+      final swift = SwiftWriter(app).write();
+      final query = block(swift, 'struct SpotPlaceIntentValueQuery: IntentValueQuery {');
+      expect(swift, contains('@available(iOS 27.0, macOS 27.0, *)\nstruct SpotPlaceIntentValueQuery: IntentValueQuery {'));
+      expect(query, contains('func values(for input: PlaceDescriptor) async throws -> [SpotEntity] {'));
+      expect(query, contains('AssistantBridge.shared.perform("Spot.placeIntentValueQuery", args: ["place": value])'));
+      expect(query, contains('AssistantSnapshot.records("Spot"), matchingPlace: value, field: "where",'));
+      expect(block(swift, 'extension SpotEntity: Transferable {'),
+          contains('IntentValueRepresentation(exporting: { (item: SpotEntity) -> PlaceDescriptor in item.place })'));
+      final dart = writeDart(app);
+      expect(dart, contains('  Future<List<String>> placeIntentValueQuery(AssistantPlace place);'));
+      expect(dart, contains("'Spot.placeIntentValueQuery': (args) async {"));
+      expect(dart, contains("spot.placeIntentValueQuery(AssistantValue.place(args['place']) ?? (throw ArgumentError.notNull('place')))"));
+      expect(dart, contains("import 'dart:convert';"));
+    });
+
+    test('Visual Intelligence search returns one entity type, from iOS 26 / macOS 27', () {
+      final app = AppModel(appName: 'Cook', actions: const [], entities: [linkedRecipe()], schemaEntities: const []);
+      final swift = SwiftWriter(app).write();
+      expect(swift, contains('#if canImport(VisualIntelligence)\n  import VisualIntelligence\n#endif'));
+      final query = block(swift, 'struct AssistantVisualSearchQuery: IntentValueQuery {');
+      expect(swift, contains('@available(iOS 26.0, macOS 27.0, *)\nstruct AssistantVisualSearchQuery: IntentValueQuery {'));
+      expect(query, contains('func values(for input: SemanticContentDescriptor) async throws -> [RecipeEntity] {'));
+      expect(query, contains('"visualIntelligence.search", args: ["content": AssistantValues.encode(input), "collections": ["Recipe"]])'));
+      expect(query, contains('results.append(found)'));
+      expect(query, contains(r'AssistantSnapshot.records("Recipe"), matchingLabels: input.labels, ignoring: RecipeEntityQuery.typeWords'));
+      expect(swift, isNot(contains('@UnionValue')));
+      final dart = writeDart(app);
+      expect(dart, contains('required FutureOr<Iterable<Object>> Function(AssistantSemanticContent content) visualSearch,'));
+      expect(dart, contains("final content = AssistantValue.semanticContent(args['content']) ?? const AssistantSemanticContent();"));
+      expect(dart, contains("a0.Recipe e => {'collection': 'Recipe', 'id': e.id},"));
+    });
+
+    test('several Visual Intelligence types make a union, from iOS 27', () {
+      final journal = _journal();
+      final entries = SchemaEntityModel(
+        className: journal.className,
+        library: journal.library,
+        catalog: journal.catalog,
+        schema: journal.schema,
+        idField: 'id',
+        mapping: journal.mapping,
+        intents: const [],
+        containers: const {},
+        visualSearch: true,
+      );
+      final app = AppModel(appName: 'Cook', actions: const [], entities: [linkedRecipe()], schemaEntities: [entries]);
+      final swift = SwiftWriter(app).write();
+      expect(swift, contains('''
+@available(iOS 27.0, macOS 27.0, *)
+@UnionValue
+enum AssistantVisualSearchResult {
+  case recipe(RecipeEntity)
+  case journalItem(JournalItemEntity)
+}'''));
+      final query = block(swift, 'struct AssistantVisualSearchQuery: IntentValueQuery {');
+      expect(query, contains('-> [AssistantVisualSearchResult] {'));
+      expect(query, contains('results.append(.journalItem(found))'));
+      expect(writeDart(app), contains("a0.JournalItem e => {'collection': 'JournalItem', 'id': e.id},"));
+    });
+
+    test('semanticContentSearch passes what Visual Intelligence saw to Dart', () {
+      final app = AppModel(
+          appName: 'Cook',
+          actions: const [],
+          entities: const [],
+          schemaEntities: const [],
+          schemaDomains: [_domain('visualIntelligence')],
+          catalogs: _catalogs(['visualIntelligence']));
+      final swift = SwiftWriter(app).write();
+      expect(swift, contains('"semanticContent": AssistantValues.encode(semanticContent),'));
+      expect(swift, isNot(contains('Not passed to Dart')));
+      final dart = writeDart(app);
+      expect(dart, contains('Future<void> semanticContentSearch({required AssistantSemanticContent semanticContent});'));
+      expect(dart, contains("semanticContent: AssistantValue.semanticContent(args['semanticContent']) ?? (throw ArgumentError.notNull('semanticContent'))"));
+    });
+  });
+
+  group('Apple Intelligence in context, across the stack', () {
+    String block(String text, String start) {
+      final i = text.indexOf(start);
+      expect(i, isNot(-1), reason: start);
+      return text.substring(i, text.indexOf('\n}\n', i) + 2);
+    }
+
+    SchemaEntityModel doc({bool visualSearch = false}) {
+      final d = _adopt('files.file', const {'creationDate': FieldModel('created', ValueType(ValueKind.dateTime, nullable: true))},
+          className: 'DocItem');
+      return SchemaEntityModel(
+        className: d.className,
+        library: d.library,
+        catalog: d.catalog,
+        schema: d.schema,
+        idField: 'id',
+        mapping: d.mapping,
+        intents: const [],
+        containers: const {},
+        visualSearch: visualSearch,
+      );
+    }
+
+    test('file entities are identified by FileEntityIdentifier and hand over the file', () {
+      final swift = SwiftWriter(AppModel(
+              appName: 'Mira', actions: const [], entities: const [], schemaEntities: [doc(visualSearch: true)]))
+          .write();
+      expect(swift, contains('return EntityIdentifier(for: DocItemEntity.self, identifier: AssistantFileIDs.identifier(id))'));
+      final transfer = block(swift, 'extension DocItemEntity: Transferable {');
+      expect(transfer, contains('''
+    FileRepresentation(exportedContentType: .data) { (item: DocItemEntity) in
+      guard let url = AssistantFileIDs.url(item.dartID) else { throw AssistantTransferError.noValue("file") }
+      return SentTransferredFile(url)
+    }'''));
+      // Dart's results are paths, looked up by dartID.
+      expect(block(swift, 'struct AssistantVisualSearchQuery'),
+          contains('if let found = DocItemEntityQuery().entities(dartIDs: [item.id]).first {'));
+    });
+
+    test('with @AssistantBackground, queries start the headless engine instead of waiting', () {
+      final recipe = _recipe();
+      final linked = EntityModel(
+          className: recipe.className,
+          library: recipe.library,
+          title: recipe.title,
+          idField: recipe.idField,
+          titleGetter: recipe.titleGetter,
+          fields: recipe.fields,
+          visualSearch: true);
+      AppModel app({required bool background}) => AppModel(
+            appName: 'Cook',
+            actions: const [],
+            entities: [linked],
+            schemaEntities: const [],
+            background: background
+                ? BackgroundModel(
+                    functionName: 'appRegistry',
+                    library: Uri.parse('package:app/store.dart'),
+                    entrypointLibrary: Uri.parse('package:app/assistant_actions.g.dart'),
+                    applyQueued: true)
+                : null,
+          );
+      expect(block(SwiftWriter(app(background: true)).write(), 'struct AssistantVisualSearchQuery'),
+          contains('    if await AssistantBackground.shared.prepare(),\n'));
+      expect(block(SwiftWriter(app(background: false)).write(), 'struct AssistantVisualSearchQuery'),
+          contains('    if await AssistantBridge.shared.waitUntilReady(timeout: 3),\n'));
+    });
+  });
 }

@@ -31,7 +31,8 @@ class SystemIntents extends SchemaIntents {
   }) : super('system');
 
   /// Handle `system.open` ("Open Item"): Siri opens one of the app's entities.
-  /// Generates an `open<Class>(String id)` handler method per adopted entity.
+  /// Generates an `open<Class>(String id)` handler method per adopted entity
+  /// (entities with a `url` open their deep link instead).
   final bool open;
 
   /// Handle `system.searchInApp` ("Search"): calls

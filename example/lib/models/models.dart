@@ -8,8 +8,10 @@ import 'package:assistant_actions/schemas/reminders.dart';
 
 /// Level 2: one of the app's own types, searchable by Siri. "Open Pancakes in
 /// …" is an App Shortcut for `system.open` that learns each recipe the app
-/// publishes.
-@AssistantEntity(title: 'Recipe')
+/// publishes. Each recipe has a deep link (`system.open` opens it, and Apple
+/// Intelligence can share it), and Visual Intelligence can show recipes for
+/// what the camera sees.
+@AssistantEntity(title: 'Recipe', url: 'assistantactions://recipes/{id}', visualSearch: true)
 @IntentShortcut('system.open',
     phrases: ['Open {target} in {app}', 'Show a recipe in {app}'], shortTitle: 'Open Recipe', systemImage: 'book')
 class Recipe {
@@ -92,6 +94,7 @@ class MemoryItem {
   createAudioEntry: true,
   updateEntry: true,
   deleteEntry: true,
+  visualSearch: true,
 )
 class JournalItem {
   JournalItem({required this.id, required this.text, this.title, this.date, this.media = const [], this.place});
@@ -162,7 +165,7 @@ enum Meal {
 
 /// Level 3: a document Siri understands as a file (`files.file`). The id is
 /// the file's path; Swift gives Siri a `FileEntityIdentifier` for it.
-@FilesFile(openFile: true, moveFiles: true, createFolder: true, renameFile: true, deleteFiles: true)
+@FilesFile(openFile: true, moveFiles: true, createFolder: true, renameFile: true, deleteFiles: true, visualSearch: true)
 class DocItem {
   DocItem({required this.path, this.created});
 

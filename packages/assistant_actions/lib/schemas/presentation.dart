@@ -40,6 +40,8 @@ class PresentationSlide extends SchemaEntity {
     super.confirm,
     super.confirmDeletes,
     super.replies,
+    super.url,
+    super.visualSearch,
   }) : super('presentation.slide');
 
   /// The fixed `presentation.document` every item belongs to (required by the schema).
@@ -168,7 +170,7 @@ class FixedPresentationSlide extends SchemaContainer {
 /// Map fields with [PresentationTemplateField] and turn on the schema intents the app
 /// supports. Each one becomes a method on the generated handler.
 class PresentationTemplate extends SchemaEntity {
-  const PresentationTemplate() : super('presentation.template');
+  const PresentationTemplate({super.url, super.visualSearch}) : super('presentation.template');
 }
 
 /// Marks members of `presentation.template`.
@@ -219,6 +221,8 @@ class PresentationDocument extends SchemaEntity {
     super.dialogs,
     super.confirm,
     super.replies,
+    super.url,
+    super.visualSearch,
   }) : super('presentation.document');
 
   /// Handle `presentation.create` ("Create Presentation"): calls

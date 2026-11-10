@@ -11,7 +11,7 @@
 /// Turn on intents that belong to no entity with `@MapsIntents(...)` on the
 /// class implementing the generated `MapsAssistantHandler`.
 ///
-/// Not adoptable: `addNoteToPlace` (no public definition in the SDK), `addPlaces` (no public definition in the SDK), `calculateETA` (no public definition in the SDK), `currentHeading` (no public definition in the SDK), `deleteParkingLocations` (no public definition in the SDK), `eta` (no public definition in the SDK), `getElevation` (no public definition in the SDK), `parkingLocationData` (no public definition in the SDK), `placeAttribute` (no public definition in the SDK), `placeList` (no public definition in the SDK), `placeType` (no public definition in the SDK), `removePlaces` (no public definition in the SDK), `saveParkingLocation` (no public definition in the SDK), `showParkingLocation` (no public definition in the SDK), `showPlacesInApp` (no public definition in the SDK), `trafficLevel` (no public definition in the SDK), `updateParkingLocation` (no public definition in the SDK).
+/// Not adoptable: `addNoteToPlace` (no public definition in the SDK), `addPlaces` (no public definition in the SDK), `calculateETA` (no public definition in the SDK), `currentHeading` (no public definition in the SDK), `deleteParkingLocations` (no public definition in the SDK), `eta` (no public definition in the SDK), `getElevation` (no public definition in the SDK), `parkingLocationData` (no public definition in the SDK), `parkingLocationDataTransferable` (no public definition in the SDK), `placeAttribute` (no public definition in the SDK), `placeList` (no public definition in the SDK), `placeType` (no public definition in the SDK), `removePlaces` (no public definition in the SDK), `saveParkingLocation` (no public definition in the SDK), `showParkingLocation` (no public definition in the SDK), `showPlacesInApp` (no public definition in the SDK), `trafficLevel` (no public definition in the SDK), `updateParkingLocation` (no public definition in the SDK).
 library;
 
 import '../src/schema.dart';
@@ -66,7 +66,7 @@ class MapsAmenity extends SchemaEnumCases {
 /// Map fields with [MapsCurrentLocationField] and turn on the schema intents the app
 /// supports. Each one becomes a method on the generated handler.
 class MapsCurrentLocation extends SchemaEntity {
-  const MapsCurrentLocation() : super('maps.currentLocation');
+  const MapsCurrentLocation({super.url, super.visualSearch}) : super('maps.currentLocation');
 }
 
 /// Marks members of `maps.currentLocation`.
@@ -104,6 +104,8 @@ class MapsNavigationSession extends SchemaEntity {
     super.dialogs,
     super.confirm,
     super.replies,
+    super.url,
+    super.visualSearch,
   }) : super('maps.navigationSession');
 
   /// Handle `maps.startNavigation` ("Start Navigation"): calls
@@ -168,13 +170,23 @@ abstract final class MapsNavigationSessionField {
 ///
 /// Map fields with [MapsPlaceField] and turn on the schema intents the app
 /// supports. Each one becomes a method on the generated handler.
+///
+/// Apple Intelligence can hand an item's `place` to other apps as a `placeDescriptor` (`maps.placeTransferable`), when that member is mapped.
 class MapsPlace extends SchemaEntity {
   const MapsPlace({
     this.operatingHours,
+    this.placeIntentValueQuery = false,
+    super.url,
+    super.visualSearch,
   }) : super('maps.place');
 
   /// The fixed `maps.operatingHours` every item belongs to, if any.
   final FixedMapsOperatingHours? operatingHours;
+
+  /// Answer `maps.placeIntentValueQuery`: Apple Intelligence finds items for a `placeDescriptor` with
+  /// `Future<List<String>> placeIntentValueQuery(AssistantPlace place)` on the generated handler, live
+  /// (when Flutter isn't running, from the published items).
+  final bool placeIntentValueQuery;
 }
 
 /// Marks members of `maps.place`.
@@ -245,7 +257,7 @@ abstract final class MapsPlaceField {
 /// Map fields with [MapsOperatingHoursField] and turn on the schema intents the app
 /// supports. Each one becomes a method on the generated handler.
 class MapsOperatingHours extends SchemaEntity {
-  const MapsOperatingHours() : super('maps.operatingHours');
+  const MapsOperatingHours({super.url, super.visualSearch}) : super('maps.operatingHours');
 }
 
 /// Marks members of `maps.operatingHours`.
@@ -328,7 +340,7 @@ class FixedMapsOperatingHours extends SchemaContainer {
 /// Map fields with [MapsOperatingTimeRangeField] and turn on the schema intents the app
 /// supports. Each one becomes a method on the generated handler.
 class MapsOperatingTimeRange extends SchemaEntity {
-  const MapsOperatingTimeRange() : super('maps.operatingTimeRange');
+  const MapsOperatingTimeRange({super.url, super.visualSearch}) : super('maps.operatingTimeRange');
 }
 
 /// Marks members of `maps.operatingTimeRange`.
@@ -360,7 +372,7 @@ abstract final class MapsOperatingTimeRangeField {
 /// Map fields with [MapsRatingField] and turn on the schema intents the app
 /// supports. Each one becomes a method on the generated handler.
 class MapsRating extends SchemaEntity {
-  const MapsRating() : super('maps.rating');
+  const MapsRating({super.url, super.visualSearch}) : super('maps.rating');
 }
 
 /// Marks members of `maps.rating`.

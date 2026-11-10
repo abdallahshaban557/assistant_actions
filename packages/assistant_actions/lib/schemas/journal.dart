@@ -25,6 +25,8 @@ import '../src/values.dart';
 /// `dialogs` and `confirm` give, by intent name, what Siri says when one
 /// finishes and what it asks first (deletes ask by default; see `confirmDeletes`).
 /// `replies` lets live intents' handlers return an `AssistantReply`.
+///
+/// Apple Intelligence can hand an item's `location` to other apps as a `placeDescriptor` (`journal.entryTransferable`), when that member is mapped.
 class JournalEntry extends SchemaEntity {
   const JournalEntry({
     this.createEntry = false,
@@ -35,6 +37,8 @@ class JournalEntry extends SchemaEntity {
     super.confirm,
     super.confirmDeletes,
     super.replies,
+    super.url,
+    super.visualSearch,
   }) : super('journal.entry');
 
   /// Handle `journal.createEntry` ("Create Entry"): creates items.

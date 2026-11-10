@@ -3,10 +3,14 @@
 
 import AppIntents
 import CoreSpotlight
+import CoreTransferable
 import Foundation
 import GeoToolbox
 import SwiftUI
 import UniformTypeIdentifiers
+#if canImport(VisualIntelligence)
+  import VisualIntelligence
+#endif
 import assistant_actions
 
 #if os(iOS)
@@ -1923,25 +1927,12 @@ struct OpenCountdownIntent: ForegroundContinuableIntent {
   }
 }
 
-/// `system.open` for `Recipe` → calls `openRecipe(id)` on `SystemAssistantHandler`.
+/// `system.open` for `Recipe` → opens the item's link, which the app handles as a deep link.
 @available(iOS 27.0, macOS 27.0, *)
 @AppIntent(schema: .system.open)
-public struct OpenRecipeIntent: ForegroundContinuableIntent {
+public struct OpenRecipeIntent: URLRepresentableIntent {
   public init() {}
   public var target: RecipeEntity
-
-  @MainActor
-  public func perform() async throws -> some IntentResult {
-    #if os(iOS)
-      if UIApplication.shared.applicationState != .active {
-        try await requestToContinueInForeground()
-      }
-    #elseif os(macOS)
-      NSApplication.shared.activate()
-    #endif
-    _ = try await AssistantBridge.shared.perform("system.open.Recipe", args: ["id": target.id])
-    return .result()
-  }
 }
 
 /// `system.searchInApp` → calls `searchInApp` on `SystemAssistantHandler`.
@@ -2014,6 +2005,32 @@ struct CameraStopCaptureIntent {
     return .result()
   }
 }
+
+#if canImport(VisualIntelligence)
+/// `visualIntelligence.semanticContentSearch` → calls `semanticContentSearch` on `VisualIntelligenceAssistantHandler`.
+@available(iOS 26.0, macOS 27.0, *)
+@AppIntent(schema: .visualIntelligence.semanticContentSearch)
+struct VisualIntelligenceSemanticContentSearchIntent {
+  static let supportedModes: IntentModes = .foreground
+
+  var semanticContent: SemanticContentDescriptor
+
+  @MainActor
+  func perform() async throws -> some IntentResult {
+    let args: [String: Any] = [
+      "semanticContent": AssistantValues.encode(semanticContent),
+    ]
+    _ = try await callDart("visualIntelligence.semanticContentSearch", args: args)
+    return .result()
+  }
+}
+
+@available(iOS 26.0, macOS 27.0, *)
+extension VisualIntelligenceSemanticContentSearchIntent: ProgressReportingIntent {}
+
+@available(iOS 26.4, macOS 27.0, *)
+extension VisualIntelligenceSemanticContentSearchIntent: CancellableIntent {}
+#endif
 
 @available(iOS 18.0, macOS 15.0, *)
 extension RecipeEntity: IndexedEntity {
@@ -2242,4 +2259,402 @@ extension DocItemEntityQuery: IndexedEntityQuery {
     public static let libraryURI = "package:assistant_actions_example/assistant_actions.g.dart"
   }
 #endif
+
+/// Apple Intelligence can hand a `Recipe` to other apps, as text.
+extension RecipeEntity: Transferable {
+  public static var transferRepresentation: some TransferRepresentation {
+    ProxyRepresentation(exporting: { (item: RecipeEntity) in item.transferText })
+  }
+
+  /// The item as text: its title, subtitle and text fields.
+  public var transferText: String { AssistantValues.text([title, AssistantValues.encode(subtitle)]) }
+}
+
+/// Items link to `assistantactions://recipes/{id}`, which the app opens as a deep link.
+@available(iOS 18.0, macOS 15.0, *)
+extension RecipeEntity: URLRepresentableEntity {
+  public static var urlRepresentation: URLRepresentation { "assistantactions://recipes/\(.id)" }
+}
+
+/// Apple Intelligence can hand a `TaskItem` to other apps, as text.
+@available(iOS 27.0, macOS 27.0, *)
+extension TaskItemEntity: Transferable {
+  public static var transferRepresentation: some TransferRepresentation {
+    ProxyRepresentation(exporting: { (item: TaskItemEntity) in item.transferText })
+  }
+
+  /// The item as text: its title and text, people and places.
+  public var transferText: String { AssistantValues.text([title]) }
+}
+
+/// Apple Intelligence can hand a `MemoryItem` to other apps, as text.
+@available(iOS 27.0, macOS 27.0, *)
+extension MemoryItemEntity: Transferable {
+  static var transferRepresentation: some TransferRepresentation {
+    ProxyRepresentation(exporting: { (item: MemoryItemEntity) in item.transferText })
+  }
+
+  /// The item as text: its title and text, people and places.
+  var transferText: String { AssistantValues.text([String(name.characters), AssistantValues.encode(content)]) }
+}
+
+@available(iOS 26.0, macOS 26.0, *)
+extension JournalItemEntity: Sendable {}
+
+/// Apple Intelligence can hand a `JournalItem` to other apps, as text and its `location` (`journal.entryTransferable`).
+@available(iOS 26.4, macOS 26.4, *)
+extension JournalItemEntity: Transferable {
+  static var transferRepresentation: some TransferRepresentation {
+    ProxyRepresentation(exporting: { (item: JournalItemEntity) in item.transferText })
+    IntentValueRepresentation(exporting: { (item: JournalItemEntity) throws -> PlaceDescriptor in
+      guard let value = item.location else { throw AssistantTransferError.noValue("location") }
+      return value
+    })
+  }
+
+  /// The item as text: its title and text, people and places.
+  var transferText: String { AssistantValues.text([(title ?? ""), AssistantValues.encode(message), AssistantValues.encode(location)]) }
+}
+
+/// Apple Intelligence can hand a `Countdown` to other apps, as text.
+@available(iOS 27.0, macOS 27.0, *)
+extension CountdownEntity: Transferable {
+  static var transferRepresentation: some TransferRepresentation {
+    ProxyRepresentation(exporting: { (item: CountdownEntity) in item.transferText })
+  }
+
+  /// The item as text: its title and text, people and places.
+  var transferText: String { AssistantValues.text([(label ?? "")]) }
+}
+
+/// Apple Intelligence can hand a `DocItem` to other apps, as text.
+@available(iOS 18.0, macOS 15.0, *)
+extension DocItemEntity: Transferable {
+  static var transferRepresentation: some TransferRepresentation {
+    ProxyRepresentation(exporting: { (item: DocItemEntity) in item.transferText })
+    FileRepresentation(exportedContentType: .data) { (item: DocItemEntity) in
+      guard let url = AssistantFileIDs.url(item.dartID) else { throw AssistantTransferError.noValue("file") }
+      return SentTransferredFile(url)
+    }
+  }
+
+  /// The item as text: its title and text, people and places.
+  var transferText: String { AssistantValues.text(["File"]) }
+}
+
+extension AddToShoppingListAction: PredictableIntent {
+  public static var predictionConfiguration: some IntentPredictionConfiguration {
+    IntentPrediction(parameters: (\.$recipe, \.$servings)) { recipe, servings in
+      DisplayRepresentation(
+        title: "Add to Shopping List",
+        subtitle: "\(AssistantValues.text([recipe.title, servings.map { "\($0)" } ?? ""], separator: ", "))")
+    }
+  }
+}
+
+extension RemoveFromShoppingListAction: PredictableIntent {
+  public static var predictionConfiguration: some IntentPredictionConfiguration {
+    IntentPrediction(parameters: \.$recipe) { recipe in
+      DisplayRepresentation(
+        title: "Remove from Shopping List",
+        subtitle: "\(AssistantValues.text([recipe.title], separator: ", "))")
+    }
+  }
+}
+
+extension ShowRecipeCardAction: PredictableIntent {
+  public static var predictionConfiguration: some IntentPredictionConfiguration {
+    IntentPrediction(parameters: \.$recipe) { recipe in
+      DisplayRepresentation(
+        title: "Show Recipe Card",
+        subtitle: "\(AssistantValues.text([recipe.title], separator: ", "))")
+    }
+  }
+}
+
+extension PickRecipeAction: PredictableIntent {
+  public static var predictionConfiguration: some IntentPredictionConfiguration {
+    IntentPrediction(parameters: \.$meal) { meal in
+      DisplayRepresentation(
+        title: "Pick a Recipe",
+        subtitle: "\(AssistantValues.text([meal.rawValue], separator: ", "))")
+    }
+  }
+}
+
+extension CountOpenTasksAction: PredictableIntent {
+  public static var predictionConfiguration: some IntentPredictionConfiguration {
+    IntentPrediction(displayRepresentation: { DisplayRepresentation(title: "Count Open Tasks") })
+  }
+}
+
+extension PlanMealAction: PredictableIntent {
+  public static var predictionConfiguration: some IntentPredictionConfiguration {
+    IntentPrediction(parameters: (\.$recipe, \.$meal)) { recipe, meal in
+      DisplayRepresentation(
+        title: "Plan a Meal",
+        subtitle: "\(AssistantValues.text([recipe.title, meal.rawValue], separator: ", "))")
+    }
+  }
+}
+
+extension QuickestRecipeAction: PredictableIntent {
+  public static var predictionConfiguration: some IntentPredictionConfiguration {
+    IntentPrediction(parameters: \.$under) { under in
+      DisplayRepresentation(
+        title: "Quickest Recipe",
+        subtitle: "\(AssistantValues.text([under.map { $0.formatted() } ?? ""], separator: ", "))")
+    }
+  }
+}
+
+extension ShoppingListAction: PredictableIntent {
+  public static var predictionConfiguration: some IntentPredictionConfiguration {
+    IntentPrediction(displayRepresentation: { DisplayRepresentation(title: "Shopping List") })
+  }
+}
+
+@available(iOS 27.0, macOS 27.0, *)
+extension NextTaskAction: PredictableIntent {
+  public static var predictionConfiguration: some IntentPredictionConfiguration {
+    IntentPrediction(displayRepresentation: { DisplayRepresentation(title: "Next Task") })
+  }
+}
+
+extension ArchiveDoneTasksAction: PredictableIntent {
+  public static var predictionConfiguration: some IntentPredictionConfiguration {
+    IntentPrediction(displayRepresentation: { DisplayRepresentation(title: "Archive Done Tasks") })
+  }
+}
+
+extension StopRecordingAction: PredictableIntent {
+  public static var predictionConfiguration: some IntentPredictionConfiguration {
+    IntentPrediction(displayRepresentation: { DisplayRepresentation(title: "Stop Recording") })
+  }
+}
+
+extension ShowOpenTasksAction: PredictableIntent {
+  public static var predictionConfiguration: some IntentPredictionConfiguration {
+    IntentPrediction(displayRepresentation: { DisplayRepresentation(title: "Show Open Tasks") })
+  }
+}
+
+extension QuickRecipesAction: PredictableIntent {
+  public static var predictionConfiguration: some IntentPredictionConfiguration {
+    IntentPrediction(displayRepresentation: { DisplayRepresentation(title: "Quick Recipes") })
+  }
+}
+
+#if canImport(VisualIntelligence)
+/// What Visual Intelligence search returns: an item of one of the types.
+@available(iOS 27.0, macOS 27.0, *)
+@UnionValue
+enum AssistantVisualSearchResult {
+  case recipe(RecipeEntity)
+  case journalItem(JournalItemEntity)
+  case docItem(DocItemEntity)
+}
+
+/// Visual Intelligence's search: `visualSearch` in Dart picks `Recipe`, `JournalItem`, `DocItem` items
+/// for what the camera or a screenshot shows while Flutter runs; otherwise the
+/// published items matching the image's labels.
+@available(iOS 27.0, macOS 27.0, *)
+struct AssistantVisualSearchQuery: IntentValueQuery {
+  func values(for input: SemanticContentDescriptor) async throws -> [AssistantVisualSearchResult] {
+    var results: [AssistantVisualSearchResult] = []
+    if await AssistantBackground.shared.prepare(),
+      let reply = try? await AssistantBridge.shared.perform(
+        "visualIntelligence.search", args: ["content": AssistantValues.encode(input), "collections": ["Recipe", "JournalItem", "DocItem"]])
+    {
+      for item in AssistantValues.references(reply) {
+        switch item.collection {
+        case "Recipe":
+          if let found = try await RecipeEntityQuery().entities(for: [item.id]).first {
+            results.append(.recipe(found))
+          }
+        case "JournalItem":
+          if let found = try await JournalItemEntityQuery().entities(for: [item.id]).first {
+            results.append(.journalItem(found))
+          }
+        case "DocItem":
+          if let found = DocItemEntityQuery().entities(dartIDs: [item.id]).first {
+            results.append(.docItem(found))
+          }
+        default:
+          break
+        }
+      }
+      return results
+    }
+    results += AssistantMatch.records(
+      AssistantSnapshot.records("Recipe"), matchingLabels: input.labels, ignoring: RecipeEntityQuery.typeWords
+    ).map { .recipe(RecipeEntity(record: $0)) }
+    results += AssistantMatch.records(
+      AssistantSnapshot.records("JournalItem"), matchingLabels: input.labels, ignoring: JournalItemEntityQuery.typeWords
+    ).map { .journalItem(JournalItemEntity(record: $0)) }
+    results += AssistantMatch.records(
+      AssistantSnapshot.records("DocItem"), matchingLabels: input.labels, ignoring: DocItemEntityQuery.typeWords
+    ).map { .docItem(DocItemEntity(record: $0)) }
+    return results
+  }
+}
+#endif
+
+/// Found by name by `AssistantHostCalls` in the runtime: what Dart's
+/// `AssistantActions.showing`, `donate` and `AssistantDonations` need.
+@objc(AssistantActionsAppHostCalls)
+public final class AssistantActionsAppHostCalls: NSObject, AssistantHostCallsProvider {
+  @MainActor
+  public static func registerAll() {
+    AssistantContext.register("Recipe") { EntityIdentifier(for: RecipeEntity.self, identifier: $0) }
+    AssistantContext.register("TaskItem") { id in
+      guard #available(iOS 27.0, macOS 27.0, *) else { return nil }
+      return EntityIdentifier(for: TaskItemEntity.self, identifier: id)
+    }
+    AssistantContext.register("MemoryItem") { id in
+      guard #available(iOS 27.0, macOS 27.0, *) else { return nil }
+      return EntityIdentifier(for: MemoryItemEntity.self, identifier: id)
+    }
+    AssistantContext.register("JournalItem") { id in
+      guard #available(iOS 26.0, macOS 26.0, *) else { return nil }
+      return EntityIdentifier(for: JournalItemEntity.self, identifier: id)
+    }
+    AssistantContext.register("Countdown") { id in
+      guard #available(iOS 27.0, macOS 27.0, *) else { return nil }
+      return EntityIdentifier(for: CountdownEntity.self, identifier: id)
+    }
+    AssistantContext.register("DocItem") { id in
+      guard #available(iOS 18.0, macOS 15.0, *) else { return nil }
+      return EntityIdentifier(for: DocItemEntity.self, identifier: AssistantFileIDs.identifier(id))
+    }
+    AssistantHostCalls.register("donate.entity") { args in donateEntity(args) }
+    AssistantHostCalls.register("donate.action") { args in donateAction(args) }
+  }
+
+  /// Donates the open intent of the item Dart named: the user opened it.
+  @MainActor
+  private static func donateEntity(_ args: [String: Any]) -> Bool {
+    guard let collection = args["collection"] as? String, let id = args["id"] as? String else { return false }
+    switch collection {
+    case "TaskItem":
+      guard #available(iOS 27.0, macOS 27.0, *),
+        let record = AssistantSnapshot.records("TaskItem").first(where: { $0.id == id })
+      else { return false }
+      let intent = OpenTaskItemIntent()
+      intent.target = TaskItemEntity(record: record)
+      IntentDonationManager.shared.donate(intent: intent)
+      return true
+    case "MemoryItem":
+      guard #available(iOS 27.0, macOS 27.0, *),
+        let record = AssistantSnapshot.records("MemoryItem").first(where: { $0.id == id })
+      else { return false }
+      let intent = OpenMemoryItemIntent()
+      intent.target = MemoryItemEntity(record: record)
+      IntentDonationManager.shared.donate(intent: intent)
+      return true
+    case "JournalItem":
+      guard #available(iOS 27.0, macOS 27.0, *),
+        let record = AssistantSnapshot.records("JournalItem").first(where: { $0.id == id })
+      else { return false }
+      let intent = OpenJournalItemIntent()
+      intent.target = JournalItemEntity(record: record)
+      IntentDonationManager.shared.donate(intent: intent)
+      return true
+    case "Countdown":
+      guard #available(iOS 27.0, macOS 27.0, *),
+        let record = AssistantSnapshot.records("Countdown").first(where: { $0.id == id })
+      else { return false }
+      let intent = OpenCountdownIntent()
+      intent.target = CountdownEntity(record: record)
+      IntentDonationManager.shared.donate(intent: intent)
+      return true
+    case "Recipe":
+      guard #available(iOS 27.0, macOS 27.0, *),
+        let record = AssistantSnapshot.records("Recipe").first(where: { $0.id == id })
+      else { return false }
+      let intent = OpenRecipeIntent()
+      intent.target = RecipeEntity(record: record)
+      IntentDonationManager.shared.donate(intent: intent)
+      return true
+    default:
+      return false
+    }
+  }
+
+  /// Donates the action Dart ran, with its arguments.
+  @MainActor
+  private static func donateAction(_ args: [String: Any]) -> Bool {
+    guard let action = args["action"] as? String else { return false }
+    let values = args["args"] as? [String: Any] ?? [:]
+    switch action {
+    case "addToShoppingList":
+      guard let recipeValue = AssistantValues.string(values["recipe"]).flatMap({ id in AssistantSnapshot.records("Recipe").first(where: { $0.id == id }) }).map(RecipeEntity.init(record:)) else { return false }
+      let intent = AddToShoppingListAction()
+      intent.recipe = recipeValue
+      intent.servings = AssistantValues.int(values["servings"])
+      IntentDonationManager.shared.donate(intent: intent)
+      return true
+    case "removeFromShoppingList":
+      guard let recipeValue = AssistantValues.string(values["recipe"]).flatMap({ id in AssistantSnapshot.records("Recipe").first(where: { $0.id == id }) }).map(RecipeEntity.init(record:)) else { return false }
+      let intent = RemoveFromShoppingListAction()
+      intent.recipe = recipeValue
+      IntentDonationManager.shared.donate(intent: intent)
+      return true
+    case "showRecipeCard":
+      guard let recipeValue = AssistantValues.string(values["recipe"]).flatMap({ id in AssistantSnapshot.records("Recipe").first(where: { $0.id == id }) }).map(RecipeEntity.init(record:)) else { return false }
+      let intent = ShowRecipeCardAction()
+      intent.recipe = recipeValue
+      IntentDonationManager.shared.donate(intent: intent)
+      return true
+    case "pickRecipe":
+      let intent = PickRecipeAction()
+      if let value = AssistantValues.string(values["meal"]).flatMap(MealEnum.init(rawValue:)) { intent.meal = value }
+      IntentDonationManager.shared.donate(intent: intent)
+      return true
+    case "countOpenTasks":
+      let intent = CountOpenTasksAction()
+      IntentDonationManager.shared.donate(intent: intent)
+      return true
+    case "planMeal":
+      guard let recipeValue = AssistantValues.string(values["recipe"]).flatMap({ id in AssistantSnapshot.records("Recipe").first(where: { $0.id == id }) }).map(RecipeEntity.init(record:)) else { return false }
+      let intent = PlanMealAction()
+      intent.recipe = recipeValue
+      if let value = AssistantValues.string(values["meal"]).flatMap(MealEnum.init(rawValue:)) { intent.meal = value }
+      IntentDonationManager.shared.donate(intent: intent)
+      return true
+    case "quickestRecipe":
+      let intent = QuickestRecipeAction()
+      intent.under = AssistantValues.double(values["under"]).map({ Measurement(value: $0, unit: UnitDuration.seconds) })
+      IntentDonationManager.shared.donate(intent: intent)
+      return true
+    case "shoppingList":
+      let intent = ShoppingListAction()
+      IntentDonationManager.shared.donate(intent: intent)
+      return true
+    case "nextTask":
+      guard #available(iOS 27.0, macOS 27.0, *) else { return false }
+      let intent = NextTaskAction()
+      IntentDonationManager.shared.donate(intent: intent)
+      return true
+    case "archiveDoneTasks":
+      let intent = ArchiveDoneTasksAction()
+      IntentDonationManager.shared.donate(intent: intent)
+      return true
+    case "stopRecording":
+      let intent = StopRecordingAction()
+      IntentDonationManager.shared.donate(intent: intent)
+      return true
+    case "showOpenTasks":
+      let intent = ShowOpenTasksAction()
+      IntentDonationManager.shared.donate(intent: intent)
+      return true
+    case "quickRecipes":
+      let intent = QuickRecipesAction()
+      IntentDonationManager.shared.donate(intent: intent)
+      return true
+    default:
+      return false
+    }
+  }
+}
 

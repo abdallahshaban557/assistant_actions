@@ -595,6 +595,31 @@
       ]
     }
   },
+  "queries": {
+    "placeIntentValueQuery": {
+      "entity": "maps.place",
+      "direction": "importing",
+      "type": {
+        "kind": "placeDescriptor"
+      },
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      }
+    },
+    "placeTransferable": {
+      "entity": "maps.place",
+      "direction": "exporting",
+      "type": {
+        "kind": "placeDescriptor"
+      },
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "property": "place"
+    }
+  },
   "skipped": {
     "addNoteToPlace": "no public definition in the SDK",
     "addPlaces": "no public definition in the SDK",
@@ -604,6 +629,7 @@
     "eta": "no public definition in the SDK",
     "getElevation": "no public definition in the SDK",
     "parkingLocationData": "no public definition in the SDK",
+    "parkingLocationDataTransferable": "no public definition in the SDK",
     "placeAttribute": "no public definition in the SDK",
     "placeList": "no public definition in the SDK",
     "placeType": "no public definition in the SDK",

@@ -19,7 +19,7 @@ const _package = 'assistant_actions';
 
 /// The `api` this generator needs in assistant_actions'
 /// `lib/src/catalog/generator_api.json`.
-const _runtimeApi = 11;
+const _runtimeApi = 12;
 
 /// Reads the app's annotations from the definitions library and everything
 /// it imports from the app's own package.
@@ -83,6 +83,18 @@ class ModelReader {
       }
     }
     _checkCalls(schemaEntities, schemaDomains, entities, library);
+    // Apple allows one IntentValueQuery per input type.
+    final importers = <String, String>{};
+    for (final s in schemaEntities) {
+      for (final q in s.queries) {
+        if (importers[q.type.kind] case final other?) {
+          throw InvalidGenerationSourceError(
+              'Only one query can find items for a ${q.type.kind}: ${q.id} on ${s.className} and $other are both on.',
+              element: library);
+        }
+        importers[q.type.kind] = '${q.id} on ${s.className}';
+      }
+    }
     await _loadReferenced(schemaEntities, schemaDomains, library);
     final actions = <ActionModel>[];
     for (final lib in libraries) {
@@ -301,7 +313,7 @@ class ModelReader {
         : 0;
     if (api < _runtimeApi) {
       throw InvalidGenerationSourceError(
-          'This version of assistant_actions_generator needs assistant_actions 0.0.18 or later. '
+          'This version of assistant_actions_generator needs assistant_actions 0.0.19 or later. '
           'Run `flutter pub upgrade assistant_actions`.',
           element: library);
     }
@@ -356,6 +368,8 @@ class ModelReader {
       titleGetter: title.$1.displayName,
       subtitleGetter: subtitle?.$1.displayName,
       syncable: _syncable(cls) ?? false,
+      url: _url(annotation, cls),
+      visualSearch: annotation.peek('visualSearch')?.boolValue ?? false,
       fields: [
         for (final f in cls.fields)
           if (!f.isStatic && f.isOriginDeclaration && f.displayName != id.$1.displayName)
@@ -447,6 +461,18 @@ class ModelReader {
           element: cls);
     }
 
+    final queries = [
+      for (final q in catalog.queriesFor(schema))
+        if (q.imports && (annotation.peek(q.name)?.boolValue ?? false)) q,
+    ];
+    for (final q in queries) {
+      if (dartElementType(q.type) == null) {
+        throw InvalidGenerationSourceError(
+            '${q.id} finds items for a ${q.type}, which assistant_actions can\'t pass to Dart yet. Turn it off.',
+            element: cls);
+      }
+    }
+
     return SchemaEntityModel(
       className: cls.displayName,
       library: cls.library.uri,
@@ -460,7 +486,21 @@ class ModelReader {
       syncableOverride: _syncable(cls),
       undoable: _annotation(cls, 'AssistantUndoable') != null,
       longRunning: _annotation(cls, 'AssistantLongRunning') != null,
+      queries: queries,
+      url: _url(annotation, cls),
+      visualSearch: annotation.peek('visualSearch')?.boolValue ?? false,
     );
+  }
+
+  /// The `url:` deep link template of an entity annotation, checked: an
+  /// absolute URL whose only placeholder is `{id}`.
+  String? _url(ConstantReader annotation, ClassElement cls) {
+    final url = annotation.peek('url')?.stringValue;
+    if (url == null) return null;
+    if (urlTemplateError(url) case final error?) {
+      throw InvalidGenerationSourceError('${cls.displayName}: $error', element: cls);
+    }
+    return url;
   }
 
   FixedInstance _fixed(ConstantReader value) {

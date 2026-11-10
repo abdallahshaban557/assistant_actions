@@ -401,6 +401,66 @@ if #available(macOS 15.0, *) {
   check(found.joined(separator: ","), file.path, "Siri's identifiers find the published items by path")
   try? FileManager.default.removeItem(at: dir)
 }
+// On-screen entities: a collection's ids become the activity's entity identifier.
+struct NoteEntity: AppEntity {
+  static let typeDisplayRepresentation: TypeDisplayRepresentation = "Note"
+  static let defaultQuery = NoteQuery()
+  let id: String
+  var displayRepresentation: DisplayRepresentation { DisplayRepresentation(title: "\(id)") }
+}
+struct NoteQuery: EntityQuery {
+  func entities(for identifiers: [String]) async throws -> [NoteEntity] { [] }
+}
+MainActor.assumeIsolated {
+  AssistantContext.register("Note") { EntityIdentifier(for: NoteEntity.self, identifier: $0) }
+  if #available(macOS 15.2, *) {
+    let activity = AssistantContext.activity(collection: "Note", id: "n1")
+    check(activity?.appEntityIdentifier?.identifier ?? "nil", "n1", "on-screen items name their entity")
+    check(activity?.activityType.hasSuffix(".assistant_actions.showing") == true ? "yes" : "no", "yes",
+      "the activity type is the app's")
+  }
+  check(AssistantContext.activity(collection: "Unknown", id: "x") == nil ? "nil" : "activity", "nil",
+    "unknown collections show nothing")
+  AssistantContext.registerHostCalls()
+  check((try? AssistantHostCalls.invoke("context.showing", argsJson: #"{"collection":"Unknown","id":"x"}"#)) ?? "nil",
+    "false", "showing an unknown collection says so")
+  check((try? AssistantHostCalls.invoke("context.stopShowing", argsJson: "{}")) ?? "nil", "nil",
+    "stopping with nothing shown is fine")
+}
+
+// Text for Transferable exports and predictions.
+check(AssistantValues.text(["Walk", NSNull(), "  ", "Walk", ["name": "Lake"], ["email": "a@b.c"], 3]), "Walk\nLake\na@b.c",
+  "text joins strings and names, skipping empty, repeated and other values")
+check(AssistantValues.text(["a", "b"], separator: ", "), "a, b", "text takes a separator")
+check(AssistantValues.references(#"[{"collection":"Recipe","id":"r1"},{"id":"x"},{"collection":"Note","id":"n"}]"#)
+  .map { "\($0.collection)/\($0.id)" }.joined(separator: ","), "Recipe/r1,Note/n", "visual search results decode")
+let image = AssistantValues.saveFile(named: "image.png", type: .png) { try Data([1, 2]).write(to: $0) } as! [String: Any]
+check("\(image["name"]!) \(image["type"]!)", "image.png public.png", "saved files are AssistantFile maps")
+try? FileManager.default.removeItem(atPath: ((image["path"] as! String) as NSString).deletingLastPathComponent)
+
+// Visual Intelligence and place queries answered from the snapshot.
+let dishes = records("""
+  [{"id":"p","title":"Pancakes","fields":{}},{"id":"d","title":"Dog biscuits","fields":{"note":"golden retriever"}},
+   {"id":"s","title":"Soup","fields":{}}]
+  """)
+check(AssistantMatch.records(dishes, matchingLabels: ["golden retriever", "dog"], ignoring: []).map(\.id).joined(),
+  "d", "labels find items")
+check(AssistantMatch.records(dishes, matchingLabels: ["pancake", "dog"], ignoring: []).map(\.id).joined(), "pd",
+  "items matching more label words come first")
+check("\(AssistantMatch.records(dishes, matchingLabels: ["the", "recipe"], ignoring: ["recipe"]).count)", "0",
+  "labels that only name the type find nothing")
+let spots = records("""
+  [{"id":"far","title":"Far","fields":{"where":{"name":"Far","latitude":48.0,"longitude":-122.3}}},
+   {"id":"near","title":"Cafe","fields":{"where":{"name":"Blue Cafe","address":"1 Lake St","latitude":47.6001,"longitude":-122.3}}},
+   {"id":"here","title":"Here","fields":{"where":{"latitude":47.6,"longitude":-122.3}}}]
+  """)
+check(AssistantMatch.records(spots, matchingPlace: ["latitude": 47.6, "longitude": -122.3], field: "where", ignoring: [])
+  .map(\.id).joined(separator: ","), "here,near", "places match by distance, nearest first")
+check(AssistantMatch.records(spots, matchingPlace: ["name": "blue cafe"], field: "where", ignoring: []).map(\.id).joined(),
+  "near", "places without a coordinate match by name")
+check("\(AssistantMatch.records(spots, matchingPlace: [String: Any](), field: "where", ignoring: []).count)", "0",
+  "an empty place matches nothing")
+check("\(Int(AssistantMatch.distance((47.6, -122.3), (47.61, -122.3))))", "1111", "distances are in metres")
 
 if failures > 0 {
   print("\(failures) failed")

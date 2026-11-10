@@ -20,6 +20,18 @@ class _NoHost implements AssistantHost {
   Future<void> publish(String collection, String json) async {}
 }
 
+/// Records the Swift features Dart asks for (on-screen items, donations) and
+/// says yes.
+class _SwiftHost extends _NoHost implements AssistantHostCalls {
+  final calls = <List<Object?>>[];
+
+  @override
+  Future<String?> invoke(String method, String argsJson) async {
+    calls.add([method, jsonDecode(argsJson)]);
+    return 'true';
+  }
+}
+
 /// Also plays the Swift side of Live Activities.
 class _ActivityHost extends _NoHost implements AssistantHostCalls {
   final calls = <(String, Map<String, Object?>)>[];
@@ -162,8 +174,8 @@ void main() {
   });
 
   test('system.open and searchInApp show things in the app', () async {
-    await AssistantActions.perform('system.open.Recipe', '{"id":"pancakes"}');
-    expect(store.onScreen, 'recipe pancakes');
+    await AssistantActions.perform('system.open.TaskItem', '{"id":"t1"}');
+    expect(store.onScreen, 'task t1');
     await AssistantActions.perform('system.searchInApp', '{"criteria":"lake"}');
     expect(store.onScreen, 'search "lake"');
   });
@@ -286,6 +298,55 @@ void main() {
     await AssistantActions.perform('JournalItem.startAudioEntry', '{}');
     expect(store.recording, isTrue);
     expect(store.recordingActivity, isNull);
+  });
+
+  test('recipes open by deep link, not through the handler', () {
+    expect(registry.actions.containsKey('system.open.Recipe'), isFalse);
+    expect(store.openLink(Uri.parse('assistantactions://recipes/pancakes')), isTrue);
+    expect(store.onScreen, 'recipe pancakes');
+    expect(store.openLink(Uri.parse('https://example.com/recipes/pancakes')), isFalse);
+  });
+
+  test('Visual Intelligence finds recipes and journal entries by label', () async {
+    store.journal.add(JournalItem(id: 'j3', text: 'Pancakes at the lake'));
+    final reply = await AssistantActions.perform(
+        'visualIntelligence.search', jsonEncode({'content': {'labels': ['Pancake', 'plate']}}));
+    expect(jsonDecode(reply!), [
+      {'collection': 'Recipe', 'id': 'pancakes'},
+      {'collection': 'JournalItem', 'id': 'j3'},
+    ]);
+  });
+
+  test('"more results" from Visual Intelligence gets the labels and image', () async {
+    await AssistantActions.perform('visualIntelligence.semanticContentSearch', jsonEncode({
+      'semanticContent': {
+        'labels': ['dog'],
+        'image': {'path': '/tmp/image.png', 'name': 'image.png', 'type': 'public.png'},
+      },
+    }));
+    expect(store.onScreen, 'looking for dog');
+  });
+
+  test('the recipe on screen and donations reach Swift', () async {
+    final host = _SwiftHost();
+    await AssistantActions.start(registry, host: host);
+    final pancakes = store.recipes.first;
+    expect(await AssistantActions.showing(pancakes), isTrue);
+    await AssistantActions.stopShowing();
+    expect(await AssistantActions.donate(pancakes), isTrue);
+    expect(await AssistantDonations.addToShoppingList(pancakes, servings: 3), isTrue);
+    expect(host.calls, [
+      ['context.showing', {'collection': 'Recipe', 'id': 'pancakes'}],
+      ['context.stopShowing', <String, Object?>{}],
+      ['donate.entity', {'collection': 'Recipe', 'id': 'pancakes'}],
+      [
+        'donate.action',
+        {
+          'action': 'addToShoppingList',
+          'args': {'recipe': 'pancakes', 'servings': 3},
+        },
+      ],
+    ]);
   });
 
   // Last: it switches the runtime to the headless engine's mode.

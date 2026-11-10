@@ -27,6 +27,7 @@ public final class AssistantActionsPlugin: NSObject, FlutterPlugin {
     AssistantHostApiSetup.register(api: AssistantHostApiImpl())
     AssistantBackground.registerHostCalls()
     AssistantLiveActivities.register()
+    AssistantContext.registerHostCalls()
   }
 }
 

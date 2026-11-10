@@ -33,6 +33,8 @@ class NotesNote extends SchemaEntity {
     this.appendText = false,
     super.dialogs,
     super.confirm,
+    super.url,
+    super.visualSearch,
   }) : super('notes.note');
 
   /// The fixed `notes.folder` every item belongs to, if any.
@@ -105,7 +107,7 @@ abstract final class NotesNoteField {
 /// Map fields with [NotesAccountField] and turn on the schema intents the app
 /// supports. Each one becomes a method on the generated handler.
 class NotesAccount extends SchemaEntity {
-  const NotesAccount() : super('notes.account');
+  const NotesAccount({super.url, super.visualSearch}) : super('notes.account');
 }
 
 /// Marks members of `notes.account`.
@@ -145,6 +147,8 @@ class FixedNotesAccount extends SchemaContainer {
 class NotesFolder extends SchemaEntity {
   const NotesFolder({
     this.account,
+    super.url,
+    super.visualSearch,
   }) : super('notes.folder');
 
   /// The fixed `notes.account` every item belongs to, if any.

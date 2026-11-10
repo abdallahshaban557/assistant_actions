@@ -77,8 +77,23 @@ String? dartElementType(SchemaType t, [Map<String, String> openEnums = const {}]
       'file' => 'AssistantFile',
       'recurrenceRule' => 'AssistantRecurrence',
       'union' => 'AssistantUnion',
+      'sceneDescriptor' => 'AssistantSemanticContent',
       _ => null,
     };
+
+/// The Dart parameter an importing query's handler method takes: `place`
+/// for a `placeDescriptor`, `person` for a `person`.
+String queryArgName(QuerySchema q) => switch (q.type.kind) {
+      'placeDescriptor' => 'place',
+      'person' => 'person',
+      _ => 'value',
+    };
+
+/// The handler method answering importing query [q]:
+/// `Future<List<String>> placeIntentValueQuery(AssistantPlace place)`,
+/// returning ids of published items.
+String queryMethodSignature(QuerySchema q) =>
+    'Future<List<String>> ${q.name}(${dartElementType(q.type)} ${queryArgName(q)})';
 
 /// How one intent parameter reaches the Dart handler method.
 enum ArgShape {
@@ -199,6 +214,21 @@ String callSignature(IntentSchema intent, EntitySchema? owner,
   };
   final result = reply ? 'AssistantReply<$returns>' : returns;
   return 'Future<$result> ${callMethod(intent, owner)}(${args.isEmpty ? '' : '{${args.join(', ')}}'})';
+}
+
+/// Why deep link template [url] (an entity annotation's `url:`) can't be
+/// used, or null: it must be an absolute URL whose only placeholder is
+/// `{id}`.
+String? urlTemplateError(String url) {
+  final placeholders = RegExp(r'\{([^}]*)\}').allMatches(url).map((m) => m[1]).toSet();
+  final others = placeholders.where((p) => p != 'id');
+  if (others.isNotEmpty) return 'url "$url" can only use {id}, not ${others.map((p) => '{$p}').join(', ')}.';
+  if (!placeholders.contains('id')) return 'url "$url" needs {id}, so each item has its own link.';
+  final parsed = Uri.tryParse(url.replaceAll('{id}', 'id'));
+  if (parsed == null || !parsed.hasScheme) {
+    return "url \"$url\" must be an absolute URL, such as 'myapp://items/{id}'.";
+  }
+  return null;
 }
 
 /// The parameters of [intent] Dart doesn't receive yet, with their types.

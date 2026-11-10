@@ -91,6 +91,8 @@ class BooksBook extends SchemaEntity {
     super.dialogs,
     super.confirm,
     super.replies,
+    super.url,
+    super.visualSearch,
   }) : super('books.book');
 
   /// Handle `books.openBook` ("Open Book"): calls
@@ -172,7 +174,7 @@ class FixedBooksBook extends SchemaContainer {
 /// Map fields with [BooksAudiobookField] and turn on the schema intents the app
 /// supports. Each one becomes a method on the generated handler.
 class BooksAudiobook extends SchemaEntity {
-  const BooksAudiobook() : super('books.audiobook');
+  const BooksAudiobook({super.url, super.visualSearch}) : super('books.audiobook');
 }
 
 /// Marks members of `books.audiobook`.
@@ -253,6 +255,8 @@ class BooksSettings extends SchemaEntity {
     super.dialogs,
     super.confirm,
     super.replies,
+    super.url,
+    super.visualSearch,
   }) : super('books.settings');
 
   /// Handle `books.updateFontSize` ("Update Book Font Size"): calls

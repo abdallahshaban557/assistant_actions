@@ -55,6 +55,8 @@ class ClockAlarm extends SchemaEntity {
     super.confirm,
     super.confirmDeletes,
     super.replies,
+    super.url,
+    super.visualSearch,
   }) : super('clock.alarm');
 
   /// Handle `clock.createAlarm` ("Add Alarm"): creates items.
@@ -146,6 +148,8 @@ class ClockStopwatch extends SchemaEntity {
     super.dialogs,
     super.confirm,
     super.replies,
+    super.url,
+    super.visualSearch,
   }) : super('clock.stopwatch');
 
   /// Handle `clock.lapStopwatch` ("Lap Stopwatch"): calls
@@ -230,6 +234,8 @@ class ClockTimer extends SchemaEntity {
     super.dialogs,
     super.confirm,
     super.replies,
+    super.url,
+    super.visualSearch,
   }) : super('clock.timer');
 
   /// Handle `clock.cancelTimer` ("Cancel Timers"): calls

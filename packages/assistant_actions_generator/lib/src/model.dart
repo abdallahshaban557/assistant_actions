@@ -21,6 +21,10 @@ enum ValueKind {
   file,
   recurrence,
   union,
+
+  /// What Visual Intelligence saw (`AssistantSemanticContent`); intent
+  /// parameters only.
+  semanticContent,
 }
 
 class ValueType {
@@ -68,6 +72,7 @@ class ValueType {
         ValueKind.file => 'AssistantFile',
         ValueKind.recurrence => 'AssistantRecurrence',
         ValueKind.union => 'AssistantUnion',
+        ValueKind.semanticContent => 'AssistantSemanticContent',
       }}${nullable ? '?' : ''}';
 
   String get swift => '${switch (kind) {
@@ -80,7 +85,13 @@ class ValueType {
         ValueKind.duration => 'Duration',
         ValueKind.enumeration || ValueKind.entityId => 'String',
         // Schema members only, whose Swift types the writer takes from the schema.
-        ValueKind.person || ValueKind.place || ValueKind.file || ValueKind.recurrence || ValueKind.union => 'Any',
+        ValueKind.person ||
+        ValueKind.place ||
+        ValueKind.file ||
+        ValueKind.recurrence ||
+        ValueKind.union ||
+        ValueKind.semanticContent =>
+          'Any',
       }}${nullable ? '?' : ''}';
 
   /// `AssistantValue.<decoder>` in Dart, `AssistantValues.<decoder>` in Swift.
@@ -99,6 +110,7 @@ class ValueType {
         ValueKind.file => 'file',
         ValueKind.recurrence => 'recurrence',
         ValueKind.union => 'union',
+        ValueKind.semanticContent => 'semanticContent',
       };
 
   String get swiftDecoder => switch (kind) {
@@ -115,6 +127,7 @@ class ValueType {
         ValueKind.file => 'file',
         ValueKind.recurrence => 'recurrence',
         ValueKind.union => 'union',
+        ValueKind.semanticContent => 'semanticContent',
       };
 
   /// Dart expression decoding [expr] (what Swift sent), nullable.
@@ -162,6 +175,7 @@ ValueType valueTypeFor(SchemaType element, [Map<String, String> openEnums = cons
       'file' => const ValueType(ValueKind.file),
       'recurrenceRule' => const ValueType(ValueKind.recurrence),
       'union' => const ValueType(ValueKind.union),
+      'sceneDescriptor' => const ValueType(ValueKind.semanticContent),
       _ => const ValueType(ValueKind.string),
     };
 
@@ -184,6 +198,8 @@ class EntityModel {
     required this.fields,
     this.subtitleGetter,
     this.syncable = false,
+    this.url,
+    this.visualSearch = false,
   });
 
   final String className;
@@ -193,6 +209,12 @@ class EntityModel {
   /// `@AssistantSyncable()`: a `SyncableEntity`.
   final bool syncable;
   final String idField;
+
+  /// The deep link template (`cookbook://recipes/{id}`), if any.
+  final String? url;
+
+  /// Visual Intelligence can show these items.
+  final bool visualSearch;
   final String titleGetter;
   final String? subtitleGetter;
 
@@ -490,6 +512,9 @@ class SchemaEntityModel {
     this.syncableOverride,
     this.undoable = false,
     this.longRunning = false,
+    this.queries = const [],
+    this.url,
+    this.visualSearch = false,
   });
 
   final String className;
@@ -511,6 +536,15 @@ class SchemaEntityModel {
 
   /// A `FileEntity` (`files.file`), whose Swift ids are `FileEntityIdentifier`s.
   bool get isFile => schema.isFile;
+  /// The importing queries the annotation turned on
+  /// (`maps.placeIntentValueQuery`). Exporting ones are always on.
+  final List<QuerySchema> queries;
+
+  /// The deep link template (`mira://tasks/{id}`), if any.
+  final String? url;
+
+  /// Visual Intelligence can show these items.
+  final bool visualSearch;
   final EntitySchema schema;
 
   /// Dialogs, confirmations and replies from the annotation.
@@ -550,6 +584,13 @@ class SchemaEntityModel {
         if (undoable && kinds.contains(IntentKind.delete)) IntentKind.create,
       };
 }
+
+/// The action id Swift uses to call importing query [q]'s handler method:
+/// `MapsPlaceItem.placeIntentValueQuery`.
+String queryActionId(SchemaEntityModel s, QuerySchema q) => '${s.collection}.${q.name}';
+
+/// The action id of the registry's `visualSearch` callback.
+const visualSearchActionId = 'visualIntelligence.search';
 
 /// The action id Swift uses to call [intent]'s handler method live, such as
 /// `JournalItem.startAudioEntry`.
@@ -665,6 +706,21 @@ class AppModel {
 
   /// `system.open` is turned on: each entity gets an open intent.
   bool get opensEntities => schemaDomains.any((d) => d.opensEntities);
+
+  /// Visual Intelligence can show items of these collections (plain
+  /// entities, then schema entities), as (class name, Swift type).
+  List<(String, String)> get visualSearchTypes => [
+        for (final e in entities)
+          if (e.visualSearch) (e.className, e.swiftName),
+        for (final s in schemaEntities)
+          if (s.visualSearch) (s.className, s.swiftName),
+      ];
+
+  /// Whether `system.open` on the entity named [className] opens its deep
+  /// link rather than calling the handler.
+  bool opensUrl(String className) =>
+      entities.any((e) => e.className == className && e.url != null) ||
+      schemaEntities.any((s) => s.className == className && s.url != null);
 
   Iterable<Uri> get libraries => {
         for (final a in actions) a.library,

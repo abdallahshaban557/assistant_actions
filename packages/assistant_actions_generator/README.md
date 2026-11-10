@@ -10,7 +10,10 @@ The `build_runner` generator for
   `@AssistantBackground()` function, the entrypoint of the headless engine
   that answers Siri on iOS without opening the app;
 - `packages/assistant_actions_app/.../AssistantActions.g.swift` — the App
-  Intents, entities, queries and schema containers;
+  Intents, entities, queries and schema containers, with what Apple
+  Intelligence uses in context: `Transferable` entities (and the exports and
+  `IntentValueQuery`s of Apple's query schemas), deep links, predictions,
+  donations, on-screen entities and Visual Intelligence search;
 - `apple/AssistantShortcuts.g.swift` — the App Shortcuts (for plain actions,
   snapshot answers and `@IntentShortcut` schema intents), for the Runner
   targets. Generated types the Runner refers to are made `public`.
