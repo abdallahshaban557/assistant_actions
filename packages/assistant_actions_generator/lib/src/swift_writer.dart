@@ -9,6 +9,8 @@ part 'swift_writer_actions.dart';
 part 'swift_writer_interaction.dart';
 part 'swift_writer_surfaces.dart';
 part 'swift_writer_background.dart';
+part 'swift_writer_files.dart';
+part 'swift_writer_modern.dart';
 
 /// Writes `AssistantActions.g.swift`, compiled into the generated
 /// `assistant_actions_app` plugin.
@@ -48,6 +50,7 @@ class SwiftWriter {
     }
     if (app.schemaEntities.isNotEmpty || app.schemaDomains.isNotEmpty || _actionSchemaTypes.isNotEmpty) _schemas();
     _spotlight();
+    _entityConformances();
     _backgroundEntrypoint();
     body.write(_publicize(_out.toString()));
 
@@ -358,7 +361,7 @@ extension ${e.swiftName}: IndexedEntity {
     for (final s in app.schemaEntities) {
       final (iOS, macOS) = _versions(_entityFloor(s.schema));
       final update = [
-        'try await Self.update(',
+        'try await Self.${s.isFile ? 'updateFiles' : 'update'}(',
         '  AssistantSnapshot.records("${s.collection}").map(${s.swiftName}.init(record:)),',
         '  removed: removedIDs, clearFirst: clearFirst)',
       ];
@@ -394,7 +397,7 @@ extension ${e.swiftName}: IndexedEntity {
     if !entities.isEmpty {
       try await index.indexAppEntities(entities)
     }
-  }
+  }${_spotlightFiles()}
 }
 ''');
   }
@@ -500,7 +503,7 @@ extension ${e.swiftName}: IndexedEntity {
         if (intent.id == 'system.open') {
           _openIntents(d, intent);
         } else {
-          _callIntent(null, intent, d.handler, d.interactions);
+          _callIntent(null, intent, d.handler, d.interactions, undoable: d.undoable, longRunning: d.longRunning);
         }
       }
     }
@@ -813,9 +816,12 @@ extension ${e.swiftName}: IndexedEntity {
     final n = expr ?? swiftName(p.name);
     final optional = expr == null && p.type.isOptional;
     final t = p.type.base;
-    if (t.kind == 'entity') return optional ? 'AssistantValues.encode($n?.id)' : '$n.id';
+    if (t.kind == 'entity') {
+      return optional ? 'AssistantValues.encode(${_dartID(t.ref, '$n?')})' : _dartID(t.ref, n);
+    }
     if (t.isList && t.of!.base.kind == 'entity') {
-      return optional ? 'AssistantValues.encode($n?.map(\\.id))' : '$n.map(\\.id)';
+      final path = _dartIDPath(t.of!.base.ref);
+      return optional ? 'AssistantValues.encode($n?.map($path))' : '$n.map($path)';
     }
     if (t.isList) {
       return optional ? '$n.map { \$0.map { AssistantValues.encode(\$0) } as Any } ?? NSNull()' : '$n.map { AssistantValues.encode(\$0) }';
@@ -959,8 +965,9 @@ struct ${name}Query: EntityStringQuery {
       ..writeln('@AppEntity(schema: .${schema.id})')
       ..writeln('struct $name {')
       ..writeln('  static let defaultQuery = ${name}Query()')
+      ..write(_fileStatics(s))
       ..writeln()
-      ..writeln('  let id: String');
+      ..writeln(_idMembers(s));
     final queryables = _schemaQueryables(s);
     for (final p in schema.properties) {
       // Queryable members need a title for Apple's metadata.
@@ -970,14 +977,14 @@ struct ${name}Query: EntityStringQuery {
     _out
       ..writeln()
       ..writeln('  var displayRepresentation: DisplayRepresentation {'
-          ' DisplayRepresentation(title: "\\(${_titleExpr(schema, '')})") }')
+          ' DisplayRepresentation(title: "\\(${s.isFile && schema.titleProperty == null ? _fileTitle() : _titleExpr(schema, '')})") }')
       ..writeln()
       ..writeln('  init(record: AssistantRecord) { self.init(record: record, resolve: true) }')
       ..writeln()
       ..writeln('  /// [resolve] looks referenced items up in the snapshot. They get')
       ..writeln('  /// `resolve: false`, so references only go one level deep and cycles end.')
       ..writeln('  init(record: AssistantRecord, resolve: Bool) {')
-      ..writeln('    id = record.id');
+      ..writeln(_initID(s));
     for (final p in schema.properties) {
       final field = s.mapping[p.name];
       final value = field != null
@@ -1003,10 +1010,7 @@ struct ${name}Query: ${schema.protocols.contains('unique') ? 'UniqueAppEntityQue
 
   private func all() -> [$name] { AssistantSnapshot.records("$collection").map($name.init(record:)) }
 
-  func entities(for identifiers: [String]) async throws -> [$name] {
-    let wanted = Set(identifiers)
-    return all().filter { wanted.contains(\$0.id) }
-  }
+${_entitiesFor(s)}
 
   func entities(matching string: String) async throws -> [$name] {
     AssistantMatch.records(AssistantSnapshot.records("$collection"), matching: string, ignoring: Self.typeWords)
@@ -1043,7 +1047,10 @@ ${queryables.isEmpty ? '' : '\n${_propertyQuery(name, queryables, 'all()')}'}}
 
   void _schemaIntent(SchemaEntityModel s, IntentSchema intent, IntentKind kind) {
     if (kind == IntentKind.record) return _recordIntent(s, intent);
-    if (kind == IntentKind.call) return _callIntent(s, intent, '${s.className}AssistantHandler', s.interactions);
+    if (kind == IntentKind.call) {
+      return _callIntent(s, intent, '${s.className}AssistantHandler', s.interactions,
+          undoable: s.undoable, longRunning: s.longRunning);
+    }
     final entity = s.swiftName;
     final ix = s.interactions;
     final returnsEntity = intent.result?.base.kind == 'entity' && intent.result!.base.ref == s.schema.id;
@@ -1053,11 +1060,15 @@ ${queryables.isEmpty ? '' : '\n${_propertyQuery(name, queryables, 'all()')}'}}
         intent.parameters.any((p) =>
             p.name != 'target' && p.type.isOptional && (s.mapping[p.name]?.type.nullable ?? false));
     final clearFloor = clears ? const {'iOS': 18.2, 'macOS': 15.2} : const <String, num>{'iOS': 0, 'macOS': 0};
+    final floor = _max(_max(_intentFloor(intent), _entityFloor(s.schema)), clearFloor);
+    final structName = '${s.className}${pascal(intent.name)}Intent';
+    final targetID = _dartID(s.schema.id, 'target');
+    String undo(String items) => s.undoable ? '\n${_undoLines(floor, intent.title, items)}' : '';
     _out
       ..writeln('/// `${intent.id}` → ${kind.name}s `${s.className}` items through the inbox.')
-      ..writeln(_availability(_max(_max(_intentFloor(intent), _entityFloor(s.schema)), clearFloor)))
+      ..writeln(_availability(floor))
       ..writeln('@AppIntent(schema: .${intent.id})')
-      ..writeln('struct ${s.className}${pascal(intent.name)}Intent {');
+      ..writeln('struct $structName {');
     for (final p in intent.parameters) {
       _out.writeln('  var ${p.name}: ${_swiftType(p.type)}');
     }
@@ -1083,7 +1094,7 @@ ${queryables.isEmpty ? '' : '\n${_propertyQuery(name, queryables, 'all()')}'}}
         }
         _out.writeln('''
     let id = AssistantInbox.create("${s.collection}", fields: fields)
-    $_inboxChanged''');
+    $_inboxChanged${undo('AssistantUndo.create("${s.collection}", id: id)')}''');
         final created = '$entity(record: AssistantRecord(id: id, title: "", fields: fields))';
         _out.writeln(dialog == null
             ? '    return .result(value: $created)'
@@ -1124,9 +1135,13 @@ ${queryables.isEmpty ? '' : '\n${_propertyQuery(name, queryables, 'all()')}'}}
                 : '    fields["$field"] = ${_encodeParams(params, s)}');
           }
         }
+        if (s.undoable) {
+          _out.writeln('    let before = AssistantUndo.records("${s.collection}", ids: [$targetID]).first');
+        }
         _out
-          ..writeln('    AssistantInbox.update("${s.collection}", id: target.id, fields: fields, cleared: cleared)')
-          ..writeln('    $_inboxChanged')
+          ..writeln('    AssistantInbox.update("${s.collection}", id: $targetID, fields: fields, cleared: cleared)')
+          ..writeln('    $_inboxChanged${undo('AssistantUndo.update('
+              '"${s.collection}", id: $targetID, before: before, fields: fields, cleared: cleared)')}')
           ..writeln('    let updated = target');
         for (final field in byField.keys) {
           final members = [
@@ -1150,17 +1165,22 @@ ${queryables.isEmpty ? '' : '\n${_propertyQuery(name, queryables, 'all()')}'}}
       case IntentKind.record || IntentKind.call:
         throw StateError('handled by _recordIntent / _callIntent');
       case IntentKind.delete:
+        final itemID = _dartID(s.schema.id, 'item');
+        if (s.undoable) {
+          _out.writeln('    let removed = AssistantUndo.records("${s.collection}", ids: entities.map(${_dartIDPath(s.schema.id)}))');
+        }
         _out.writeln('''
     for item in entities {
-      AssistantInbox.delete("${s.collection}", id: item.id)
+      AssistantInbox.delete("${s.collection}", id: $itemID)
     }
-    $_inboxChanged
+    $_inboxChanged${undo('AssistantUndo.delete("${s.collection}", records: removed)')}
     return ${_resultOf(dialog: dialog)}''');
     }
     _out
       ..writeln('  }')
       ..writeln('}')
       ..writeln();
+    if (s.undoable) _out.writeln(_undoConformance(structName, floor, intent));
   }
 
   /// A schema intent that starts recording a new item in the app, such as
@@ -1173,58 +1193,57 @@ ${queryables.isEmpty ? '' : '\n${_propertyQuery(name, queryables, 'all()')}'}}
     final ix = s.interactions;
     final reply = ix.repliesTo(intent);
     final dialog = _schemaDialog(intent, ix);
-    final call = 'AssistantBridge.shared.perform("${recordActionId(s, intent)}", args: [:])';
+    final name = '${s.className}${pascal(intent.name)}Intent';
+    final floor = _max(_intentFloor(intent), _entityFloor(s.schema));
+    final availability = _availability(floor);
+    // Recording can't start in the background, so no background modes.
+    final modes = _modes();
+    final foreground = _foregroundLines(modes,
+        activateOnMac: true,
+        comment: '      // Recording needs the microphone, which iOS only starts in the foreground,\n'
+            '      // and the Flutter engine needs a scene.');
+    final call = 'callDart("${recordActionId(s, intent)}", args: [:])';
     _out.writeln('''
 /// `${intent.id}` → opens the app and calls `$method()` on the `${s.className}` handler.
-${_availability(_max(_intentFloor(intent), _entityFloor(s.schema)))}
+$availability
 @AppIntent(schema: .${intent.id})
-struct ${s.className}${pascal(intent.name)}Intent: ForegroundContinuableIntent {
-  @MainActor
+struct $name${_continuable(modes, ': ')} {
+${_modesMember(modes)}  @MainActor
   func perform() async throws -> some ${_resultType('IntentResult', dialog: reply || dialog != null, snippet: reply)} {
-${_confirmLines(intent, IntentKind.record, ix)}    #if os(iOS)
-      // Recording needs the microphone, which iOS only starts in the foreground,
-      // and the Flutter engine needs a scene.
-      if UIApplication.shared.applicationState != .active {
-        try await requestToContinueInForeground()
-      }
-    #elseif os(macOS)
-      NSApplication.shared.activate()
-    #endif
+${_confirmLines(intent, IntentKind.record, ix)}$foreground
 ${reply ? '''    let reply = AssistantReply(json: try await $call)
     return ${_resultOf(dialog: 'reply.dialog ?? ${dialog ?? '"Done."'}', snippet: true)}''' : '''    _ = try await $call
     return ${_resultOf(dialog: dialog)}'''}
   }
 }
-''');
+
+${_continuableExtension(name, modes, availability)}${_liveConformances(name, floor, longRunning: s.longRunning)}''');
   }
 
   /// The iOS / macOS lines that bring the app forward for a live call:
   /// Flutter on iOS needs a scene; macOS answers in place, and activates only
-  /// for intents that open the app.
-  String _foreground({required bool activateOnMac}) => [
-        '    #if os(iOS)',
-        '      if UIApplication.shared.applicationState != .active {',
-        '        try await requestToContinueInForeground()',
-        '      }',
-        if (activateOnMac) ...['    #elseif os(macOS)', '      NSApplication.shared.activate()'],
-        '    #endif',
-      ].join('\n');
+  /// for intents that open the app. [modes] says how, per platform (see
+  /// `swift_writer_modern.dart`); the intent's header and members come from
+  /// `_continuable` and `_modesMember`.
+  String _foreground(Map<String, _Mode> modes, {required bool activateOnMac}) =>
+      _foregroundLines(modes, activateOnMac: activateOnMac);
 
   /// Swift expression encoding parameter [a] for Dart.
   String _encodeArg(CallArg a) {
     final n = swiftName(a.member.name);
+    final ref = a.element.ref;
     String one(String v) => switch ((a.shape, a.element.kind)) {
-          (ArgShape.entity, _) => '$v.id',
+          (ArgShape.entity, _) => _dartID(ref, v),
           (_, 'stringSearchCriteria') => '$v.term',
           _ => 'AssistantValues.encode($v)',
         };
     if (a.list) {
-      final map = a.shape == ArgShape.entity ? '.map(\\.id)' : '.map { ${one(r'$0')} }';
+      final map = a.shape == ArgShape.entity ? '.map(${_dartIDPath(ref)})' : '.map { ${one(r'$0')} }';
       return a.optional ? '$n.map { \$0$map as Any } ?? NSNull()' : '$n$map';
     }
     if (a.optional) {
       return switch ((a.shape, a.element.kind)) {
-        (ArgShape.entity, _) => 'AssistantValues.encode($n?.id)',
+        (ArgShape.entity, _) => 'AssistantValues.encode(${_dartID(ref, '$n?')})',
         (_, 'stringSearchCriteria') => 'AssistantValues.encode($n?.term)',
         _ => 'AssistantValues.encode($n)',
       };
@@ -1235,7 +1254,9 @@ ${reply ? '''    let reply = AssistantReply(json: try await $call)
   /// A schema intent that calls a Dart handler method with its parameters
   /// (a [IntentKind.call]): live when [IntentSchema.isLive], else queued in
   /// the inbox like a `Runs.deferred` action.
-  void _callIntent(SchemaEntityModel? owner, IntentSchema intent, String handler, Interactions ix) {
+  void _callIntent(SchemaEntityModel? owner, IntentSchema intent, String handler, Interactions ix,
+      {bool undoable = false, bool longRunning = false}) {
+    undoable = undoable && intent.canUndo;
     final method = callMethod(intent, owner?.schema);
     final id = callActionId(owner, intent);
     final name = '${owner?.className ?? pascal(intent.domain)}${pascal(intent.name)}Intent';
@@ -1255,10 +1276,8 @@ ${reply ? '''    let reply = AssistantReply(json: try await $call)
     final floor = _max(_intentFloor(intent), owner == null ? const {'iOS': 0, 'macOS': 0} : _entityFloor(owner.schema));
     // From iOS 26 an intent that opens the app declares it (`supportedModes`),
     // and the system brings the app forward before `perform`.
-    final modes = live && intent.opensApp && _norm(floor)['iOS']! >= 26;
-    // With background execution, from iOS 26 too (see `_backgroundModes`).
-    final background = _backgroundCapable(intent);
-    final from26 = _norm(floor)['iOS']! >= 26;
+    // With background execution, live intents start in the background on iOS.
+    final modes = _modes(opensApp: intent.opensApp, background: _backgroundCapable(intent), floor: floor);
     final args = [
       for (final p in intent.parameters)
         if (callArg(p) case final a?) '      "${p.name}": ${_encodeArg(a)},',
@@ -1272,9 +1291,8 @@ ${reply ? '''    let reply = AssistantReply(json: try await $call)
     _out
       ..writeln(_availability(floor))
       ..writeln('@AppIntent(schema: .${intent.id})')
-      ..writeln('struct $name${live && !modes && !(background && from26) ? ': ForegroundContinuableIntent' : ''} {');
-    if (modes) _out.writeln('  static let supportedModes: IntentModes = .foreground\n');
-    if (background) _out.writeln(_backgroundModes(from26: from26));
+      ..writeln('struct $name${live ? _continuable(modes, ': ') : ''} {');
+    if (live) _out.write(_modesMember(modes));
     for (final p in intent.parameters) {
       _out.writeln('  var ${swiftName(p.name)}: ${_swiftType(p.type)}');
     }
@@ -1284,33 +1302,49 @@ ${reply ? '''    let reply = AssistantReply(json: try await $call)
       ..writeln('  func perform() async throws -> some ${_resultType(returns, dialog: reply || dialog != null, snippet: reply)} {')
       ..writeln(args.isEmpty ? '    let args: [String: Any] = [:]' : '    let args: [String: Any] = [\n${args.join('\n')}\n    ]')
       ..write(_confirmLines(intent, IntentKind.call, ix));
+    // Undo calls `<id>.undo` with the same arguments, and the result ids.
+    String undo(String? result) => !undoable
+        ? ''
+        : result == null
+            ? '${_undoLines(floor, intent.title, 'AssistantUndo.call("$id", args: args)')}\n'
+            : '    var undoArgs = args\n    undoArgs["result"] = $result\n'
+                '${_undoLines(floor, intent.title, 'AssistantUndo.call("$id", args: undoArgs)')}\n';
     if (!live) {
       _out
         ..writeln('    AssistantInbox.call("$id", args: args)')
         ..writeln('    $_inboxChanged')
+        ..write(undo(null))
         ..writeln('    return ${_resultOf(dialog: dialog)}');
     } else {
-      if (background) {
-        _out.writeln(_backgroundPrelude(from26: from26));
-      } else if (!modes) {
-        _out.writeln(_foreground(activateOnMac: intent.opensApp));
-      }
+      final forward = _foreground(modes, activateOnMac: intent.opensApp);
+      if (forward.isNotEmpty) _out.writeln(forward);
     }
     if (live && reply) {
-      _replyResult(intent, id, method, result, resultType, unionType, dialog);
+      _replyResult(intent, id, method, result, resultType, unionType, dialog,
+          undo: undo(switch (callResult(intent)) {
+            CallResult.entity => 'reply.ids.first ?? NSNull()',
+            CallResult.entities => 'reply.ids',
+            _ => null,
+          }));
     } else if (live) {
-      _out.writeln('    ${intent.result == null ? '_' : 'let reply'} = try await AssistantBridge.shared.perform("$id", args: args)');
+      _out
+        ..writeln('    ${intent.result == null ? '_' : 'let reply'} = try await callDart("$id", args: args)')
+        ..write(undo(switch (callResult(intent)) {
+          CallResult.entity => 'reply ?? NSNull()',
+          CallResult.entities => 'AssistantValues.stringList(reply)',
+          _ => null,
+        }));
       switch (callResult(intent)) {
         case CallResult.entity:
           _out
-            ..writeln('    guard let id = reply, let value = try await ${resultType}Query().entities(for: [id]).first else {')
+            ..writeln('    guard let id = reply, let value = ${_lookup(resultType!, result, '[id]')}.first else {')
             ..writeln('      throw AssistantActionError.failed("$method returned no ${_escape(result!)} item")')
             ..writeln('    }')
             ..writeln('    return ${_resultOf(value: 'value', dialog: dialog)}');
         case CallResult.entities:
           _out
             ..writeln('    let ids = AssistantValues.stringList(reply)')
-            ..writeln('    return ${_resultOf(value: 'try await ${resultType}Query().entities(for: ids)', dialog: dialog)}');
+            ..writeln('    return ${_resultOf(value: _lookup(resultType!, result, 'ids'), dialog: dialog)}');
         case CallResult.union:
           _out
             ..writeln('    guard let value = $unionType.decode(AssistantValues.json(reply)) else {')
@@ -1326,6 +1360,13 @@ ${reply ? '''    let reply = AssistantReply(json: try await $call)
     _out
       ..writeln('  }')
       ..writeln('}');
+    if (live || undoable) _out.writeln();
+    if (live) {
+      _out
+        ..write(_continuableExtension(name, modes, _availability(floor)))
+        ..write(_liveConformances(name, floor, longRunning: longRunning));
+    }
+    if (undoable) _out.write('${live ? '\n' : ''}${_undoConformance(name, floor, intent)}');
     if (framework != null) _out.writeln('#endif');
     _out.writeln();
   }
@@ -1339,21 +1380,26 @@ ${reply ? '''    let reply = AssistantReply(json: try await $call)
       for (final e in app.entities) (e.className, e.swiftName, _max(intent.availability, const {'iOS': 18, 'macOS': 15})),
     ];
     for (final (className, swift, floor) in targets) {
+      final name = 'Open${className}Intent';
+      // Below 26, it continues in the foreground; from 26 it declares that it
+      // opens the app.
+      final modes = _modes(opensApp: true);
+      final forward = _foreground(modes, activateOnMac: true);
+      final schema = app.schemaEntities.where((s) => s.className == className).firstOrNull?.schema.id;
       _out.writeln('''
 /// `system.open` for `$className` → calls `open$className(id)` on `${d.handler}`.
 ${_availability(floor)}
 @AppIntent(schema: .system.open)
-struct Open${className}Intent: ForegroundContinuableIntent {
-  var target: $swift
+struct $name${_continuable(modes, ': ')} {
+${_modesMember(modes)}  var target: $swift
 
   @MainActor
   func perform() async throws -> some IntentResult {
-${_foreground(activateOnMac: true)}
-    _ = try await AssistantBridge.shared.perform("system.open.$className", args: ["id": target.id])
+${forward.isEmpty ? '' : '$forward\n'}    _ = try await AssistantBridge.shared.perform("system.open.$className", args: ["id": ${_dartID(schema, 'target')}])
     return .result()
   }
 }
-''');
+${_continuableExtension(name, modes, _availability(floor))}''');
     }
   }
 

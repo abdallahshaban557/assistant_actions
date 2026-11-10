@@ -89,6 +89,9 @@ abstract final class CalendarAttendeeField {
 ///
 /// Map fields with [CalendarCalendarField] and turn on the schema intents the app
 /// supports. Each one becomes a method on the generated handler.
+///
+/// Syncable (`SyncableEntity`), like Apple's own: keep each `@EntityId()`
+/// stable across launches and devices. Opt out with `@AssistantSyncable(false)`.
 class CalendarCalendar extends SchemaEntity {
   const CalendarCalendar() : super('calendar.calendar');
 }
@@ -128,6 +131,9 @@ class FixedCalendarCalendar extends SchemaContainer {
 /// `dialogs` and `confirm` give, by intent name, what Siri says when one
 /// finishes and what it asks first.
 /// `replies` lets live intents' handlers return an `AssistantReply`.
+///
+/// Syncable (`SyncableEntity`), like Apple's own: keep each `@EntityId()`
+/// stable across launches and devices. Opt out with `@AssistantSyncable(false)`.
 class CalendarEvent extends SchemaEntity {
   const CalendarEvent({
     required this.calendar,

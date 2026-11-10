@@ -451,7 +451,7 @@ void main() {
       final swift = SwiftWriter(app).write();
       final pick = block(swift, 'public struct PickAction');
       expect(pick, contains('some IntentResult & ReturnsValue<RecipeEntity> & ProvidesDialog & ShowsSnippetView'));
-      expect(pick, contains('let reply = AssistantReply(json: try await AssistantBridge.shared.perform("pick", args: args))'));
+      expect(pick, contains('let reply = AssistantReply(json: try await callDart("pick", args: args))'));
       expect(pick, contains('let candidates = try await RecipeEntityQuery().entities(for: reply.ids)'));
       expect(pick, contains('guard let value = try await assistantChoose(among: candidates, prompt: reply.prompt) else {'),
           reason: 'AssistantReply.choose asks which item');

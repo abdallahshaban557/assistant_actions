@@ -48,6 +48,8 @@ class ExampleApp extends StatelessWidget {
                       ),
                     ),
                   for (final e in store.journal) ListTile(title: Text(e.title ?? e.text), subtitle: e.title == null ? null : Text(e.text)),
+                  const ListTile(title: Text('Files (files.*)')),
+                  for (final d in store.docs) ListTile(title: Text(d.name), subtitle: Text(d.path)),
                   const ListTile(title: Text('Shopping list')),
                   for (final s in store.shopping) ListTile(title: Text(s)),
                 ],

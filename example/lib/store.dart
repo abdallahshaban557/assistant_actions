@@ -19,6 +19,7 @@ AssistantActionsRegistry appRegistry() {
     memoryItem: MemoryHandler(),
     journalItem: JournalHandler(),
     countdown: CountdownHandler(),
+    docItem: DocHandler(),
     system: SystemHandler(),
     camera: CameraHandler(),
   );
@@ -38,6 +39,10 @@ class Store extends ChangeNotifier {
   final memories = <MemoryItem>[];
   final journal = <JournalItem>[];
   final timers = <Countdown>[];
+  final docs = [
+    DocItem(path: '/Documents/Notes', created: DateTime(2026, 11, 1)),
+    DocItem(path: '/Documents/Notes/Plan.txt', created: DateTime(2026, 11, 2)),
+  ];
 
   /// What Siri last asked the app to show or do on screen.
   String? onScreen;
@@ -73,13 +78,24 @@ class Store extends ChangeNotifier {
   final plan = <Meal, String>{};
 
   /// Tells listeners and republishes what Siri can see.
-  void changed() {
+  void changed() => changedAndPublished();
+
+  /// [changed], finishing once Siri can see the change.
+  Future<void> changedAndPublished() {
     notifyListeners();
-    AssistantActions.publish(recipes);
-    AssistantActions.publish(tasks);
-    AssistantActions.publish(memories);
-    AssistantActions.publish(journal);
-    AssistantActions.publish(timers);
+    return publish();
+  }
+
+  /// Republishes what Siri can see.
+  Future<void> publish() async {
+    await Future.wait([
+      AssistantActions.publish(recipes),
+      AssistantActions.publish(tasks),
+      AssistantActions.publish(memories),
+      AssistantActions.publish(journal),
+      AssistantActions.publish(timers),
+      AssistantActions.publish(docs),
+    ]);
   }
 }
 
@@ -212,6 +228,65 @@ class CountdownHandler implements CountdownAssistantHandler {
     for (final t in _store.timers.where((t) => t.id == timer)) {
       t.state = ClockTimerState.running;
     }
+    _store.changed();
+  }
+
+  /// `@AssistantUndoable()`: undoing "create a timer" deletes it.
+  @override
+  Future<void> delete(String id) async {
+    _store.timers.removeWhere((t) => t.id == id);
+    _store.changed();
+  }
+
+  /// The user undid "pause the timer".
+  @override
+  Future<void> undoPauseTimer({required String timer}) => resumeTimer(timer: timer);
+
+  /// The user undid "resume the timer".
+  @override
+  Future<void> undoResumeTimer({required String timer}) => pauseTimer(timer: timer);
+}
+
+/// Applies Siri's files.* requests to documents. The ids are paths; a real
+/// app moves, renames and deletes the files themselves too.
+class DocHandler implements DocItemAssistantHandler {
+  Store get _store => Store.instance;
+
+  DocItem? _doc(String path) => _store.docs.where((d) => d.path == path).firstOrNull;
+
+  @override
+  Future<void> openFile({required String target}) async {
+    _store.onScreen = 'file ${_doc(target)?.name ?? target}';
+    _store.changed();
+  }
+
+  @override
+  Future<void> moveFiles({required List<String> entities, required String destinationFolder}) async {
+    for (final path in entities) {
+      _doc(path)?.path = '$destinationFolder/${path.split('/').last}';
+    }
+    _store.changed();
+  }
+
+  @override
+  Future<String> createFolder({String? fileName, required String target}) async {
+    final folder = DocItem(path: '$target/${fileName ?? 'New Folder'}', created: DateTime.now());
+    _store.docs.add(folder);
+    // Published before returning, so Siri can show it.
+    await _store.changedAndPublished();
+    return folder.path;
+  }
+
+  @override
+  Future<void> renameFile({required String target, required String newName}) async {
+    final doc = _doc(target);
+    if (doc != null) doc.path = '${target.substring(0, target.lastIndexOf('/'))}/$newName';
+    _store.changed();
+  }
+
+  @override
+  Future<void> delete(String id) async {
+    _store.docs.removeWhere((d) => d.path == id);
     _store.changed();
   }
 }

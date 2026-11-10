@@ -15,5 +15,6 @@ swiftc -module-name assistant_actions -o "$out/tests" \
   "$src/AssistantActivityAttributes.swift" "$src/AssistantLiveActivities.swift" \
   "$src/AssistantShortcutParameters.swift" \
   "$src/AssistantBridge.swift" "$src/AssistantApi.g.swift" "$src/AssistantBackground.swift" \
+  "$src/AssistantLiveCall.swift" "$src/AssistantLiveIntents.swift" "$src/AssistantFileIDs.swift" "$src/AssistantUndo.swift" \
   test/swift/main.swift
 "$out/tests"

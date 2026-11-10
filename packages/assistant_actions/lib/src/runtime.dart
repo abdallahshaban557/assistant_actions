@@ -9,6 +9,7 @@ import 'package:flutter/widgets.dart';
 
 import 'bridge/assistant_api.g.dart';
 import 'host.dart';
+import 'live_call.dart';
 import 'registry.dart';
 
 /// Connects the generated App Intents to the app.
@@ -155,9 +156,16 @@ abstract final class AssistantActions {
       await drain();
       return null;
     }
+    final args = (jsonDecode(argsJson) as Map).cast<String, Object?>();
+    if (action == AssistantCall.cancelAction) {
+      AssistantCall.cancel(args['call'] as String?);
+      return null;
+    }
     final handler = _registry?.actions[action];
     if (handler == null) throw ArgumentError.value(action, 'action', 'Unknown action');
-    return handler((jsonDecode(argsJson) as Map).cast<String, Object?>());
+    // Live calls carry their id, for `AssistantCall.current`.
+    final call = args.remove(AssistantCall.argument) as String?;
+    return AssistantCall.run(call, () => handler(args));
   }
 }
 

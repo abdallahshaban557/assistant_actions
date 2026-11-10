@@ -312,12 +312,13 @@ List<String> _protocols(Object? raw) => [
         if ((p as Map)['primitive'] case {'wrapper': final Map wrapper}) ...wrapper.keys.cast<String>(),
     ];
 
-/// The entity protocols a schema entity requires: 0 is `FileEntity`, 1
-/// `UniqueAppEntity`. Others (3, on synced entities like notes) need nothing
-/// from the app.
+/// The entity protocols a schema entity adopts: 0 is `FileEntity`, 1
+/// `UniqueAppEntity`, 3 `SyncableEntity` (Apple's own notes, lists and
+/// calendars are syncable). 2 (`URLRepresentableEntity`, on
+/// `browser.searchableWebsite`) needs nothing from the app.
 List<String> _entityProtocols(Object? raw) => [
       for (final p in (_json(raw) as List?) ?? const [])
-        ?const {0: 'file', 1: 'unique'}[p],
+        ?const {0: 'file', 1: 'unique', 3: 'syncable'}[p],
     ];
 
 Map<String, num> _availability(Object? raw) {

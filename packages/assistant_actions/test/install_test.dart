@@ -146,4 +146,16 @@ void main() {
         File('darwin/widgets/AssistantLiveActivityWidget.swift').readAsStringSync(),
         reason: 'the generic view follows the runtime');
   }, timeout: const Timeout(Duration(minutes: 2)));
+
+  test('the plugin gets the Runner\'s lowest deployment target, at least 17 / 14', () {
+    const pbx = '''
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
+''';
+    expect(install.deploymentTarget(pbx, 'ios'), '26.0');
+    expect(install.deploymentTarget('IPHONEOS_DEPLOYMENT_TARGET = 13.0;', 'ios'), '17.0');
+    expect(install.deploymentTarget('MACOSX_DEPLOYMENT_TARGET = 26;', 'macos'), '26.0');
+    expect(install.deploymentTarget('', 'macos'), '14.0');
+    expect(install.deploymentTarget(install.raiseDeploymentTarget(_fixture, 'ios'), 'ios'), '17.4');
+  });
 }

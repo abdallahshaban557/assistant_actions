@@ -1,3 +1,23 @@
+## 0.0.18
+
+* `files.file` is supported: a file entity's `@EntityId()` is the file's path
+  (or a `file://` URL); Swift gives Siri a `FileEntityIdentifier` for it
+  (`AssistantFileIDs`) and finds published items from Siri's identifiers.
+* `@AssistantSyncable([bool])`: `SyncableEntity` (iOS / macOS 27). The catalog
+  marks the schemas Apple's own apps make syncable (`notes.note`,
+  `reminders.list`, `calendar.event`, …), which are syncable by default.
+* `@AssistantUndoable()`: `UndoableIntent` (26). Swift's `AssistantUndo` queues
+  the inverse of creates, updates and deletes; other intents call `undo…`
+  handler methods.
+* `AssistantCall.current`: live calls report progress
+  (`reportProgress`) and see cancellation (`isCancelled`, `whenCancelled`).
+  `@AssistantAction(longRunning:)` and `@AssistantLongRunning()` make them
+  `LongRunningIntent`s (27). Swift `AssistantLiveCall` and `callDart`.
+* `install` gives the generated plugin the Runner's deployment targets, so
+  the generated Swift can drop what they deprecate.
+* `AssistantInbox.create` takes an optional `id`.
+* Needs assistant_actions_generator 0.0.15.
+
 ## 0.0.17
 
 * `@AssistantBackground()`: on iOS, Siri runs the app's Dart without opening

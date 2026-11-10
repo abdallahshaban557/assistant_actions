@@ -134,6 +134,12 @@ extension _Actions on ModelReader {
           'opening the app.',
           element: fn);
     }
+    final longRunning = annotation.peek('longRunning')?.boolValue ?? false;
+    if (longRunning && runs != RunsModel.withFlutter && !liveActivity) {
+      throw InvalidGenerationSourceError(
+          '${fn.displayName}: longRunning needs runs: Runs.withFlutter (deferred actions return at once).',
+          element: fn);
+    }
     return ActionModel(
       functionName: fn.displayName,
       library: fn.library.uri,
@@ -151,6 +157,7 @@ extension _Actions on ModelReader {
       searchKeywords: _strings(annotation, 'searchKeywords'),
       isDiscoverable: discoverable,
       opensApp: opensApp,
+      longRunning: longRunning,
     );
   }
 

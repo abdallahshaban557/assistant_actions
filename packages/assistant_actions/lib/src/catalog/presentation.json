@@ -78,6 +78,9 @@
           "updatable": false,
           "indexingKey": "displayName"
         }
+      ],
+      "protocols": [
+        "syncable"
       ]
     }
   },

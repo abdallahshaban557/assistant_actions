@@ -210,7 +210,7 @@ void main() {
       expect(swift, contains('import SwiftUI\n'));
       final start = _block(swift, 'struct CameraStartCaptureIntent');
       expect(start, contains('func perform() async throws -> some IntentResult & ProvidesDialog & ShowsSnippetView {'));
-      expect(start, contains('let reply = AssistantReply(json: try await AssistantBridge.shared.perform("camera.startCapture", args: args))'));
+      expect(start, contains('let reply = AssistantReply(json: try await callDart("camera.startCapture", args: args))'));
       expect(start, contains('return .result(dialog: IntentDialog(stringLiteral: reply.dialog ?? "Camera on."), view: AssistantCardView(reply.card))'));
       final dart = writeDart(app);
       expect(dart, contains('Future<AssistantReply<void>> startCapture({required Mode captureMode, Lens? device, Delay? timerDuration});'));
@@ -245,7 +245,7 @@ void main() {
       final app = _app(entities: [journal]);
       final record = _block(SwiftWriter(app).write(), 'struct JournalItemCreateAudioEntryIntent');
       expect(record, contains('some IntentResult & ProvidesDialog & ShowsSnippetView {'));
-      expect(record, contains('let reply = AssistantReply(json: try await AssistantBridge.shared.perform("JournalItem.startAudioEntry", args: [:]))'));
+      expect(record, contains('let reply = AssistantReply(json: try await callDart("JournalItem.startAudioEntry", args: [:]))'));
       final dart = writeDart(app);
       expect(dart, contains('Future<AssistantReply<void>> startAudioEntry();'));
       expect(dart, contains('      return AssistantReply.encode(await journalItem.startAudioEntry());'));

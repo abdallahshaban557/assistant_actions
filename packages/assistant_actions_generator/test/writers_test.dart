@@ -386,7 +386,7 @@ void main() {
       expect(audio, contains('func perform() async throws -> some IntentResult {'));
       expect(audio, contains('try await requestToContinueInForeground()'));
       expect(audio, contains('NSApplication.shared.activate()'));
-      expect(audio, contains('AssistantBridge.shared.perform("JournalItem.startAudioEntry", args: [:])'));
+      expect(audio, contains('callDart("JournalItem.startAudioEntry", args: [:])'));
       expect(audio, isNot(contains('AssistantInbox')));
       expect(audio, isNot(contains('var ')), reason: 'the schema intent takes no parameters');
       expect(swift, contains('#elseif os(macOS)\n  import AppKit'));
@@ -498,7 +498,7 @@ void main() {
       expect(create, startsWith('struct TabCreateTabIntent: ForegroundContinuableIntent {'));
       expect(create, contains('func perform() async throws -> some ReturnsValue<TabEntity> {'));
       expect(create, contains('NSApplication.shared.activate()'), reason: 'it opens the app');
-      expect(create, contains('let reply = try await AssistantBridge.shared.perform("Tab.createTab", args: args)'));
+      expect(create, contains('let reply = try await callDart("Tab.createTab", args: args)'));
       expect(create, contains('guard let id = reply, let value = try await TabEntityQuery().entities(for: [id]).first'));
       final close = block(swift, 'struct TabCloseTabsIntent');
       expect(close, contains('"target": target.map(\\.id),'));
@@ -532,7 +532,7 @@ void main() {
       expect(start, contains('var captureMode: CameraCaptureModeEnum'));
       expect(start, contains('"captureMode": AssistantValues.encode(captureMode),'));
       expect(start, contains('requestToContinueInForeground()'));
-      expect(start, contains('AssistantBridge.shared.perform("camera.startCapture", args: args)'));
+      expect(start, contains('callDart("camera.startCapture", args: args)'));
       final dart = writeDart(app);
       expect(dart, contains("import 'package:app/camera.dart' show Delay, Lens, Mode;"));
       expect(dart, contains('abstract interface class CameraAssistantHandler {'));

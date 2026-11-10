@@ -86,6 +86,9 @@
           },
           "updatable": false
         }
+      ],
+      "protocols": [
+        "syncable"
       ]
     },
     "account": {
@@ -146,6 +149,9 @@
           },
           "updatable": false
         }
+      ],
+      "protocols": [
+        "syncable"
       ]
     }
   },

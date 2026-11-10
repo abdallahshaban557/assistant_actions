@@ -22,7 +22,7 @@ no errors (`dart run tool/validate_schemas.dart` in the generator).
 | `calendar` | Full | 3/3 | 3/3 |  |
 | `camera` | Full | 0/0 | 5/5 |  |
 | `clock` | Full | 3/3 | 14/14 |  |
-| `files` | Partial | 0/1 | 0/5 | `file`: file entity (FileEntity ids); 1 schemas not adoptable (1 not public) |
+| `files` | Full | 1/1 | 5/5 | 1 schemas not adoptable (1 not public) |
 | `journal` | Full | 1/1 | 4/4 | 1 schemas not adoptable (1 deprecated) |
 | `mail` | Full | 5/5 | 12/12 |  |
 | `maps` | Full | 6/6 | 6/6 | 17 schemas not adoptable (17 not public) |
@@ -51,10 +51,47 @@ schemas left out of an adoptable domain and why: no public definition,
 deprecated (for example `journal.search`, replaced by `system.searchInApp`),
 or using a private schema (`phone.startCall` can take a private call group).
 
+## Newer App Intents protocols
+
+The validation app also makes every adopted class `@AssistantUndoable()` and
+`@AssistantLongRunning()`, and is built a second time for iOS 26 / macOS 26
+(`--deployment=26.0`), so these are checked on every schema:
+
+- **`FileEntity`** (`files.file`): Swift ids are `FileEntityIdentifier`s; Dart
+  keeps the file's path as the `@EntityId()`.
+- **`SyncableEntity`** (27): on by default for the schemas Apple's own apps
+  make syncable (`audio.playlist`, `calendar.calendar`, `calendar.event`,
+  `messages.message`, `notes.note`, `notes.folder`, `photos.asset`,
+  `photos.album`, `photos.recognizedPerson`, `presentation.document`,
+  `reminders.list`), and with
+  `@AssistantSyncable()` on any other entity. Ids stay `String`s
+  (`entitySyncType` 1, like Apple's Notes), so they must be stable.
+  `SyncableEntityIdentifier` (separate local and stable ids, sync type 2)
+  isn't used: Dart has one id per item.
+- **`IndexedEntityQuery`** (27): every entity query re-indexes its items in
+  Spotlight when the system asks. Queries still answer from the snapshot.
+- **`UndoableIntent`** (26): with `@AssistantUndoable()`. Open intents
+  (`OpenIntent`) aren't made undoable. Plain `@AssistantAction`s can't be
+  undone yet (there's no Dart undo function to name).
+- **`ProgressReportingIntent`** (17) and **`CancellableIntent`** (26.4) on
+  every live intent, **`LongRunningIntent`** (27) with `longRunning: true` /
+  `@AssistantLongRunning()`. Dart sees `AssistantCall.current`.
+- **`supportedModes`** instead of the deprecated `ForegroundContinuableIntent`
+  when the app's deployment target is iOS 26 / macOS 26 or later.
+
+Not adopted:
+
+- **`OwnershipProvidingEntity`** (27) says whether an item is shared or
+  public. Nothing in an app's Dart model says so today, and guessing would
+  mislead Siri, so entities don't claim ownership.
+- **`@ComputedProperty` / `@DeferredProperty`** (26) compute a property from
+  others, or fetch it only when asked. Snapshot entities are built from what
+  Dart published, with every value already there, and Dart may not be
+  running to compute one later; schema entities' members are declared by
+  Apple's `@AppEntity(schema:)` macro as stored properties. Neither fits.
+
 ## Not supported yet
 
-- **`files.file`** needs file-based ids (`FileEntity`), and its five intents
-  with it.
 - **`visualIntelligence.semanticContentSearch`** doesn't pass the scene
   (`SemanticContentDescriptor`) to Dart.
 - **Schema queries and facets** (`maps.placeIntentValueQuery`, the

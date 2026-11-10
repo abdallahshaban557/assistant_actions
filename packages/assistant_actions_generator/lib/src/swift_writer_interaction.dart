@@ -73,20 +73,23 @@ extension _Interaction on SwiftWriter {
   /// its value (asking which item when Dart sent several), what it says
   /// (else the `dialogs` template [dialog], else "Done.") and its card.
   void _replyResult(IntentSchema intent, String id, String method, String? result, String? resultType,
-      String? unionType, String? dialog) {
+      String? unionType, String? dialog, {String undo = ''}) {
     final says = 'reply.dialog ?? ${dialog ?? '"Done."'}';
-    _out.writeln('    let reply = AssistantReply(json: try await AssistantBridge.shared.perform("$id", args: args))');
+    _out
+      ..writeln('    let reply = AssistantReply(json: try await callDart("$id", args: args))')
+      // Undo (`swift_writer_modern.dart`) gets the ids the reply names.
+      ..write(undo);
     switch (callResult(intent)) {
       case CallResult.entity:
         _out
-          ..writeln('    let candidates = try await ${resultType}Query().entities(for: reply.ids)')
+          ..writeln('    let candidates = ${_lookup(resultType!, result, 'reply.ids')}')
           ..writeln('    guard let value = try await assistantChoose(among: candidates, prompt: reply.prompt) else {')
           ..writeln('      throw AssistantActionError.failed("$method returned no ${SwiftWriter._escape(result!)} item")')
           ..writeln('    }')
           ..writeln('    return ${_resultOf(value: 'value', dialog: says, snippet: true)}');
       case CallResult.entities:
         _out
-          ..writeln('    let value = try await ${resultType}Query().entities(for: AssistantValues.strings(reply.value) ?? [])')
+          ..writeln('    let value = ${_lookup(resultType!, result, 'AssistantValues.strings(reply.value) ?? []')}')
           ..writeln('    return ${_resultOf(value: 'value', dialog: says, snippet: true)}');
       case CallResult.union:
         _out

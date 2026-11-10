@@ -28,6 +28,21 @@ flutter pub add assistant_actions dev:build_runner dev:assistant_actions_generat
 dart run build_runner build
 ```
 
+The Swift is written for the deployment target of the generated plugin
+(`packages/assistant_actions_app/darwin/assistant_actions_app/Package.swift`):
+from iOS 26 / macOS 26 it uses `supportedModes` instead of the deprecated
+`ForegroundContinuableIntent`. Override it in `build.yaml`:
+
+```yaml
+targets:
+  $default:
+    builders:
+      assistant_actions_generator:assistant_actions:
+        options:
+          ios_deployment_target: "26.0"
+          macos_deployment_target: "26.0"
+```
+
 Schema definitions come from the catalog bundled with `assistant_actions`
 (exported from Xcode's `AppIntentSchemas.sqlite`), so generation doesn't need
 Xcode and works on any CI. See the `assistant_actions` README for usage.

@@ -1,3 +1,25 @@
+## 0.0.15
+
+* Every live intent (`Runs.withFlutter` and Live Activity actions, live
+  schema calls and replies, record intents) calls Dart through `callDart`:
+  `ProgressReportingIntent`, `CancellableIntent` from 26.4, and
+  `LongRunningIntent` (27) with `longRunning` / `@AssistantLongRunning()`.
+* From a deployment target of iOS 26 / macOS 26 (the plugin's
+  `Package.swift`, or the `ios_deployment_target` / `macos_deployment_target`
+  options), live intents declare `supportedModes` (`.foreground(.dynamic)`,
+  `.foreground` for those that open the app, `[.background,
+  .foreground(.dynamic)]` with `@AssistantBackground()`) instead of the
+  deprecated `ForegroundContinuableIntent`, per platform. Warning-free at
+  17 / 14, 26 and mixed targets.
+* `SyncableEntity` for syncable schemas and `@AssistantSyncable()`;
+  `IndexedEntityQuery` (27) on every entity query; `UndoableIntent` with
+  `@AssistantUndoable()`, including inbox changes that say a dialog.
+* `files.file` with `FileEntityIdentifier` ids and all five `files.*`
+  intents.
+* `tool/validate_schemas.dart` adopts `files.file`, makes every class
+  undoable and long-running, and takes `--deployment=26.0`.
+* Needs assistant_actions 0.0.18.
+
 ## 0.0.14
 
 * With an `@AssistantBackground()` function, writes the headless engine's

@@ -1,6 +1,9 @@
 import 'catalog.dart';
 import 'interaction.dart';
+import 'deployment.dart';
 import 'schema_calls.dart';
+
+export 'deployment.dart' show DeploymentTarget;
 
 /// A Dart value type the generator can pass between Swift and Dart.
 enum ValueKind {
@@ -180,11 +183,15 @@ class EntityModel {
     required this.titleGetter,
     required this.fields,
     this.subtitleGetter,
+    this.syncable = false,
   });
 
   final String className;
   final Uri library;
   final String title;
+
+  /// `@AssistantSyncable()`: a `SyncableEntity`.
+  final bool syncable;
   final String idField;
   final String titleGetter;
   final String? subtitleGetter;
@@ -340,9 +347,13 @@ class ActionModel {
     this.searchKeywords = const [],
     this.isDiscoverable = true,
     this.opensApp = false,
+    this.longRunning = false,
   });
 
   final String functionName;
+
+  /// `longRunning: true`: a `LongRunningIntent`.
+  final bool longRunning;
   final Uri library;
   final String title;
   final String? description;
@@ -476,11 +487,30 @@ class SchemaEntityModel {
     required this.intents,
     required this.containers,
     this.interactions = Interactions.none,
+    this.syncableOverride,
+    this.undoable = false,
+    this.longRunning = false,
   });
 
   final String className;
   final Uri library;
   final DomainCatalog catalog;
+
+  /// `@AssistantSyncable(…)`, if the class has one.
+  final bool? syncableOverride;
+
+  /// `@AssistantUndoable()`: its intents are `UndoableIntent`s.
+  final bool undoable;
+
+  /// `@AssistantLongRunning()`: its live intents are `LongRunningIntent`s.
+  final bool longRunning;
+
+  /// A `SyncableEntity`: like Apple's own items of the schema, unless the
+  /// class says otherwise.
+  bool get syncable => syncableOverride ?? schema.isSyncable;
+
+  /// A `FileEntity` (`files.file`), whose Swift ids are `FileEntityIdentifier`s.
+  bool get isFile => schema.isFile;
   final EntitySchema schema;
 
   /// Dialogs, confirmations and replies from the annotation.
@@ -511,6 +541,14 @@ class SchemaEntityModel {
       e.$2 == IntentKind.call && e.$1.protocols.contains('open') && e.$1.parameter('target')?.type.base.ref == schema.id);
 
   Iterable<IntentKind> get kinds => {for (final (_, k) in intents) k == IntentKind.append ? IntentKind.update : k};
+
+  /// The handler's methods: [kinds], plus, for an [undoable] class, what
+  /// undoes them (a create is undone by a delete, a delete by a create).
+  Iterable<IntentKind> get handlerKinds => {
+        ...kinds,
+        if (undoable && kinds.contains(IntentKind.create)) IntentKind.delete,
+        if (undoable && kinds.contains(IntentKind.delete)) IntentKind.create,
+      };
 }
 
 /// The action id Swift uses to call [intent]'s handler method live, such as
@@ -530,12 +568,19 @@ class SchemaDomainModel {
     required this.catalog,
     required this.intents,
     this.interactions = Interactions.none,
+    this.undoable = false,
+    this.longRunning = false,
   });
 
   final String className;
 
   /// Dialogs, confirmations and replies from the annotation.
   final Interactions interactions;
+  /// `@AssistantUndoable()`: its intents are `UndoableIntent`s.
+  final bool undoable;
+
+  /// `@AssistantLongRunning()`: its live intents are `LongRunningIntent`s.
+  final bool longRunning;
   final DomainCatalog catalog;
   final List<IntentSchema> intents;
 
@@ -581,6 +626,7 @@ class AppModel {
     this.intentShortcuts = const [],
     this.shortcutTileColor,
     this.background,
+    this.deployment = DeploymentTarget.minimum,
   });
 
   /// The `@AssistantBackground()` registry function, when the app lets Siri
@@ -595,6 +641,9 @@ class AppModel {
 
   /// A `ShortcutTileColor` case name.
   final String? shortcutTileColor;
+
+  /// The OS versions the generated Swift is compiled for.
+  final DeploymentTarget deployment;
 
   /// The app's enums for schema enums whose cases it defines, by schema id.
   final Map<String, OpenEnumModel> openEnums;

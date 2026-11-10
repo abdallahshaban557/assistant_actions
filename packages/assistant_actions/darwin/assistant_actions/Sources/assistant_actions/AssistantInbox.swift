@@ -14,11 +14,12 @@ public enum AssistantInbox {
     append(["kind": "call", "action": action, "args": args])
   }
 
-  /// Queues a new item for [collection] and returns the id Swift gave it, so
-  /// later updates or deletes from Siri can find it before Dart has run.
+  /// Queues a new item for [collection] and returns the id Swift gave it (or
+  /// [id], to bring back a deleted item), so later updates or deletes from
+  /// Siri can find it before Dart has run.
   @discardableResult
-  public static func create(_ collection: String, fields: [String: Any]) -> String {
-    let id = UUID().uuidString.lowercased()
+  public static func create(_ collection: String, id: String? = nil, fields: [String: Any]) -> String {
+    let id = id ?? UUID().uuidString.lowercased()
     append(["kind": "create", "collection": collection, "id": id, "fields": fields])
     return id
   }

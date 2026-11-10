@@ -1,6 +1,7 @@
 import 'package:assistant_actions/assistant_actions.dart';
 import 'package:assistant_actions/schemas/camera.dart';
 import 'package:assistant_actions/schemas/clock.dart';
+import 'package:assistant_actions/schemas/files.dart';
 import 'package:assistant_actions/schemas/journal.dart';
 import 'package:assistant_actions/schemas/notes.dart';
 import 'package:assistant_actions/schemas/reminders.dart';
@@ -29,6 +30,10 @@ class Recipe {
 /// Level 3: a task Siri understands as a reminder (`reminders.reminder`).
 /// Siri says what it did, and asks before deleting ("Delete Buy milk?"), as
 /// deletes do by default.
+/// Syncable, like Apple's reminders, so Siri can pass a task it found to
+/// "update …"; and undoable, so "undo" takes Siri's change back.
+@AssistantSyncable()
+@AssistantUndoable()
 @RemindersReminder(
   list: FixedRemindersList(id: 'tasks', name: 'Tasks'),
   createReminder: true,
@@ -114,7 +119,9 @@ class JournalItem {
 
 /// Level 3: a countdown Siri understands as `clock.timer`. `createTimer`
 /// arrives through the inbox; pausing and resuming are handler calls, queued
-/// until the app runs. Siri asks before pausing.
+/// until the app runs. Siri asks before pausing. Undoable: undoing a pause
+/// resumes the timer.
+@AssistantUndoable()
 @ClockTimer(
   createTimer: true,
   pauseTimer: true,
@@ -151,6 +158,21 @@ enum Meal {
   dinner,
   @CaseTitle('Late-night snack', synonyms: ['snack', 'midnight snack'])
   snack,
+}
+
+/// Level 3: a document Siri understands as a file (`files.file`). The id is
+/// the file's path; Swift gives Siri a `FileEntityIdentifier` for it.
+@FilesFile(openFile: true, moveFiles: true, createFolder: true, renameFile: true, deleteFiles: true)
+class DocItem {
+  DocItem({required this.path, this.created});
+
+  @EntityId()
+  String path;
+
+  @FilesFileField.creationDate
+  DateTime? created;
+
+  String get name => path.split('/').last;
 }
 
 /// `camera.captureMode` and friends have no cases in Apple's schema: the app

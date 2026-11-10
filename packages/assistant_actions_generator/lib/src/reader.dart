@@ -19,14 +19,17 @@ const _package = 'assistant_actions';
 
 /// The `api` this generator needs in assistant_actions'
 /// `lib/src/catalog/generator_api.json`.
-const _runtimeApi = 10;
+const _runtimeApi = 11;
 
 /// Reads the app's annotations from the definitions library and everything
 /// it imports from the app's own package.
 class ModelReader {
-  ModelReader(this.step);
+  ModelReader(this.step, {this.deployment = DeploymentTarget.minimum});
 
   final BuildStep step;
+
+  /// What the generated Swift is compiled for.
+  final DeploymentTarget deployment;
   final _catalogs = <String, DomainCatalog>{};
   final _openEnums = <String, OpenEnumModel>{};
   final _appEnums = <String, AppEnumModel>{};
@@ -66,6 +69,9 @@ class ModelReader {
       for (final cls in lib.classes) {
         if (_annotation(cls, 'AssistantEntity') case final a?) entities.add(_entity(cls, a));
         if (_schemaAnnotation(cls) case final a?) schemaEntities.add(await _schemaEntity(cls, a));
+        if (_schemaAnnotation(cls) == null && _schemaAnnotation(cls, 'SchemaIntents') == null) {
+          _checkIntentFeatures(cls);
+        }
         if (_schemaAnnotation(cls, 'SchemaIntents') case final a?) {
           final domain = await _schemaDomain(cls, a);
           if (schemaDomains.any((d) => d.domain == domain.domain)) {
@@ -119,6 +125,7 @@ class ModelReader {
       intentShortcuts: intentShortcuts,
       shortcutTileColor: _tileColor(app),
       background: background,
+      deployment: deployment,
     );
   }
 
@@ -160,6 +167,22 @@ class ModelReader {
       entrypointLibrary: root.uri.replace(path: root.uri.path.replaceFirst(RegExp(r'\.dart$'), '.g.dart')),
       applyQueued: annotation.peek('applyQueued')?.boolValue ?? true,
     );
+  }
+
+  /// `@AssistantSyncable(…)` on [cls]: its value, or null without one.
+  bool? _syncable(ClassElement cls) => _annotation(cls, 'AssistantSyncable')?.read('syncable').boolValue;
+
+  /// Fails for `@AssistantUndoable()` / `@AssistantLongRunning()` on a class
+  /// that has no schema intents to apply them to.
+  void _checkIntentFeatures(ClassElement cls) {
+    for (final name in ['AssistantUndoable', 'AssistantLongRunning']) {
+      if (_annotation(cls, name) != null) {
+        throw InvalidGenerationSourceError(
+            '@$name() goes on a schema entity class (such as @RemindersReminder) or a domain\'s …Intents class. '
+            'For an @AssistantAction, use longRunning: true.',
+            element: cls);
+      }
+    }
   }
 
   /// Fails the build for turned-on intents the generator can't serve yet,
@@ -278,7 +301,7 @@ class ModelReader {
         : 0;
     if (api < _runtimeApi) {
       throw InvalidGenerationSourceError(
-          'This version of assistant_actions_generator needs assistant_actions 0.0.17 or later. '
+          'This version of assistant_actions_generator needs assistant_actions 0.0.18 or later. '
           'Run `flutter pub upgrade assistant_actions`.',
           element: library);
     }
@@ -332,6 +355,7 @@ class ModelReader {
       idField: id.$1.displayName,
       titleGetter: title.$1.displayName,
       subtitleGetter: subtitle?.$1.displayName,
+      syncable: _syncable(cls) ?? false,
       fields: [
         for (final f in cls.fields)
           if (!f.isStatic && f.isOriginDeclaration && f.displayName != id.$1.displayName)
@@ -369,12 +393,6 @@ class ModelReader {
     final id = _markedMember(cls, 'EntityId');
     if (id == null || !_type(id.$1).isDartCoreString) {
       throw InvalidGenerationSourceError('A schema entity needs a String field marked @EntityId().', element: cls);
-    }
-    if (schema.protocols.contains('file')) {
-      throw InvalidGenerationSourceError(
-          '$schemaId is a file entity: Apple requires file-based ids (FileEntity), which assistant_actions '
-          "doesn't support yet.",
-          element: cls);
     }
 
     final mapping = <String, FieldModel>{};
@@ -439,6 +457,9 @@ class ModelReader {
       intents: intents,
       containers: containers,
       interactions: _interactions(annotation, intents, '@${pascal(schema.domain)}${pascal(schema.name)}', cls),
+      syncableOverride: _syncable(cls),
+      undoable: _annotation(cls, 'AssistantUndoable') != null,
+      longRunning: _annotation(cls, 'AssistantLongRunning') != null,
     );
   }
 
@@ -512,6 +533,10 @@ class ModelReader {
   Future<SchemaDomainModel> _schemaDomain(ClassElement cls, ConstantReader annotation) async {
     final domain = annotation.read('domain').stringValue;
     final catalog = await _catalog(domain, cls);
+    if (_syncable(cls) != null) {
+      throw InvalidGenerationSourceError('@AssistantSyncable goes on an entity class, not on @${pascal(domain)}Intents.',
+          element: cls);
+    }
     final intents = [
       for (final intent in catalog.domainIntents)
         if (annotation.peek(intent.name)?.boolValue ?? false) intent,
@@ -522,6 +547,8 @@ class ModelReader {
       intents: intents,
       interactions: _interactions(
           annotation, [for (final i in intents) (i, IntentKind.call)], '@${pascal(domain)}Intents', cls),
+      undoable: _annotation(cls, 'AssistantUndoable') != null,
+      longRunning: _annotation(cls, 'AssistantLongRunning') != null,
     );
   }
 

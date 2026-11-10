@@ -25,8 +25,9 @@ import '../src/schema.dart';
 /// finishes and what it asks first (deletes ask by default; see `confirmDeletes`).
 /// `replies` lets live intents' handlers return an `AssistantReply`.
 ///
-/// Not supported yet: Apple requires file-based ids (`FileEntity`) for this
-/// schema, and the generator rejects it.
+/// A file entity (`FileEntity`): the `@EntityId()` is the file's absolute
+/// path (or a `file://` URL), which Swift turns into a `FileEntityIdentifier`.
+/// Ids that aren't paths become draft identifiers.
 class FilesFile extends SchemaEntity {
   const FilesFile({
     this.openFile = false,
