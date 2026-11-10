@@ -167,6 +167,45 @@ MainActor.assumeIsolated {
     "unknown host calls throw")
 }
 
+// Replies: what a live Dart handler returned as an AssistantReply.
+let reply = AssistantReply(json: #"""
+  {"value":"t1","dialog":"Opened it.","card":{"title":"Pancakes","subtitle":"20 min",
+   "rows":[["Serves","4"],["bad"]],"systemImage":"fork.knife"}}
+  """#)
+check(reply.dialog ?? "nil", "Opened it.", "replies carry a dialog")
+check(reply.ids.joined(separator: ","), "t1", "a reply's value is the one id")
+check(reply.card?.title ?? "nil", "Pancakes", "cards have a title")
+check(reply.card.map { $0.rows.map { "\($0.label)=\($0.value)" }.joined(separator: ",") } ?? "nil", "Serves=4",
+  "card rows are label and value pairs; malformed rows are dropped")
+check(reply.card?.systemImage ?? "nil", "fork.knife", "cards take an SF Symbol")
+let choose = AssistantReply(json: #"{"choices":["a","b"],"prompt":"Which one?"}"#)
+check(choose.ids.joined(separator: ","), "a,b", "choices are the ids to ask about")
+check(choose.prompt ?? "nil", "Which one?", "choices carry the question")
+check(choose.card == nil ? "none" : "card", "none", "no card without one")
+let empty = AssistantReply(json: nil)
+check("\(empty.ids.count) \(empty.dialog ?? "nil") \(empty.value == nil)", "0 nil true", "an empty reply")
+check(AssistantReply(json: #"{"value":null}"#).value == nil ? "nil" : "value", "nil", "a null value is none")
+
+// Dialogs: parameters read aloud in dialogs and confirmations.
+enum Delay: String { case threeSeconds }
+check(AssistantDialog.text("Milk"), "Milk", "text reads as is")
+check(AssistantDialog.text(nil as String?), "", "nil reads as nothing")
+check(AssistantDialog.text(AttributedString("Note")), "Note", "attributed text")
+check(AssistantDialog.text(3), "3", "ints")
+check(AssistantDialog.text(2.0), "2", "whole doubles read without a fraction")
+check(AssistantDialog.text(true), "yes", "bools read yes or no")
+check(AssistantDialog.text(Delay.threeSeconds), "three seconds", "enum cases read as words")
+check(AssistantDialog.text(nine), nineText, "dates read like snapshot answers")
+check(AssistantDialog.text(midnight), midnightText, "midnight reads as the date alone")
+check(AssistantDialog.text(Duration.seconds(300)),
+  Duration.seconds(300).formatted(.units(allowed: [.hours, .minutes, .seconds], width: .abbreviated)), "durations")
+check(AssistantDialog.list(["Milk", "", "Eggs"]), ["Milk", "Eggs"].formatted(.list(type: .and)),
+  "lists read as a sentence, skipping empty items")
+check(AssistantDialog.list(nil), "", "a nil list reads as nothing")
+check(AssistantDialog.items(["Milk"]), "Milk", "items read by title")
+check(AssistantDialog.items([""]), "this item", "an untitled item")
+check(AssistantDialog.items(["Milk", ""]), "these 2 items", "items when any is untitled")
+
 if failures > 0 {
   print("\(failures) failed")
   exit(1)

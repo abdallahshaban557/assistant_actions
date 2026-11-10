@@ -564,9 +564,14 @@ class FixedAudioNewsProvider extends SchemaContainer {
 ///
 /// Map fields with [AudioPlaylistField] and turn on the schema intents the app
 /// supports. Each one becomes a method on the generated handler.
+///
+/// `dialogs` and `confirm` give, by intent name, what Siri says when one
+/// finishes and what it asks first.
 class AudioPlaylist extends SchemaEntity {
   const AudioPlaylist({
     this.addToPlaylist = false,
+    super.dialogs,
+    super.confirm,
   }) : super('audio.playlist');
 
   /// Handle `audio.addToPlaylist` ("Add Audio Item to Playlist"): calls
@@ -1004,10 +1009,17 @@ class FixedAudioSongCollection extends SchemaContainer {
 ///
 /// Map fields with [AudioWarmupAudioQueueResultField] and turn on the schema intents the app
 /// supports. Each one becomes a method on the generated handler.
+///
+/// `dialogs` and `confirm` give, by intent name, what Siri says when one
+/// finishes and what it asks first.
+/// `replies` lets live intents' handlers return an `AssistantReply`.
 class AudioWarmupAudioQueueResult extends SchemaEntity {
   const AudioWarmupAudioQueueResult({
     this.playAudio = false,
     this.warmupAudioQueue = false,
+    super.dialogs,
+    super.confirm,
+    super.replies,
   }) : super('audio.warmupAudioQueueResult');
 
   /// Handle `audio.playAudio` ("Play Audio Item"): calls
@@ -1046,12 +1058,19 @@ class FixedAudioWarmupAudioQueueResult extends SchemaContainer {
 
 /// Turns on Apple's `audio` intents that belong to no entity. Put it on
 /// the class that implements the generated `AudioAssistantHandler`.
+///
+/// `dialogs` and `confirm` give, by intent name, what Siri says when one
+/// finishes and what it asks first.
+/// `replies` lets live intents' handlers return an `AssistantReply`.
 class AudioIntents extends SchemaIntents {
   const AudioIntents({
     this.addToLibrary = false,
     this.createStation = false,
     this.recognizeAudio = false,
     this.updateAudioAffinity = false,
+    super.dialogs,
+    super.confirm,
+    super.replies,
   }) : super('audio');
 
   /// Handle `audio.addToLibrary` ("Add Audio Item to Library"): calls

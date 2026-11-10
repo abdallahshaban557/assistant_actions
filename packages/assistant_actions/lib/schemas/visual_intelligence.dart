@@ -17,9 +17,16 @@ import '../src/schema.dart';
 
 /// Turns on Apple's `visualIntelligence` intents that belong to no entity. Put it on
 /// the class that implements the generated `VisualIntelligenceAssistantHandler`.
+///
+/// `dialogs` and `confirm` give, by intent name, what Siri says when one
+/// finishes and what it asks first.
+/// `replies` lets live intents' handlers return an `AssistantReply`.
 class VisualIntelligenceIntents extends SchemaIntents {
   const VisualIntelligenceIntents({
     this.semanticContentSearch = false,
+    super.dialogs,
+    super.confirm,
+    super.replies,
   }) : super('visualIntelligence');
 
   /// Handle `visualIntelligence.semanticContentSearch` ("Show Visual Search Results"): calls

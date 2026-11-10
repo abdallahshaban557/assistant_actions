@@ -18,10 +18,17 @@ import '../src/schema.dart';
 ///
 /// Map fields with [WordProcessorDocumentField] and turn on the schema intents the app
 /// supports. Each one becomes a method on the generated handler.
+///
+/// `dialogs` and `confirm` give, by intent name, what Siri says when one
+/// finishes and what it asks first.
+/// `replies` lets live intents' handlers return an `AssistantReply`.
 class WordProcessorDocument extends SchemaEntity {
   const WordProcessorDocument({
     this.open = false,
     this.createPage = false,
+    super.dialogs,
+    super.confirm,
+    super.replies,
   }) : super('wordProcessor.document');
 
   /// Handle `wordProcessor.open` ("Open Document"): calls
@@ -83,9 +90,14 @@ class FixedWordProcessorDocument extends SchemaContainer {
 ///
 /// Map fields with [WordProcessorTemplateField] and turn on the schema intents the app
 /// supports. Each one becomes a method on the generated handler.
+///
+/// `dialogs` and `confirm` give, by intent name, what Siri says when one
+/// finishes and what it asks first.
 class WordProcessorTemplate extends SchemaEntity {
   const WordProcessorTemplate({
     this.create = false,
+    super.dialogs,
+    super.confirm,
   }) : super('wordProcessor.template');
 
   /// Handle `wordProcessor.create` ("Create Document"): calls
@@ -128,6 +140,10 @@ class FixedWordProcessorTemplate extends SchemaContainer {
 ///
 /// Map fields with [WordProcessorPageField] and turn on the schema intents the app
 /// supports. Each one becomes a method on the generated handler.
+///
+/// `dialogs` and `confirm` give, by intent name, what Siri says when one
+/// finishes and what it asks first.
+/// `replies` lets live intents' handlers return an `AssistantReply`.
 class WordProcessorPage extends SchemaEntity {
   const WordProcessorPage({
     required this.document,
@@ -137,6 +153,9 @@ class WordProcessorPage extends SchemaEntity {
     this.addImageToPage = false,
     this.addAudioToPage = false,
     this.addWebVideoToPage = false,
+    super.dialogs,
+    super.confirm,
+    super.replies,
   }) : super('wordProcessor.page');
 
   /// The fixed `wordProcessor.document` every item belongs to (required by the schema).

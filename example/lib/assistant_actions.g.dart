@@ -199,7 +199,9 @@ abstract interface class SystemAssistantHandler {
 abstract interface class CameraAssistantHandler {
   /// Siri's `camera.startCapture` ("Start Capture").
   /// Starts a capture or opens the camera in a specified mode with a timer setting.
-  Future<void> startCapture({
+  ///
+  /// Return an `AssistantReply`: what Siri says and a result card.
+  Future<AssistantReply<void>> startCapture({
     required CaptureMode captureMode,
     Lens? device,
     CaptureDelay? timerDuration,
@@ -227,6 +229,17 @@ AssistantActionsRegistry assistantActionsRegistry({
       final _servings = AssistantValue.integer(args['servings']);
       await a0.addToShoppingList(_recipe, servings: _servings);
       return null;
+    },
+    'removeFromShoppingList': (args) async {
+      final _recipe = args['recipe'] is String ? await findRecipe(args['recipe'] as String) : null;
+      if (_recipe == null) return null;
+      await a0.removeFromShoppingList(_recipe);
+      return null;
+    },
+    'showRecipeCard': (args) async {
+      final _recipe = args['recipe'] is String ? await findRecipe(args['recipe'] as String) : null;
+      if (_recipe == null) return null;
+      return AssistantReply.encode(await a0.showRecipeCard(_recipe));
     },
     'countOpenTasks': (args) async {
       return await a0.countOpenTasks();
@@ -285,14 +298,15 @@ AssistantActionsRegistry assistantActionsRegistry({
       return null;
     },
     'camera.startCapture': (args) async {
-      await camera.startCapture(
-        captureMode:
-            AssistantValue.enumeration(CaptureMode.values, args['captureMode']) ??
-            (throw ArgumentError.notNull('captureMode')),
-        device: AssistantValue.enumeration(Lens.values, args['device']),
-        timerDuration: AssistantValue.enumeration(CaptureDelay.values, args['timerDuration']),
+      return AssistantReply.encode(
+        await camera.startCapture(
+          captureMode:
+              AssistantValue.enumeration(CaptureMode.values, args['captureMode']) ??
+              (throw ArgumentError.notNull('captureMode')),
+          device: AssistantValue.enumeration(Lens.values, args['device']),
+          timerDuration: AssistantValue.enumeration(CaptureDelay.values, args['timerDuration']),
+        ),
       );
-      return null;
     },
     'camera.stopCapture': (args) async {
       await camera.stopCapture();

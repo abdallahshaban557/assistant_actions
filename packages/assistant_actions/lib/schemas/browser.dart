@@ -29,6 +29,10 @@ class BrowserClearHistoryTimeFrame extends SchemaEnumCases {
 ///
 /// Map fields with [BrowserTabField] and turn on the schema intents the app
 /// supports. Each one becomes a method on the generated handler.
+///
+/// `dialogs` and `confirm` give, by intent name, what Siri says when one
+/// finishes and what it asks first.
+/// `replies` lets live intents' handlers return an `AssistantReply`.
 class BrowserTab extends SchemaEntity {
   const BrowserTab({
     this.createTab = false,
@@ -36,6 +40,9 @@ class BrowserTab extends SchemaEntity {
     this.closeTabs = false,
     this.findOnPage = false,
     this.openURLInTab = false,
+    super.dialogs,
+    super.confirm,
+    super.replies,
   }) : super('browser.tab');
 
   /// Handle `browser.createTab` ("Create Tab"): calls
@@ -182,12 +189,20 @@ abstract final class BrowserReadingListItemField {
 ///
 /// Map fields with [BrowserBookmarkField] and turn on the schema intents the app
 /// supports. Each one becomes a method on the generated handler.
+///
+/// `dialogs` and `confirm` give, by intent name, what Siri says when one
+/// finishes and what it asks first (deletes ask by default; see `confirmDeletes`).
+/// `replies` lets live intents' handlers return an `AssistantReply`.
 class BrowserBookmark extends SchemaEntity {
   const BrowserBookmark({
     this.bookmarkTab = false,
     this.bookmarkURL = false,
     this.openBookmark = false,
     this.deleteBookmarks = false,
+    super.dialogs,
+    super.confirm,
+    super.confirmDeletes,
+    super.replies,
   }) : super('browser.bookmark');
 
   /// Handle `browser.bookmarkTab` ("Bookmark Tab"): calls
@@ -241,10 +256,17 @@ abstract final class BrowserBookmarkField {
 ///
 /// Map fields with [BrowserWindowField] and turn on the schema intents the app
 /// supports. Each one becomes a method on the generated handler.
+///
+/// `dialogs` and `confirm` give, by intent name, what Siri says when one
+/// finishes and what it asks first.
+/// `replies` lets live intents' handlers return an `AssistantReply`.
 class BrowserWindow extends SchemaEntity {
   const BrowserWindow({
     this.createWindow = false,
     this.closeWindows = false,
+    super.dialogs,
+    super.confirm,
+    super.replies,
   }) : super('browser.window');
 
   /// Handle `browser.createWindow` ("Create Window"): calls
@@ -295,9 +317,14 @@ class FixedBrowserWindow extends SchemaContainer {
 
 /// Turns on Apple's `browser` intents that belong to no entity. Put it on
 /// the class that implements the generated `BrowserAssistantHandler`.
+///
+/// `dialogs` and `confirm` give, by intent name, what Siri says when one
+/// finishes and what it asks first.
 class BrowserIntents extends SchemaIntents {
   const BrowserIntents({
     this.clearHistory = false,
+    super.dialogs,
+    super.confirm,
   }) : super('browser');
 
   /// Handle `browser.clearHistory` ("Clear History"): calls

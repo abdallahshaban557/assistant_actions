@@ -23,11 +23,18 @@ class Recipe {
 }
 
 /// Level 3: a task Siri understands as a reminder (`reminders.reminder`).
+/// Siri says what it did, and asks before deleting ("Delete Buy milk?"), as
+/// deletes do by default.
 @RemindersReminder(
   list: FixedRemindersList(id: 'tasks', name: 'Tasks'),
   createReminder: true,
   updateReminder: true,
   deleteReminders: true,
+  dialogs: {
+    'createReminder': 'Added {title} to your tasks.',
+    'updateReminder': 'Updated {result}.',
+    'deleteReminders': 'Deleted {entities}.',
+  },
 )
 class TaskItem {
   TaskItem({required this.id, required this.title, this.due, this.done = false});
@@ -101,8 +108,14 @@ class JournalItem {
 
 /// Level 3: a countdown Siri understands as `clock.timer`. `createTimer`
 /// arrives through the inbox; pausing and resuming are handler calls, queued
-/// until the app runs.
-@ClockTimer(createTimer: true, pauseTimer: true, resumeTimer: true)
+/// until the app runs. Siri asks before pausing.
+@ClockTimer(
+  createTimer: true,
+  pauseTimer: true,
+  resumeTimer: true,
+  dialogs: {'createTimer': 'Started a {duration} timer.', 'pauseTimer': 'Paused.'},
+  confirm: {'pauseTimer': 'Pause {timer}?'},
+)
 class Countdown {
   Countdown({required this.id, required this.length, this.label, this.state = ClockTimerState.running})
       : left = length;

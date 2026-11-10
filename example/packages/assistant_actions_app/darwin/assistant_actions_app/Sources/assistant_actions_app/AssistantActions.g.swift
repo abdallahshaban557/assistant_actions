@@ -5,6 +5,7 @@ import AppIntents
 import CoreSpotlight
 import Foundation
 import GeoToolbox
+import SwiftUI
 import assistant_actions
 
 #if os(iOS)
@@ -131,6 +132,52 @@ public struct AddToShoppingListAction: AppIntent {
     AssistantInbox.call("addToShoppingList", args: args)
     AssistantBridge.shared.inboxChanged()
     return .result(dialog: IntentDialog(stringLiteral: "Added \(recipe.title) to your list."))
+  }
+}
+
+/// `removeFromShoppingList` in Dart (deferred).
+public struct RemoveFromShoppingListAction: AppIntent {
+  public static let title: LocalizedStringResource = "Remove from Shopping List"
+
+  @Parameter(title: "Recipe")
+  public var recipe: RecipeEntity
+
+  public init() {}
+
+  @MainActor
+  public func perform() async throws -> some IntentResult & ProvidesDialog {
+    let args: [String: Any] = [
+      "recipe": recipe.id,
+    ]
+    try await assistantConfirm("Remove \(recipe.title) from your shopping list?")
+    AssistantInbox.call("removeFromShoppingList", args: args)
+    AssistantBridge.shared.inboxChanged()
+    return .result(dialog: IntentDialog(stringLiteral: "Removed \(recipe.title)."))
+  }
+}
+
+/// `showRecipeCard` in Dart (runs with Flutter).
+public struct ShowRecipeCardAction: AppIntent, ForegroundContinuableIntent {
+  public static let title: LocalizedStringResource = "Show Recipe Card"
+
+  @Parameter(title: "Recipe")
+  public var recipe: RecipeEntity
+
+  public init() {}
+
+  @MainActor
+  public func perform() async throws -> some IntentResult & ProvidesDialog & ShowsSnippetView {
+    let args: [String: Any] = [
+      "recipe": recipe.id,
+    ]
+    #if os(iOS)
+      // iOS doesn't start the Flutter engine without a scene, so answer from the foreground.
+      if UIApplication.shared.applicationState != .active {
+        try await requestToContinueInForeground()
+      }
+    #endif
+    let reply = AssistantReply(json: try await AssistantBridge.shared.perform("showRecipeCard", args: args))
+    return .result(dialog: IntentDialog(stringLiteral: reply.dialog ?? "Done."), view: AssistantCardView(reply.card))
   }
 }
 
@@ -861,13 +908,14 @@ struct TaskItemCreateReminderIntent {
   var section: RemindersSectionEntity?
 
   @MainActor
-  func perform() async throws -> some ReturnsValue<TaskItemEntity> {
+  func perform() async throws -> some ReturnsValue<TaskItemEntity> & ProvidesDialog {
     var fields: [String: Any] = [:]
     fields["title"] = AssistantValues.encode(title)
     fields["due"] = AssistantValues.encode(dueDate)
     let id = AssistantInbox.create("TaskItem", fields: fields)
     AssistantBridge.shared.inboxChanged()
-    return .result(value: TaskItemEntity(record: AssistantRecord(id: id, title: "", fields: fields)))
+    let value = TaskItemEntity(record: AssistantRecord(id: id, title: "", fields: fields))
+    return .result(value: value, dialog: IntentDialog(stringLiteral: "Added \(self.title) to your tasks."))
   }
 }
 
@@ -878,12 +926,13 @@ struct TaskItemDeleteRemindersIntent {
   var entities: [TaskItemEntity]
 
   @MainActor
-  func perform() async throws -> some IntentResult {
+  func perform() async throws -> some IntentResult & ProvidesDialog {
+    try await assistantConfirm("Delete \(AssistantDialog.items(self.entities.map { item in item.title }))?", destructive: true)
     for item in entities {
       AssistantInbox.delete("TaskItem", id: item.id)
     }
     AssistantBridge.shared.inboxChanged()
-    return .result()
+    return .result(dialog: IntentDialog(stringLiteral: "Deleted \(AssistantDialog.list(self.entities.map { item in item.title }))."))
   }
 }
 
@@ -904,7 +953,7 @@ struct TaskItemUpdateReminderIntent {
   var locationTrigger: RemindersLocationTriggerEntity?
 
   @MainActor
-  func perform() async throws -> some ReturnsValue<TaskItemEntity> {
+  func perform() async throws -> some ReturnsValue<TaskItemEntity> & ProvidesDialog {
     var fields: [String: Any] = [:]
     var cleared: [String] = []
     if title != nil { fields["title"] = AssistantValues.encode(title) }
@@ -929,7 +978,7 @@ struct TaskItemUpdateReminderIntent {
     if let value = fields["done"] {
       updated.isCompleted = AssistantValues.bool(value) ?? false
     }
-    return .result(value: updated)
+    return .result(value: updated, dialog: IntentDialog(stringLiteral: "Updated \(updated.title)."))
   }
 }
 
@@ -1128,6 +1177,7 @@ struct JournalItemDeleteEntryIntent {
 
   @MainActor
   func perform() async throws -> some IntentResult {
+    try await assistantConfirm("Delete \(AssistantDialog.items(self.entities.map { item in (item.title ?? "") }))?", destructive: true)
     for item in entities {
       AssistantInbox.delete("JournalItem", id: item.id)
     }
@@ -1145,13 +1195,14 @@ struct CountdownCreateTimerIntent {
   var isSleepTimer: Bool
 
   @MainActor
-  func perform() async throws -> some ReturnsValue<CountdownEntity> {
+  func perform() async throws -> some ReturnsValue<CountdownEntity> & ProvidesDialog {
     var fields: [String: Any] = [:]
     fields["length"] = AssistantValues.encode(duration)
     fields["label"] = AssistantValues.encode(label)
     let id = AssistantInbox.create("Countdown", fields: fields)
     AssistantBridge.shared.inboxChanged()
-    return .result(value: CountdownEntity(record: AssistantRecord(id: id, title: "", fields: fields)))
+    let value = CountdownEntity(record: AssistantRecord(id: id, title: "", fields: fields))
+    return .result(value: value, dialog: IntentDialog(stringLiteral: "Started a \(AssistantDialog.text(self.duration)) timer."))
   }
 }
 
@@ -1162,13 +1213,14 @@ struct CountdownPauseTimerIntent {
   var timer: CountdownEntity
 
   @MainActor
-  func perform() async throws -> some IntentResult {
+  func perform() async throws -> some IntentResult & ProvidesDialog {
     let args: [String: Any] = [
       "timer": timer.id,
     ]
+    try await assistantConfirm("Pause \((self.timer.label ?? ""))?")
     AssistantInbox.call("Countdown.pauseTimer", args: args)
     AssistantBridge.shared.inboxChanged()
-    return .result()
+    return .result(dialog: IntentDialog(stringLiteral: "Paused."))
   }
 }
 
@@ -1316,7 +1368,7 @@ struct CameraStartCaptureIntent: ForegroundContinuableIntent {
   var timerDuration: CameraCaptureDurationEnum?
 
   @MainActor
-  func perform() async throws -> some IntentResult {
+  func perform() async throws -> some IntentResult & ProvidesDialog & ShowsSnippetView {
     let args: [String: Any] = [
       "captureMode": AssistantValues.encode(captureMode),
       "device": AssistantValues.encode(device),
@@ -1329,8 +1381,8 @@ struct CameraStartCaptureIntent: ForegroundContinuableIntent {
     #elseif os(macOS)
       NSApplication.shared.activate()
     #endif
-    _ = try await AssistantBridge.shared.perform("camera.startCapture", args: args)
-    return .result()
+    let reply = AssistantReply(json: try await AssistantBridge.shared.perform("camera.startCapture", args: args))
+    return .result(dialog: IntentDialog(stringLiteral: reply.dialog ?? "Done."), view: AssistantCardView(reply.card))
   }
 }
 

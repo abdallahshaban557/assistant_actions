@@ -24,12 +24,20 @@ class ReaderDocumentKind extends SchemaEnumCases {
 ///
 /// Map fields with [ReaderPageField] and turn on the schema intents the app
 /// supports. Each one becomes a method on the generated handler.
+///
+/// `dialogs` and `confirm` give, by intent name, what Siri says when one
+/// finishes and what it asks first (deletes ask by default; see `confirmDeletes`).
+/// `replies` lets live intents' handlers return an `AssistantReply`.
 class ReaderPage extends SchemaEntity {
   const ReaderPage({
     this.openPage = false,
     this.rotatePages = false,
     this.deletePages = false,
     this.insertPages = false,
+    super.dialogs,
+    super.confirm,
+    super.confirmDeletes,
+    super.replies,
   }) : super('reader.page');
 
   /// Handle `reader.openPage` ("Open Page"): calls
@@ -88,6 +96,9 @@ class FixedReaderPage extends SchemaContainer {
 ///
 /// Map fields with [ReaderDocumentField] and turn on the schema intents the app
 /// supports. Each one becomes a method on the generated handler.
+///
+/// `dialogs` and `confirm` give, by intent name, what Siri says when one
+/// finishes and what it asks first.
 class ReaderDocument extends SchemaEntity {
   const ReaderDocument({
     this.rotateDocuments = false,
@@ -95,6 +106,8 @@ class ReaderDocument extends SchemaEntity {
     this.enhanceDocuments = false,
     this.searchDocuments = false,
     this.openDocument = false,
+    super.dialogs,
+    super.confirm,
   }) : super('reader.document');
 
   /// Handle `reader.rotateDocuments` ("Rotate Documents"): calls

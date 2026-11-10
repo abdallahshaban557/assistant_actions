@@ -127,15 +127,19 @@ String writeDart(AppModel app) {
         case IntentKind.record:
           for (final (intent, k) in s.intents) {
             if (k != IntentKind.record) continue;
+            final reply = s.interactions.repliesTo(intent);
             out
               ..writeln()
               ..writeln('  /// Siri asked for `${intent.id}` ("${intent.title}"). The app is in the')
-              ..writeln('  /// foreground: start recording, and save the item when the user stops.')
-              ..writeln('  Future<void> ${recordMethod(intent)}();');
+              ..writeln('  /// foreground: start recording, and save the item when the user stops.');
+            if (reply) out.writeln('  ///\n  /// Return what Siri says and shows (`replies`).');
+            out.writeln('  Future<${reply ? 'AssistantReply<void>' : 'void'}> ${recordMethod(intent)}();');
           }
         case IntentKind.call:
           for (final (intent, k) in s.intents) {
-            if (k == IntentKind.call) _callMethod(out, intent, s.schema, app.openEnumNames);
+            if (k == IntentKind.call) {
+              _callMethod(out, intent, s.schema, app.openEnumNames, reply: s.interactions.repliesTo(intent));
+            }
           }
       }
     }
@@ -162,7 +166,7 @@ String writeDart(AppModel app) {
         }
         continue;
       }
-      _callMethod(out, intent, null, app.openEnumNames);
+      _callMethod(out, intent, null, app.openEnumNames, reply: d.interactions.repliesTo(intent));
     }
     out.writeln('}');
   }
@@ -202,7 +206,11 @@ String writeDart(AppModel app) {
       callArgs.add(p.named ? '${p.name}: $local' : local);
     }
     final call = '${ref(a.library, a.functionName)}(${callArgs.join(', ')})';
-    out.writeln(a.returnsString ? '      return await $call;' : '      await $call;\n      return null;');
+    out.writeln(a.returnsReply
+        ? '      return AssistantReply.encode(await $call);'
+        : a.returnsString
+            ? '      return await $call;'
+            : '      await $call;\n      return null;');
     out.writeln('    },');
   }
   // Record intents (`journal.createAudioEntry`) call the handler live, once
@@ -211,10 +219,12 @@ String writeDart(AppModel app) {
   for (final s in app.schemaEntities) {
     for (final (intent, kind) in s.intents) {
       if (kind != IntentKind.record) continue;
+      final call = '${camel(s.className)}.${recordMethod(intent)}()';
       out
         ..writeln("    '${recordActionId(s, intent)}': (args) async {")
-        ..writeln('      await ${camel(s.className)}.${recordMethod(intent)}();')
-        ..writeln('      return null;')
+        ..writeln(s.interactions.repliesTo(intent)
+            ? '      return AssistantReply.encode(await $call);'
+            : '      await $call;\n      return null;')
         ..writeln('    },');
     }
   }
@@ -222,7 +232,8 @@ String writeDart(AppModel app) {
   for (final s in app.schemaEntities) {
     for (final (intent, kind) in s.intents) {
       if (kind == IntentKind.call) {
-        _callEntry(out, callActionId(s, intent), camel(s.className), intent, s.schema, app.openEnumNames);
+        _callEntry(out, callActionId(s, intent), camel(s.className), intent, s.schema, app.openEnumNames,
+            reply: s.interactions.repliesTo(intent));
       }
     }
   }
@@ -242,7 +253,8 @@ String writeDart(AppModel app) {
         }
         continue;
       }
-      _callEntry(out, callActionId(null, intent), d.parameter, intent, null, app.openEnumNames);
+      _callEntry(out, callActionId(null, intent), d.parameter, intent, null, app.openEnumNames,
+          reply: d.interactions.repliesTo(intent));
     }
   }
   out
@@ -312,7 +324,8 @@ String writeDart(AppModel app) {
 }
 
 /// The handler method declaration for a [IntentKind.call] intent.
-void _callMethod(StringBuffer out, IntentSchema intent, EntitySchema? owner, Map<String, String> openEnums) {
+void _callMethod(StringBuffer out, IntentSchema intent, EntitySchema? owner, Map<String, String> openEnums,
+    {bool reply = false}) {
   out
     ..writeln()
     ..writeln('  /// Siri\'s `${intent.id}` ("${intent.title}")'
@@ -336,7 +349,15 @@ void _callMethod(StringBuffer out, IntentSchema intent, EntitySchema? owner, Map
           'adopts and has published.');
     default:
   }
-  out.writeln('  ${callSignature(intent, owner, openEnums)};');
+  if (reply) {
+    final value = switch (callResult(intent)) {
+      CallResult.entity => ', with the id as its value (or several with `AssistantReply.choose`, for Siri to ask which)',
+      CallResult.none => '',
+      _ => ', with the value',
+    };
+    out.writeln('  ///\n  /// Return an `AssistantReply`: what Siri says and a result card$value.');
+  }
+  out.writeln('  ${callSignature(intent, owner, openEnums, reply)};');
 }
 
 /// Decodes one argument Swift sent for [a].
@@ -350,7 +371,8 @@ String _decodeArg(CallArg a) {
 
 /// The registry entry that runs a [IntentKind.call] intent's handler method.
 void _callEntry(
-    StringBuffer out, String id, String handler, IntentSchema intent, EntitySchema? owner, Map<String, String> openEnums) {
+    StringBuffer out, String id, String handler, IntentSchema intent, EntitySchema? owner, Map<String, String> openEnums,
+    {bool reply = false}) {
   final args = [
     for (final p in intent.parameters)
       if (callArg(p, openEnums) case final a?) '${a.name}: ${_decodeArg(a)}',
@@ -358,7 +380,7 @@ void _callEntry(
   final call = '$handler.${callMethod(intent, owner)}(${args.join(', ')})';
   out
     ..writeln("    '$id': (args) async {")
-    ..writeln(switch (callResult(intent)) {
+    ..writeln(reply ? '      return AssistantReply.encode(await $call);' : switch (callResult(intent)) {
       CallResult.entity => '      return await $call;',
       CallResult.entities => '      return jsonEncode(await $call);',
       CallResult.union => '      return jsonEncode(AssistantValue.encodeUnion(await $call));',

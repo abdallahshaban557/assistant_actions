@@ -194,6 +194,83 @@ const showTasks = SnapshotAnswer<TaskItem>(
 The generator checks that every field exists and that `where` values match
 the field types.
 
+### Confirm, speak and show results
+
+Siri can ask before acting, say what it did and show a result card, the way
+Apple's own apps do.
+
+**Confirmations** happen in Swift, before anything is queued or Dart runs; if
+the user says no, nothing happens. Schema deletes (`deleteReminders`) ask
+"Delete Buy milk and Call mum?" by default (`confirmDeletes: false` turns that
+off). Any other intent, or a plain action, can ask its own question:
+
+```dart
+@AssistantAction(title: 'Remove from List', confirm: 'Remove {recipe}?', dialog: 'Removed {recipe}.')
+Future<void> removeFromList(Recipe recipe) async { ... }
+
+@ClockTimer(createTimer: true, pauseTimer: true, confirm: {'pauseTimer': 'Pause {timer}?'})
+class Countdown { ... }
+```
+
+**Spoken results** for schema intents come from `dialogs`, by intent name:
+
+```dart
+@RemindersReminder(
+  list: FixedRemindersList(id: 'tasks', name: 'Tasks'),
+  createReminder: true, updateReminder: true, deleteReminders: true,
+  dialogs: {
+    'createReminder': 'Added {title} to your tasks.',
+    'updateReminder': 'Updated {result}.',
+    'deleteReminders': 'Deleted {entities}.',
+  },
+)
+```
+
+In `dialogs` and `confirm`, `{name}` is the intent's parameter `name`: text,
+numbers, dates ("Nov 3, 2026 at 9:00 AM"), durations, enums ("three seconds"),
+people, and items by their title. Lists read "A, B and C". `{result}` is the
+item an intent returns. Names and types are checked at build time.
+
+**Replies from Dart.** A `Runs.withFlutter` action can return an
+`AssistantReply` instead of a `String`; so can the handler method of a live
+schema intent (one that opens the app, returns an item, or records) listed in
+`replies`. Siri says its `dialog` (else the `dialogs` template, else "Done.")
+and shows its `card`:
+
+```dart
+@CameraIntents(startCapture: true, replies: {'startCapture'})
+class CameraHandler implements CameraAssistantHandler {
+  @override
+  Future<AssistantReply<void>> startCapture({required CaptureMode captureMode, ...}) async =>
+      AssistantReply(
+        dialog: 'The camera is ready.',
+        card: AssistantCard(
+          title: 'Camera',
+          subtitle: captureMode.name,
+          rows: [AssistantCardRow('Lens', 'Back')],
+          systemImage: 'camera',          // or imagePath: a local image file
+        ),
+      );
+}
+```
+
+Listing an intent in `replies` changes its method's return type to
+`AssistantReply<T>`, where `T` is what it returned before: the item's id
+(`String`), ids (`List<String>`), an `AssistantUnion`, or `void`. Put the id
+in `value`. The card is a generic SwiftUI view in the runtime
+(`ShowsSnippetView`, iOS 17 / macOS 14 and later).
+
+**Choosing between items.** For an intent that returns one item, return
+`AssistantReply.choose(ids, prompt: 'Which tab?')` when several match: Siri
+lists their titles, the user picks one (`requestChoice`, iOS / macOS 26 and
+later; earlier, the first is taken), and that item is the intent's result.
+Dart isn't called again with the choice, so use it where the result *is* the
+answer (finding or opening an item), not to pick what to change.
+
+Queued intents (`Runs.deferred`, inbox creates, updates and deletes, and
+queued calls) run after Siri has answered, so they can confirm and use
+`dialogs` but can't reply from Dart; the generator says so.
+
 ## Run
 
 ```dart

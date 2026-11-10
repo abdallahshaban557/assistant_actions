@@ -21,12 +21,20 @@ import '../src/values.dart';
 ///
 /// Map fields with [JournalEntryField] and turn on the schema intents the app
 /// supports. Each one becomes a method on the generated handler.
+///
+/// `dialogs` and `confirm` give, by intent name, what Siri says when one
+/// finishes and what it asks first (deletes ask by default; see `confirmDeletes`).
+/// `replies` lets live intents' handlers return an `AssistantReply`.
 class JournalEntry extends SchemaEntity {
   const JournalEntry({
     this.createEntry = false,
     this.createAudioEntry = false,
     this.updateEntry = false,
     this.deleteEntry = false,
+    super.dialogs,
+    super.confirm,
+    super.confirmDeletes,
+    super.replies,
   }) : super('journal.entry');
 
   /// Handle `journal.createEntry` ("Create Entry"): creates items.

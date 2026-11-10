@@ -30,6 +30,10 @@ class WhiteboardColor extends SchemaEnumCases {
 ///
 /// Map fields with [WhiteboardBoardField] and turn on the schema intents the app
 /// supports. Each one becomes a method on the generated handler.
+///
+/// `dialogs` and `confirm` give, by intent name, what Siri says when one
+/// finishes and what it asks first (deletes ask by default; see `confirmDeletes`).
+/// `replies` lets live intents' handlers return an `AssistantReply`.
 class WhiteboardBoard extends SchemaEntity {
   const WhiteboardBoard({
     this.createItem = false,
@@ -37,6 +41,10 @@ class WhiteboardBoard extends SchemaEntity {
     this.openBoard = false,
     this.updateBoard = false,
     this.deleteBoard = false,
+    super.dialogs,
+    super.confirm,
+    super.confirmDeletes,
+    super.replies,
   }) : super('whiteboard.board');
 
   /// Handle `whiteboard.createItem` ("Add Item to Board"): calls
@@ -96,10 +104,16 @@ abstract final class WhiteboardBoardField {
 ///
 /// Map fields with [WhiteboardItemField] and turn on the schema intents the app
 /// supports. Each one becomes a method on the generated handler.
+///
+/// `dialogs` and `confirm` give, by intent name, what Siri says when one
+/// finishes and what it asks first (deletes ask by default; see `confirmDeletes`).
 class WhiteboardItem extends SchemaEntity {
   const WhiteboardItem({
     this.updateItem = false,
     this.deleteItem = false,
+    super.dialogs,
+    super.confirm,
+    super.confirmDeletes,
   }) : super('whiteboard.item');
 
   /// Handle `whiteboard.updateItem` ("Update Board’s Item"): updates items.

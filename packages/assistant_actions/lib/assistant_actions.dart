@@ -7,6 +7,7 @@ library;
 export 'src/annotations.dart';
 export 'src/host.dart' show AssistantHost, AssistantHostCalls;
 export 'src/registry.dart';
+export 'src/reply.dart';
 export 'src/runtime.dart';
 export 'src/schema.dart';
 export 'src/values.dart';

@@ -40,6 +40,7 @@ class AssistantAction {
     this.description,
     this.runs = Runs.deferred,
     this.dialog,
+    this.confirm,
     this.shortcut,
   });
 
@@ -47,9 +48,17 @@ class AssistantAction {
   final String? description;
   final Runs runs;
 
+  /// A question Siri asks before running the action, such as
+  /// `'Remove {recipe} from your list?'`. `{name}` is the parameter `name`.
+  /// If the user says no, nothing runs or is queued.
+  final String? confirm;
+
   /// What Siri says when the action finishes. `{name}` is replaced with the
   /// parameter `name`. Required for [Runs.deferred]; for [Runs.withFlutter]
   /// it's used when the function returns nothing.
+  ///
+  /// A [Runs.withFlutter] function can also return a `String` to say, or an
+  /// `AssistantReply` to say something and show a result card.
   final String? dialog;
 
   /// Siri phrases that run the action with no setup by the user.

@@ -117,6 +117,10 @@ class FixedMailMailbox extends SchemaContainer {
 ///
 /// Map fields with [MailDraftField] and turn on the schema intents the app
 /// supports. Each one becomes a method on the generated handler.
+///
+/// `dialogs` and `confirm` give, by intent name, what Siri says when one
+/// finishes and what it asks first (deletes ask by default; see `confirmDeletes`).
+/// `replies` lets live intents' handlers return an `AssistantReply`.
 class MailDraft extends SchemaEntity {
   const MailDraft({
     required this.account,
@@ -126,6 +130,10 @@ class MailDraft extends SchemaEntity {
     this.deleteDraft = false,
     this.sendDraft = false,
     this.openDraft = false,
+    super.dialogs,
+    super.confirm,
+    super.confirmDeletes,
+    super.replies,
   }) : super('mail.draft');
 
   /// The fixed `mail.account` every item belongs to (required by the schema).
@@ -228,6 +236,10 @@ class FixedMailDraft extends SchemaContainer {
 ///
 /// Map fields with [MailMessageField] and turn on the schema intents the app
 /// supports. Each one becomes a method on the generated handler.
+///
+/// `dialogs` and `confirm` give, by intent name, what Siri says when one
+/// finishes and what it asks first (deletes ask by default; see `confirmDeletes`).
+/// `replies` lets live intents' handlers return an `AssistantReply`.
 class MailMessage extends SchemaEntity {
   const MailMessage({
     required this.account,
@@ -238,6 +250,10 @@ class MailMessage extends SchemaEntity {
     this.deleteMail = false,
     this.updateMail = false,
     this.openMessage = false,
+    super.dialogs,
+    super.confirm,
+    super.confirmDeletes,
+    super.replies,
   }) : super('mail.message');
 
   /// The fixed `mail.account` every item belongs to (required by the schema).

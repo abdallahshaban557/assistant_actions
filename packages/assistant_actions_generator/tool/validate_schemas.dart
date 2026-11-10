@@ -21,6 +21,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:assistant_actions_generator/src/catalog.dart';
+import 'package:assistant_actions_generator/src/interaction.dart';
 import 'package:assistant_actions_generator/src/schema_calls.dart';
 import 'package:assistant_actions_generator/src/schema_library.dart';
 import 'package:path/path.dart' as p;
@@ -261,9 +262,10 @@ dev_dependencies:
     final catalog = plan.catalogs[d]!;
     final domainIntents = plan.domainIntents[d]!;
     if (domainIntents.isNotEmpty) {
+      final options = _interactions([for (final i in domainIntents) (i, IntentKind.call)]);
       models
         ..writeln()
-        ..writeln('@${domainAnnotation(d)}(${domainIntents.map((i) => '${i.name}: true').join(', ')})')
+        ..writeln('@${domainAnnotation(d)}(${[for (final i in domainIntents) '${i.name}: true', ...options].join(', ')})')
         ..writeln('class ${pascal(d)}Handler {}');
     }
     for (final e in catalog.entities.values) {
@@ -275,6 +277,10 @@ dev_dependencies:
             if (catalog.entities[m.type.base.ref] case final c? when catalog.isFixable(c))
               '${m.name}: ${_fixed(catalog, c)}',
         for (final i in plan.intents[e.id]!) '${i.name}: true',
+        ..._interactions([
+          for (final (intent, kind) in catalog.intentsFor(e))
+            if (plan.intents[e.id]!.contains(intent)) (intent, kind),
+        ]),
       ];
       models
         ..writeln()
@@ -314,6 +320,35 @@ import 'models.dart';
 
 String _className(EntitySchema e) => '${pascal(e.domain)}${pascal(e.name)}Item';
 
+/// Annotation arguments giving every other one of [intents] a spoken result
+/// reading each parameter Siri can read out (and `{result}`), a
+/// confirmation, and a Dart reply where it's live, so both shapes of each
+/// intent kind reach Apple's tools. Deletes confirm by default either way.
+List<String> _interactions(List<(IntentSchema, IntentKind)> intents) {
+  final chosen = [
+    for (final (i, (intent, kind)) in intents.indexed)
+      if (i.isEven && intent.id != 'system.open') (intent, kind),
+  ];
+  String template(IntentSchema intent, {required bool result}) => [
+        for (final p in intent.parameters)
+          if (speakable(p.type)) '{${p.name}}',
+        if (result && returnsItem(intent)) '{result}',
+        'done.',
+      ].join(' ');
+  String map(Iterable<String> entries) => '{${entries.join(', ')}}';
+  final replies = [
+    for (final (intent, kind) in chosen)
+      if (canReply(intent, kind)) "'${intent.name}'",
+  ];
+  return [
+    if (chosen.isNotEmpty) ...[
+      'dialogs: ${map([for (final (intent, _) in chosen) "'${intent.name}': '${template(intent, result: true)}'"])}',
+      'confirm: ${map([for (final (intent, _) in chosen) "'${intent.name}': '${template(intent, result: false)}?'"])}',
+    ],
+    if (replies.isNotEmpty) 'replies: {${replies.join(', ')}}',
+  ];
+}
+
 /// A const fixed instance of container [c], with placeholder strings.
 String _fixed(DomainCatalog catalog, EntitySchema c) {
   final args = [
@@ -340,7 +375,8 @@ Future<bool> _processSwift(String swift, String platform, String out) async {
     generated,
     stub,
     for (final f in ['AssistantValues', 'AssistantInbox', 'AssistantSnapshot', 'AssistantQuery', 'AssistantSpotlight',
-      'AssistantMatch', 'AssistantComparison', 'AssistantRichValues', 'AssistantHostCalls'])
+      'AssistantMatch', 'AssistantComparison', 'AssistantRichValues', 'AssistantHostCalls', 'AssistantReply',
+      'AssistantDialog', 'AssistantInteraction', 'AssistantCardView'])
       p.join(sources, '$f.swift'),
   ];
   final ios = platform == 'ios';

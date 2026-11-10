@@ -40,6 +40,10 @@ enum ClockTimerState {
 ///
 /// Map fields with [ClockAlarmField] and turn on the schema intents the app
 /// supports. Each one becomes a method on the generated handler.
+///
+/// `dialogs` and `confirm` give, by intent name, what Siri says when one
+/// finishes and what it asks first (deletes ask by default; see `confirmDeletes`).
+/// `replies` lets live intents' handlers return an `AssistantReply`.
 class ClockAlarm extends SchemaEntity {
   const ClockAlarm({
     this.createAlarm = false,
@@ -47,6 +51,10 @@ class ClockAlarm extends SchemaEntity {
     this.dismissAlarm = false,
     this.snoozeAlarm = false,
     this.updateAlarm = false,
+    super.dialogs,
+    super.confirm,
+    super.confirmDeletes,
+    super.replies,
   }) : super('clock.alarm');
 
   /// Handle `clock.createAlarm` ("Add Alarm"): creates items.
@@ -125,12 +133,19 @@ abstract final class ClockAlarmField {
 ///
 /// Map fields with [ClockStopwatchField] and turn on the schema intents the app
 /// supports. Each one becomes a method on the generated handler.
+///
+/// `dialogs` and `confirm` give, by intent name, what Siri says when one
+/// finishes and what it asks first.
+/// `replies` lets live intents' handlers return an `AssistantReply`.
 class ClockStopwatch extends SchemaEntity {
   const ClockStopwatch({
     this.lapStopwatch = false,
     this.startStopwatch = false,
     this.stopStopwatch = false,
     this.resetStopwatch = false,
+    super.dialogs,
+    super.confirm,
+    super.replies,
   }) : super('clock.stopwatch');
 
   /// Handle `clock.lapStopwatch` ("Lap Stopwatch"): calls
@@ -201,6 +216,10 @@ abstract final class ClockStopwatchField {
 ///
 /// Map fields with [ClockTimerField] and turn on the schema intents the app
 /// supports. Each one becomes a method on the generated handler.
+///
+/// `dialogs` and `confirm` give, by intent name, what Siri says when one
+/// finishes and what it asks first.
+/// `replies` lets live intents' handlers return an `AssistantReply`.
 class ClockTimer extends SchemaEntity {
   const ClockTimer({
     this.cancelTimer = false,
@@ -208,6 +227,9 @@ class ClockTimer extends SchemaEntity {
     this.pauseTimer = false,
     this.resumeTimer = false,
     this.updateTimer = false,
+    super.dialogs,
+    super.confirm,
+    super.replies,
   }) : super('clock.timer');
 
   /// Handle `clock.cancelTimer` ("Cancel Timers"): calls
