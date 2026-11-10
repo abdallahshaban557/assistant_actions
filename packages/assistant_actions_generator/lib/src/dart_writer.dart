@@ -72,6 +72,15 @@ String writeDart(AppModel app) {
           out.writeln('  Future<void> update(String id, $values changes);');
         case IntentKind.delete:
           out.writeln('  Future<void> delete(String id);');
+        case IntentKind.record:
+          for (final (intent, k) in s.intents) {
+            if (k != IntentKind.record) continue;
+            out
+              ..writeln()
+              ..writeln('  /// Siri asked for `${intent.id}` ("${intent.title}"). The app is in the')
+              ..writeln('  /// foreground: start recording, and save the item when the user stops.')
+              ..writeln('  Future<void> ${recordMethod(intent)}();');
+          }
       }
     }
     out.writeln('}');
@@ -113,6 +122,19 @@ String writeDart(AppModel app) {
     final call = '${ref(a.library, a.functionName)}(${callArgs.join(', ')})';
     out.writeln(a.returnsString ? '      return await $call;' : '      await $call;\n      return null;');
     out.writeln('    },');
+  }
+  // Record intents (`journal.createAudioEntry`) call the handler live, once
+  // Swift has brought the app forward. A `.` keeps the ids apart from
+  // function names.
+  for (final s in app.schemaEntities) {
+    for (final (intent, kind) in s.intents) {
+      if (kind != IntentKind.record) continue;
+      out
+        ..writeln("    '${recordActionId(s, intent)}': (args) async {")
+        ..writeln('      await ${camel(s.className)}.${recordMethod(intent)}();')
+        ..writeln('      return null;')
+        ..writeln('    },');
+    }
   }
   out
     ..writeln('  },')
@@ -161,7 +183,10 @@ String writeDart(AppModel app) {
         IntentKind.create => '$handler.create(change.id, values)',
         IntentKind.update || IntentKind.append => '$handler.update(change.id, values)',
         IntentKind.delete => '$handler.delete(change.id)',
+        // Called live, never queued.
+        IntentKind.record => null,
       };
+      if (call == null) continue;
       out.writeln("        case '${kind.name}':\n          await $call;");
     }
     out

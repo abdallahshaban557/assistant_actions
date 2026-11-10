@@ -72,6 +72,37 @@ SchemaEntityModel _memories() {
   );
 }
 
+/// A voice journal: title, message and date as `journal.entry`, with every
+/// journal intent including the audio entry.
+SchemaEntityModel _journal({bool everything = true}) {
+  final journal = _load('journal');
+  final schema = journal.entities['journal.entry']!;
+  return SchemaEntityModel(
+    className: 'JournalItem',
+    library: Uri.parse('package:app/models.dart'),
+    catalog: journal,
+    schema: schema,
+    idField: 'id',
+    mapping: const {
+      'title': FieldModel('title', ValueType(ValueKind.string, nullable: true)),
+      'message': FieldModel('text', ValueType(ValueKind.string)),
+      'entryDate': FieldModel('date', ValueType(ValueKind.dateTime, nullable: true)),
+    },
+    intents: [
+      for (final (intent, kind) in journal.intentsFor(schema))
+        if (everything || kind == IntentKind.record) (intent, kind),
+    ],
+    containers: const {},
+  );
+}
+
+AppModel _journalApp({bool everything = true}) => AppModel(
+  appName: 'Mira',
+  actions: const [],
+  entities: const [],
+  schemaEntities: [_journal(everything: everything)],
+);
+
 /// A plain `@AssistantEntity` with a title field, a number, a date and a URL.
 EntityModel _recipe() => EntityModel(
       className: 'Recipe',
@@ -272,6 +303,114 @@ void main() {
 
     test('can have App Shortcuts', () {
       expect(writeShortcuts(_app()), contains('intent: ShowTasksAction(),'));
+    });
+  });
+
+  group('journal', () {
+    String block(String swift, String start) {
+      final i = swift.indexOf(start);
+      expect(i, isNonNegative, reason: start);
+      return swift.substring(i, swift.indexOf('\n}\n', i));
+    }
+
+    test('journal.entry declares every member; files and places get defaults', () {
+      final swift = SwiftWriter(_journalApp()).write();
+      final entity = block(swift, 'struct JournalItemEntity {');
+      expect(entity, contains('  var mediaItems: [IntentFile]\n'));
+      expect(entity, contains('  var location: PlaceDescriptor?\n'));
+      expect(entity, contains('    title = AssistantValues.string(record.fields["title"])\n'));
+      expect(entity, contains('    message = AssistantValues.attributed(record.fields["text"])\n'));
+      expect(entity, contains('    entryDate = AssistantValues.date(record.fields["date"])\n'));
+      expect(entity, contains('    mediaItems = []\n    entryDate'));
+      expect(entity, contains('    location = nil\n'));
+      expect(swift, contains('import GeoToolbox'));
+    });
+
+    test('PlaceDescriptor raises availability from iOS 18 to 26', () {
+      final swift = SwiftWriter(_journalApp()).write();
+      expect(swift, contains('@available(iOS 26.0, macOS 26.0, *)\n@AppEntity(schema: .journal.entry)'));
+      expect(swift, contains('@available(iOS 26.0, macOS 26.0, *)\n@AppIntent(schema: .journal.createEntry)'));
+      expect(swift, contains('@available(iOS 26.0, macOS 26.0, *)\n@AppIntent(schema: .journal.createAudioEntry)'));
+      expect(swift, contains('@available(iOS 26.0, macOS 26.0, *)\nextension JournalItemEntity: IndexedEntity'));
+      expect(swift, contains('      if #available(iOS 26.0, macOS 26.0, *) {'));
+      expect(swift, isNot(contains('iOS 18.0, macOS 15.0, *)\n@')));
+    });
+
+    test('create, update and delete go through the inbox', () {
+      final swift = SwiftWriter(_journalApp()).write();
+      final create = block(swift, 'struct JournalItemCreateEntryIntent');
+      expect(create, contains('  var message: AttributedString\n'));
+      expect(create, contains('fields["text"] = AssistantValues.encode(message)'));
+      expect(create, contains('fields["title"] = AssistantValues.encode(title)'));
+      expect(create, contains('fields["date"] = AssistantValues.encode(entryDate)'));
+      expect(create, isNot(contains('fields["location"]')));
+      expect(create, contains('AssistantInbox.create("JournalItem", fields: fields)'));
+      final update = block(swift, 'struct JournalItemUpdateEntryIntent');
+      expect(update, contains(r'switch $title.valueState'));
+      expect(update, contains(r'switch $entryDate.valueState'));
+      expect(update, contains('if message != nil { fields["text"] = AssistantValues.encode(message) }'));
+      final delete = block(swift, 'struct JournalItemDeleteEntryIntent');
+      expect(delete, contains('var entities: [JournalItemEntity]'));
+      expect(delete, contains('AssistantInbox.delete("JournalItem", id: item.id)'));
+    });
+
+    test('createAudioEntry opens the app and calls the handler live', () {
+      final swift = SwiftWriter(_journalApp()).write();
+      final audio = block(swift, 'struct JournalItemCreateAudioEntryIntent');
+      expect(audio, startsWith('struct JournalItemCreateAudioEntryIntent: ForegroundContinuableIntent {'));
+      expect(audio, contains('func perform() async throws -> some IntentResult {'));
+      expect(audio, contains('try await requestToContinueInForeground()'));
+      expect(audio, contains('NSApplication.shared.activate()'));
+      expect(audio, contains('AssistantBridge.shared.perform("JournalItem.startAudioEntry", args: [:])'));
+      expect(audio, isNot(contains('AssistantInbox')));
+      expect(audio, isNot(contains('var ')), reason: 'the schema intent takes no parameters');
+      expect(swift, contains('#elseif os(macOS)\n  import AppKit'));
+    });
+
+    test('Spotlight indexes the title, message and date', () {
+      final swift = SwiftWriter(_journalApp()).write();
+      final ext = block(swift, 'extension JournalItemEntity: IndexedEntity {');
+      expect(ext, contains('attributes.title = title'));
+      expect(ext, contains(r'attributes.textContent = message.map { String($0.characters) }'));
+      expect(ext, contains('attributes.contentCreationDate = entryDate'));
+      expect(swift, contains('case "JournalItem":'));
+    });
+
+    test('Siri can filter entries by date and text', () {
+      final q = block(SwiftWriter(_journalApp()).write(), 'struct JournalItemEntityQuery');
+      expect(
+        q,
+        contains('IsBetweenComparator { low, high in AssistantPredicate({ \$0.entryDate }, .between, low, high) }'),
+      );
+      expect(q, contains('ContainsComparator { value in AssistantPredicate({ \$0.message }, .contains, value) }'));
+      expect(q, contains('SortableBy(\\JournalItemEntity.\$entryDate)'));
+    });
+
+    test('the handler gets create, update, delete and startAudioEntry', () {
+      final dart = writeDart(_journalApp());
+      expect(dart, contains('abstract interface class JournalItemAssistantHandler {'));
+      expect(dart, contains('Future<void> create(String id, JournalItemValues values);'));
+      expect(dart, contains('Future<void> update(String id, JournalItemValues changes);'));
+      expect(dart, contains('Future<void> delete(String id);'));
+      expect(dart, contains('Future<void> startAudioEntry();'));
+      expect(
+        dart,
+        contains('''
+    'JournalItem.startAudioEntry': (args) async {
+      await journalItem.startAudioEntry();
+      return null;
+    },'''),
+      );
+      expect(dart, isNot(contains("case 'record'")));
+    });
+
+    test('an app can adopt only the audio entry', () {
+      final dart = writeDart(_journalApp(everything: false));
+      expect(dart, contains('Future<void> startAudioEntry();'));
+      expect(dart, isNot(contains('Future<void> create(')));
+      final swift = SwiftWriter(_journalApp(everything: false)).write();
+      expect(swift, contains('struct JournalItemCreateAudioEntryIntent'));
+      expect(swift, isNot(contains('struct JournalItemCreateEntryIntent')));
     });
   });
 }

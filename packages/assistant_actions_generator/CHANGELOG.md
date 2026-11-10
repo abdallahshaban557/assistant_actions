@@ -1,3 +1,19 @@
+## 0.0.8
+
+* Supports Apple's `journal` schemas (assistant_actions 0.0.10): create,
+  update and delete for `journal.entry`, with Spotlight indexing (title, text
+  content, creation date) and property queries on the mapped members.
+* Record intents: a schema intent that adopts `AudioRecordingIntent`, takes no
+  parameters and is named after the entity (`journal.createAudioEntry`) is an
+  opt-in flag on the entity annotation. It generates an intent that brings the
+  app forward on iOS (`requestToContinueInForeground`) or activates it on
+  macOS, then calls the handler's new `startAudioEntry()` live over the FFI
+  bridge.
+* Availability follows the Swift types a schema uses, not only Apple's
+  catalog: `PlaceDescriptor` (journal entry `location`) needs iOS / macOS 26,
+  so journal types are generated for 26 though the schema dates from 18.
+* `export_catalog.dart` exports each intent's system protocols and `_openApp`.
+
 ## 0.0.7
 
 * Generated entity queries are also `EntityPropertyQuery`, modelled on Apple's

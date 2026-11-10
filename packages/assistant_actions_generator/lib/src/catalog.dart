@@ -156,6 +156,8 @@ class IntentSchema {
     required this.parameters,
     this.description,
     this.result,
+    this.opensApp = false,
+    this.protocols = const [],
   });
 
   factory IntentSchema.fromJson(String id, Map<String, Object?> json) => IntentSchema(
@@ -167,6 +169,8 @@ class IntentSchema {
           for (final p in json['parameters'] as List) SchemaMember.fromJson((p as Map).cast()),
         ],
         result: json['result'] == null ? null : SchemaType.fromJson((json['result'] as Map).cast()),
+        opensApp: json['opensApp'] as bool? ?? false,
+        protocols: (json['protocols'] as List?)?.cast<String>() ?? const [],
       );
 
   /// `reminders.createReminder`.
@@ -179,6 +183,16 @@ class IntentSchema {
   /// What `perform()` must return, if anything.
   final SchemaType? result;
 
+  /// Apple's schema opens the app when the intent runs (`_openApp`).
+  final bool opensApp;
+
+  /// System intent protocols the schema adopts (`_systemProtocols`), such as
+  /// `audioStarting` for `AudioRecordingIntent` or `search`.
+  final List<String> protocols;
+
+  /// Starts an audio recording (`AudioRecordingIntent`).
+  bool get recordsAudio => protocols.contains('audioStarting');
+
   String get domain => id.split('.').first;
   String get name => id.split('.').last;
 
@@ -190,11 +204,17 @@ class IntentSchema {
         'availability': availability,
         'parameters': [for (final p in parameters) p.toJson()],
         if (result != null) 'result': result!.toJson(),
+        if (opensApp) 'opensApp': true,
+        if (protocols.isNotEmpty) 'protocols': protocols,
       };
 }
 
 /// How an intent schema changes items of an entity schema.
-enum IntentKind { create, update, append, delete }
+///
+/// [record] intents (`journal.createAudioEntry`) take nothing and return
+/// nothing: they bring the app forward and the app starts recording a new
+/// item itself.
+enum IntentKind { create, update, append, delete, record }
 
 /// One domain's schemas (`reminders`, `notes`, …), plus where they came from.
 class DomainCatalog {
@@ -245,6 +265,8 @@ class DomainCatalog {
   ///
   /// Creates return the entity and take no target; updates take a `target`
   /// (appends are updates named `append…`); deletes take a list of entities.
+  /// Records start an audio recording of a new item, take no parameters and
+  /// are named after the entity (`createAudioEntry` for `journal.entry`).
   List<(IntentSchema, IntentKind)> intentsFor(EntitySchema entity) {
     bool isEntity(SchemaType? t) => t?.base.kind == 'entity' && t!.base.ref == entity.id;
     return [
@@ -255,7 +277,12 @@ class DomainCatalog {
             when list.type.kind == 'array' && isEntity(list.type.of))
           (intent, IntentKind.delete)
         else if (isEntity(intent.result) && intent.parameter('target') == null)
-          (intent, IntentKind.create),
+          (intent, IntentKind.create)
+        else if (intent.recordsAudio &&
+            intent.parameters.isEmpty &&
+            intent.result == null &&
+            intent.name.endsWith(pascal(entity.name)))
+          (intent, IntentKind.record),
     ];
   }
 
@@ -303,6 +330,10 @@ String? dartTypeFor(SchemaType type) {
 
 /// `createReminder` → `CreateReminder`, `reminders` → `Reminders`.
 String pascal(String s) => s.isEmpty ? s : s[0].toUpperCase() + s.substring(1);
+
+/// The handler method a [IntentKind.record] intent calls in Dart:
+/// `createAudioEntry` → `startAudioEntry`.
+String recordMethod(IntentSchema intent) => 'start${pascal(intent.name.replaceFirst(RegExp('^create'), ''))}';
 
 /// `CreateReminder` → `createReminder`.
 String camel(String s) => s.isEmpty ? s : s[0].toLowerCase() + s.substring(1);

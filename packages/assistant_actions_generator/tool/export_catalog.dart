@@ -70,6 +70,8 @@ Future<void> main(List<String> domains) async {
                 availability: _availability(row['availability']),
                 parameters: [for (final m in _json(row['_parameters']) as List) _member(names, m)],
                 result: row['_result'] == null ? null : _type(names, _json(row['_result']) as Map),
+                opensApp: row['_openApp'] == 1,
+                protocols: _protocols(row['_systemProtocols']),
               ),
         },
       );
@@ -135,6 +137,13 @@ SchemaType _type(Map<String, String> names, Map raw) {
       return SchemaType(kind);
   }
 }
+
+/// The system intent protocols a schema intent adopts, such as
+/// `audioStarting` (`AudioRecordingIntent`) or `search`.
+List<String> _protocols(Object? raw) => [
+      for (final p in (_json(raw) as List?) ?? const [])
+        if ((p as Map)['primitive'] case {'wrapper': final Map wrapper}) ...wrapper.keys.cast<String>(),
+    ];
 
 Map<String, num> _availability(Object? raw) {
   final json = (_json(raw) as Map?) ?? const {};

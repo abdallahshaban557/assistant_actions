@@ -12,7 +12,7 @@ Refresh the schema catalog after a new Xcode:
 
 ```bash
 cd packages/assistant_actions_generator
-dart run tool/export_catalog.dart reminders notes
+dart run tool/export_catalog.dart reminders notes journal
 ```
 
 ## Releasing

@@ -70,11 +70,53 @@ abstract interface class MemoryItemAssistantHandler {
   Future<void> update(String id, MemoryItemValues changes);
 }
 
+/// Siri's values for a `JournalItem` (`journal.entry`).
+///
+/// A null field is unchanged, unless its `…Cleared` getter says Siri removed
+/// the value.
+class JournalItemValues {
+  const JournalItemValues({this.title, this.text, this.date, this.cleared = const {}});
+
+  final String? title;
+  final String? text;
+  final DateTime? date;
+
+  /// Fields Siri cleared (set to no value), by Dart field name.
+  final Set<String> cleared;
+
+  /// Siri removed `title` (for example, took a due date off a reminder).
+  bool get titleCleared => cleared.contains('title');
+
+  /// Siri removed `date` (for example, took a due date off a reminder).
+  bool get dateCleared => cleared.contains('date');
+
+  static JournalItemValues _from(Map<String, Object?> f, List<String> cleared) => JournalItemValues(
+    title: AssistantValue.string(f['title']),
+    text: AssistantValue.string(f['text']),
+    date: AssistantValue.date(f['date']),
+    cleared: {...cleared},
+  );
+}
+
+/// Applies the changes Siri makes to `JournalItem` items through
+/// `journal.createEntry`, `journal.createAudioEntry`, `journal.updateEntry`, `journal.deleteEntry`.
+abstract interface class JournalItemAssistantHandler {
+  /// Siri created an item. Keep [id]: later updates and deletes use it.
+  Future<void> create(String id, JournalItemValues values);
+
+  /// Siri asked for `journal.createAudioEntry` ("Create Audio Entry"). The app is in the
+  /// foreground: start recording, and save the item when the user stops.
+  Future<void> startAudioEntry();
+  Future<void> update(String id, JournalItemValues changes);
+  Future<void> delete(String id);
+}
+
 /// Pass to `AssistantActions.start`.
 AssistantActionsRegistry assistantActionsRegistry({
   required FutureOr<a1.Recipe?> Function(String id) findRecipe,
   required TaskItemAssistantHandler taskItem,
   required MemoryItemAssistantHandler memoryItem,
+  required JournalItemAssistantHandler journalItem,
 }) => AssistantActionsRegistry(
   actions: {
     'addToShoppingList': (args) async {
@@ -86,6 +128,10 @@ AssistantActionsRegistry assistantActionsRegistry({
     },
     'countOpenTasks': (args) async {
       return await a0.countOpenTasks();
+    },
+    'JournalItem.startAudioEntry': (args) async {
+      await journalItem.startAudioEntry();
+      return null;
     },
   },
   codecs: {
@@ -108,6 +154,12 @@ AssistantActionsRegistry assistantActionsRegistry({
       title: (e) => e.text,
       fields: (e) => {'text': e.text, 'pinned': e.pinned},
     ),
+    a1.JournalItem: EntityCodec<a1.JournalItem>(
+      'JournalItem',
+      id: (e) => e.id,
+      title: (e) => e.title ?? '',
+      fields: (e) => {'title': e.title, 'text': e.text, 'date': AssistantValue.encodeDate(e.date)},
+    ),
   },
   collections: {
     'TaskItem': (change) async {
@@ -128,6 +180,17 @@ AssistantActionsRegistry assistantActionsRegistry({
           await memoryItem.create(change.id, values);
         case 'update':
           await memoryItem.update(change.id, values);
+      }
+    },
+    'JournalItem': (change) async {
+      final values = JournalItemValues._from(change.fields, change.cleared);
+      switch (change.kind) {
+        case 'create':
+          await journalItem.create(change.id, values);
+        case 'update':
+          await journalItem.update(change.id, values);
+        case 'delete':
+          await journalItem.delete(change.id);
       }
     },
   },

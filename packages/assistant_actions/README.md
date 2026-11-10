@@ -103,7 +103,41 @@ class TaskHandler implements TaskItemAssistantHandler {
 }
 ```
 
-Available now: `reminders` and `notes`.
+Available now: `reminders`, `notes` and `journal`.
+
+### Journal entries and audio recording
+
+`journal.entry` adopts Apple's journal schema: Siri creates, updates, deletes
+and finds entries ("add a journal entry about my walk", "journal entries from
+last week"), the same way as reminders and notes.
+
+```dart
+import 'package:assistant_actions/schemas/journal.dart';
+
+@JournalEntry(createEntry: true, updateEntry: true, deleteEntry: true, createAudioEntry: true)
+class JournalItem {
+  @EntityId() final String id;
+  @EntryField.title String? title;
+  @EntryField.message String text;
+  @EntryField.entryDate DateTime? date;
+}
+```
+
+`createAudioEntry: true` adds Apple's `journal.createAudioEntry` ("record a
+journal entry"). It takes no parameters: Siri brings the app to the
+foreground (iOS only lets the microphone start there; macOS activates the app)
+and calls `startAudioEntry()` on the generated `JournalItemAssistantHandler`,
+live, like a `Runs.withFlutter` action. Recording is the app's job: start the
+recorder there and save the entry when the user stops. Apple's schema makes
+the intent an `AudioRecordingIntent`, so on iOS show a Live Activity while
+recording continues in the background, or the system stops it.
+
+Not mapped yet: `mediaItems` (files) and `location` (`PlaceDescriptor`) have no
+Dart field type. Generated entries declare them empty, and Siri's values for
+them are dropped. `journal.search` (open the app on search results) isn't
+adopted; Siri searches entries through the generated entity queries instead.
+The journal schemas date from iOS 18, but `location`'s `PlaceDescriptor`
+needs iOS / macOS 26, so the generated journal types are available from 26.
 
 ### Answer from published data, without starting the app
 

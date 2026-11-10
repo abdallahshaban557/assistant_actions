@@ -482,6 +482,9 @@
           },
           "description": "The reminders to delete."
         }
+      ],
+      "protocols": [
+        "delete"
       ]
     },
     "updateReminder": {
