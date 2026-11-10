@@ -10,6 +10,7 @@
 library;
 
 import '../src/schema.dart';
+import '../src/values.dart';
 
 /// `reminders.listType` ("List Type").
 enum RemindersListType {
@@ -145,8 +146,6 @@ final class RemindersReminderSchema {
 
 /// Members of `reminders.reminder`, used as field annotations:
 /// `@RemindersReminderField.title …`.
-///
-/// Not mapped to Dart yet: `tags` (`Set<string>`), `urls` (`[url]`), `recurrence` (`recurrenceRule?`). Generated entities give them their empty value.
 abstract final class RemindersReminderField {
   /// Title
   static const title = SchemaMember<RemindersReminderSchema, String>('reminders.reminder', 'title');
@@ -154,9 +153,21 @@ abstract final class RemindersReminderField {
   /// Note
   static const note = SchemaMember<RemindersReminderSchema, String?>('reminders.reminder', 'note');
 
+  /// Tags
+  static const tags =
+      SchemaMember<RemindersReminderSchema, List<String>>('reminders.reminder', 'tags');
+
+  /// URLs
+  static const urls =
+      SchemaMember<RemindersReminderSchema, List<Uri>>('reminders.reminder', 'urls');
+
   /// Due Date
   static const dueDate =
       SchemaMember<RemindersReminderSchema, DateTime?>('reminders.reminder', 'dueDate');
+
+  /// Recurrence
+  static const recurrence = SchemaMember<RemindersReminderSchema, AssistantRecurrence?>(
+      'reminders.reminder', 'recurrence');
 
   /// Is Completed
   static const isCompleted =
@@ -260,10 +271,14 @@ final class RemindersLocationTriggerSchema {
 }
 
 /// Members of `reminders.locationTrigger`, used as field annotations:
-/// `@RemindersLocationTriggerField.event …`.
-///
-/// Not mapped to Dart yet: `place` (`placeDescriptor`). Generated entities give them their empty value.
+/// `@RemindersLocationTriggerField.place …`.
 abstract final class RemindersLocationTriggerField {
+  /// Place
+  ///
+  /// Read-only in the schema: Siri reads it but never sets it.
+  static const place = SchemaMember<RemindersLocationTriggerSchema, AssistantPlace>(
+      'reminders.locationTrigger', 'place');
+
   /// Event
   ///
   /// Read-only in the schema: Siri reads it but never sets it.
@@ -272,28 +287,28 @@ abstract final class RemindersLocationTriggerField {
 }
 
 // ──────────────────────────────────────────────────────────────────────
-// Names from before 0.0.10, when they had no domain prefix.
+// Names from before 0.0.11, when they had no domain prefix.
 
-/// [RemindersGroupField], by its name before 0.0.10.
+/// [RemindersGroupField], by its name before 0.0.11.
 typedef GroupField = RemindersGroupField;
 
-/// [FixedRemindersGroup], by its name before 0.0.10.
+/// [FixedRemindersGroup], by its name before 0.0.11.
 typedef FixedGroup = FixedRemindersGroup;
 
-/// [RemindersListField], by its name before 0.0.10.
+/// [RemindersListField], by its name before 0.0.11.
 typedef ListField = RemindersListField;
 
-/// [FixedRemindersList], by its name before 0.0.10.
+/// [FixedRemindersList], by its name before 0.0.11.
 typedef FixedList = FixedRemindersList;
 
-/// [RemindersReminderField], by its name before 0.0.10.
+/// [RemindersReminderField], by its name before 0.0.11.
 typedef ReminderField = RemindersReminderField;
 
-/// [RemindersSectionField], by its name before 0.0.10.
+/// [RemindersSectionField], by its name before 0.0.11.
 typedef SectionField = RemindersSectionField;
 
-/// [FixedRemindersSection], by its name before 0.0.10.
+/// [FixedRemindersSection], by its name before 0.0.11.
 typedef FixedSection = FixedRemindersSection;
 
-/// [RemindersLocationTriggerField], by its name before 0.0.10.
+/// [RemindersLocationTriggerField], by its name before 0.0.11.
 typedef LocationTriggerField = RemindersLocationTriggerField;

@@ -263,12 +263,14 @@ class _Context {
         final domain = def['domainID'] as String;
         final name = names['$domain/${def['id']}'] ?? camel(def['id'] as String);
         final id = '$domain.$name';
+        final rejected = _rejectedCases[id] ?? const <String>{};
         unions[id] ??= UnionSchema(
           id: id,
           title: def['_displayRepresentation'] as String? ?? name,
           availability: _availability(def['availability']),
           cases: [
-            for (final c in def['_cases'] as List) (name: (c as Map)['_name'] as String, type: type(c['_type'] as Map)),
+            for (final c in def['_cases'] as List)
+              if (!rejected.contains((c as Map)['_name'])) (name: c['_name'] as String, type: type(c['_type'] as Map)),
           ],
         );
         return SchemaType('union', ref: id);
@@ -277,6 +279,14 @@ class _Context {
     }
   }
 }
+
+/// Union cases the catalog lists but Apple's `appintentsmetadataprocessor`
+/// (same Xcode) rejects, so they're left out:
+/// * `messages.destination`: "cases limited to … Person, messagePerson, or
+///   an array of messagePerson", not `conversation`.
+const _rejectedCases = {
+  'messages.destination': {'conversation'},
+};
 
 /// The highest version of each schema row.
 Iterable<Map<String, Object?>> _latest(List<Map<String, Object?>> rows) {

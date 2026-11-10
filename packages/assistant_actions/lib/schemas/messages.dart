@@ -12,6 +12,7 @@
 library;
 
 import '../src/schema.dart';
+import '../src/values.dart';
 
 /// `messages.conversationAttribute` ("ConversationAttribute"), whose cases the app defines: put `@MessagesConversationAttribute()` on a
 /// Dart enum, and each of its values becomes a case Siri can use.
@@ -60,8 +61,6 @@ final class MessagesConversationSchema {
 
 /// Members of `messages.conversation`, used as field annotations:
 /// `@MessagesConversationField.displayName …`.
-///
-/// Not mapped to Dart yet: `attributes` (`Set<openEnum>`). Generated entities give them their empty value.
 abstract final class MessagesConversationField {
   /// Recipients
   ///
@@ -94,6 +93,12 @@ abstract final class MessagesConversationField {
   /// Read-only in the schema: Siri reads it but never sets it.
   static const isRead =
       SchemaMember<MessagesConversationSchema, bool>('messages.conversation', 'isRead');
+
+  /// Attributes
+  ///
+  /// Read-only in the schema: Siri reads it but never sets it.
+  static const attributes =
+      SchemaMember<MessagesConversationSchema, List<Enum>>('messages.conversation', 'attributes');
 
   /// Date
   ///
@@ -165,12 +170,10 @@ class MessagesMessage extends SchemaEntity {
   final bool editSentMessage;
 
   /// Handle `messages.sendMessage` ("Send Message"): calls
-  /// `Future<List<String>> sendMessage({String? content, String? subject, required List<Uri> links, DateTime? scheduledDate})`
+  /// `Future<List<String>> sendMessage({String? content, required AssistantUnion destination, String? subject, required List<AssistantFile> attachments, AssistantFile? audioMessage, required List<AssistantPlace> locations, required List<Uri> links, DateTime? scheduledDate})`
   /// live (on iOS, from the foreground).
   ///
   /// Sends a message with the associated parameters
-  ///
-  /// Not passed to Dart yet: `destination` (`union:messages.destination`), `attachments` (`[file]`), `audioMessage` (`file?`), `locations` (`[placeDescriptor]`).
   final bool sendMessage;
 
   /// Handle `messages.setMessageReadStatus` ("Set Message Read Status"): calls
@@ -181,12 +184,10 @@ class MessagesMessage extends SchemaEntity {
   final bool setMessageReadStatus;
 
   /// Handle `messages.draftMessage` ("Start Message Draft"): calls
-  /// `Future<void> draftMessage({String? subject, String? content, required List<Uri> links, DateTime? scheduledDate})`
+  /// `Future<void> draftMessage({AssistantUnion? destination, String? subject, String? content, required List<AssistantFile> attachments, AssistantFile? audioMessage, required List<AssistantPlace> locations, required List<Uri> links, DateTime? scheduledDate})`
   /// live, with the app in the foreground.
   ///
   /// Opens app to start or continue composing a message via touch
-  ///
-  /// Not passed to Dart yet: `destination` (`union:messages.destination?`), `attachments` (`[file]`), `audioMessage` (`file?`), `locations` (`[placeDescriptor]`).
   final bool draftMessage;
 
   /// Handle `messages.unsendMessage` ("Unsend Message"): calls
@@ -205,7 +206,7 @@ final class MessagesMessageSchema {
 /// Members of `messages.message`, used as field annotations:
 /// `@MessagesMessageField.subject …`.
 ///
-/// Not mapped to Dart yet: `attributes` (`Set<openEnum>`), `attachments` (`[file]`), `audioMessage` (`file?`), `locations` (`[placeDescriptor]`), `links` (`[linkMetadata]`), `reaction` (`union:messages.readReaction?`). Generated entities give them their empty value.
+/// Not mapped to Dart yet: `links` (`[linkMetadata]`). Generated entities give them their empty value.
 abstract final class MessagesMessageField {
   /// Type
   ///
@@ -224,6 +225,12 @@ abstract final class MessagesMessageField {
   ///
   /// Read-only in the schema: Siri reads it but never sets it.
   static const isRead = SchemaMember<MessagesMessageSchema, bool>('messages.message', 'isRead');
+
+  /// Attributes
+  ///
+  /// Read-only in the schema: Siri reads it but never sets it.
+  static const attributes =
+      SchemaMember<MessagesMessageSchema, List<Enum>>('messages.message', 'attributes');
 
   /// Conversation
   ///
@@ -249,6 +256,18 @@ abstract final class MessagesMessageField {
   /// Read-only in the schema: Siri reads it but never sets it.
   static const body = SchemaMember<MessagesMessageSchema, String?>('messages.message', 'body');
 
+  /// Attachments
+  ///
+  /// Read-only in the schema: Siri reads it but never sets it.
+  static const attachments =
+      SchemaMember<MessagesMessageSchema, List<AssistantFile>>('messages.message', 'attachments');
+
+  /// Audio Message
+  ///
+  /// Read-only in the schema: Siri reads it but never sets it.
+  static const audioMessage =
+      SchemaMember<MessagesMessageSchema, AssistantFile?>('messages.message', 'audioMessage');
+
   /// Custom Attachments
   ///
   /// Read-only in the schema: Siri reads it but never sets it.
@@ -257,11 +276,23 @@ abstract final class MessagesMessageField {
   static const customAttachments =
       SchemaMember<MessagesMessageSchema, List<String>>('messages.message', 'customAttachments');
 
+  /// Locations
+  ///
+  /// Read-only in the schema: Siri reads it but never sets it.
+  static const locations =
+      SchemaMember<MessagesMessageSchema, List<AssistantPlace>>('messages.message', 'locations');
+
   /// Effect
   ///
   /// Read-only in the schema: Siri reads it but never sets it.
   static const messageEffect =
       SchemaMember<MessagesMessageSchema, Enum?>('messages.message', 'messageEffect');
+
+  /// Reaction
+  ///
+  /// Read-only in the schema: Siri reads it but never sets it.
+  static const reaction =
+      SchemaMember<MessagesMessageSchema, AssistantUnion?>('messages.message', 'reaction');
 
   /// Reference
   ///
@@ -295,7 +326,11 @@ final class MessagesMessagePersonSchema {
 }
 
 /// Members of `messages.messagePerson`, used as field annotations:
-/// `@MessagesMessagePersonField.member …`.
-///
-/// Not mapped to Dart yet: `person` (`person`). Generated entities give them their empty value.
-abstract final class MessagesMessagePersonField {}
+/// `@MessagesMessagePersonField.person …`.
+abstract final class MessagesMessagePersonField {
+  /// Person
+  ///
+  /// Read-only in the schema: Siri reads it but never sets it.
+  static const person = SchemaMember<MessagesMessagePersonSchema, AssistantPerson>(
+      'messages.messagePerson', 'person');
+}

@@ -670,9 +670,9 @@ struct JournalItemEntity {
     id = record.id
     title = AssistantValues.string(record.fields["title"])
     message = AssistantValues.attributed(record.fields["text"])
-    mediaItems = []
+    mediaItems = (AssistantValues.items(record.fields["media"]) ?? []).compactMap { AssistantValues.file($0) }
     entryDate = AssistantValues.date(record.fields["date"])
-    location = nil
+    location = AssistantValues.place(record.fields["place"])
   }
 
   /// The item with [id], from the snapshot when [resolve], else just its id.
@@ -1026,6 +1026,8 @@ struct JournalItemCreateEntryIntent {
     var fields: [String: Any] = [:]
     fields["text"] = AssistantValues.encode(message)
     fields["title"] = AssistantValues.encode(title)
+    fields["place"] = AssistantValues.encode(location)
+    fields["media"] = mediaItems.map { AssistantValues.encode($0) }
     fields["date"] = AssistantValues.encode(entryDate)
     let id = AssistantInbox.create("JournalItem", fields: fields)
     AssistantBridge.shared.inboxChanged()
@@ -1075,10 +1077,17 @@ struct JournalItemUpdateEntryIntent {
     @unknown default: break
     }
     if message != nil { fields["text"] = AssistantValues.encode(message) }
+    if mediaItems != nil { fields["media"] = mediaItems.map { $0.map { AssistantValues.encode($0) } as Any } ?? NSNull() }
     switch $entryDate.valueState {
     case .unset: break
     case .set(let value?): fields["date"] = AssistantValues.encode(value)
     case .set(nil): cleared.append("date")
+    @unknown default: break
+    }
+    switch $location.valueState {
+    case .unset: break
+    case .set(let value?): fields["place"] = AssistantValues.encode(value)
+    case .set(nil): cleared.append("place")
     @unknown default: break
     }
     AssistantInbox.update("JournalItem", id: target.id, fields: fields, cleared: cleared)
@@ -1094,10 +1103,18 @@ struct JournalItemUpdateEntryIntent {
     } else if cleared.contains("text") {
       updated.message = nil
     }
+    if let value = fields["media"] {
+      updated.mediaItems = (AssistantValues.items(value) ?? []).compactMap { AssistantValues.file($0) }
+    }
     if let value = fields["date"] {
       updated.entryDate = AssistantValues.date(value)
     } else if cleared.contains("date") {
       updated.entryDate = nil
+    }
+    if let value = fields["place"] {
+      updated.location = AssistantValues.place(value)
+    } else if cleared.contains("place") {
+      updated.location = nil
     }
     return .result(value: updated)
   }

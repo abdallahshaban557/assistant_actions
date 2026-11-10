@@ -77,11 +77,20 @@ abstract interface class MemoryItemAssistantHandler {
 /// A null field is unchanged, unless its `…Cleared` getter says Siri removed
 /// the value.
 class JournalItemValues {
-  const JournalItemValues({this.title, this.text, this.date, this.cleared = const {}});
+  const JournalItemValues({
+    this.title,
+    this.text,
+    this.date,
+    this.media,
+    this.place,
+    this.cleared = const {},
+  });
 
   final String? title;
   final String? text;
   final DateTime? date;
+  final List<AssistantFile>? media;
+  final AssistantPlace? place;
 
   /// Fields Siri cleared (set to no value), by Dart field name.
   final Set<String> cleared;
@@ -92,10 +101,15 @@ class JournalItemValues {
   /// Siri removed `date` (for example, took a due date off a reminder).
   bool get dateCleared => cleared.contains('date');
 
+  /// Siri removed `place` (for example, took a due date off a reminder).
+  bool get placeCleared => cleared.contains('place');
+
   static JournalItemValues _from(Map<String, Object?> f, List<String> cleared) => JournalItemValues(
     title: AssistantValue.string(f['title']),
     text: AssistantValue.string(f['text']),
     date: AssistantValue.date(f['date']),
+    media: AssistantValue.list(f['media'], (v) => AssistantValue.file(v)),
+    place: AssistantValue.place(f['place']),
     cleared: {...cleared},
   );
 }
@@ -309,7 +323,13 @@ AssistantActionsRegistry assistantActionsRegistry({
       'JournalItem',
       id: (e) => e.id,
       title: (e) => e.title ?? '',
-      fields: (e) => {'title': e.title, 'text': e.text, 'date': AssistantValue.encodeDate(e.date)},
+      fields: (e) => {
+        'title': e.title,
+        'text': e.text,
+        'date': AssistantValue.encodeDate(e.date),
+        'media': e.media.map((e) => AssistantValue.encodeFile(e)).toList(),
+        'place': AssistantValue.encodePlace(e.place),
+      },
     ),
     a1.Countdown: EntityCodec<a1.Countdown>(
       'Countdown',

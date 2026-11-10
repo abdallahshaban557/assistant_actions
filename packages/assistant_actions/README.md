@@ -133,6 +133,12 @@ Beyond creating, updating and deleting items:
   `@CameraCaptureMode() enum CaptureMode { photo, video }`.
 - **Members that are other entities** map to ids of an entity the app also
   adopts: `@WordProcessorPageField.document String documentId;`.
+- **People, places, files, recurrence rules and unions** are
+  `AssistantPerson`, `AssistantPlace`, `AssistantFile`,
+  `AssistantRecurrence` and `AssistantUnion`; lists are Dart lists. A file
+  Siri passes (a journal entry's `mediaItems`) is copied into Application
+  Support, so its `path` works even for a call queued while the app wasn't
+  running. Delete the copy when you're done with it.
 
 ### Journal entries and audio recording
 
@@ -161,9 +167,8 @@ recorder there and save the entry when the user stops. Apple's schema makes
 the intent an `AudioRecordingIntent`, so on iOS show a Live Activity while
 recording continues in the background, or the system stops it.
 
-Not mapped yet: `mediaItems` (files) and `location` (`PlaceDescriptor`) have no
-Dart field type. Generated entries declare them empty, and Siri's values for
-them are dropped. `journal.search` is deprecated in favour of
+`mediaItems` maps to `List<AssistantFile>` and `location` to
+`AssistantPlace?`. `journal.search` is deprecated in favour of
 `system.searchInApp` (`@SystemIntents(searchInApp: true)`), so it isn't
 offered.
 The journal schemas date from iOS 18, but `location`'s `PlaceDescriptor`

@@ -2,7 +2,7 @@ name: assistant_actions_generator
 description: >-
   build_runner generator for assistant_actions: turns annotated Dart actions,
   entities and App Schema adoptions into App Intents Swift for iOS and macOS.
-version: 0.0.9
+version: 0.0.10
 repository: https://github.com/abdallahshaban557/assistant_actions/tree/main/packages/assistant_actions_generator
 issue_tracker: https://github.com/abdallahshaban557/assistant_actions/issues
 topics: [siri, app-intents, codegen, build-runner]

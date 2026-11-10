@@ -10,6 +10,7 @@
 library;
 
 import '../src/schema.dart';
+import '../src/values.dart';
 
 // ──────────────────────────────────────────────────────────────────────
 // notes.note
@@ -46,8 +47,6 @@ final class NotesNoteSchema {
 
 /// Members of `notes.note`, used as field annotations:
 /// `@NotesNoteField.name …`.
-///
-/// Not mapped to Dart yet: `attachments` (`[file]`). Generated entities give them their empty value.
 abstract final class NotesNoteField {
   /// Name
   ///
@@ -58,6 +57,12 @@ abstract final class NotesNoteField {
   ///
   /// Read-only in the schema: Siri reads it but never sets it.
   static const content = SchemaMember<NotesNoteSchema, String?>('notes.note', 'content');
+
+  /// Attachments
+  ///
+  /// Read-only in the schema: Siri reads it but never sets it.
+  static const attachments =
+      SchemaMember<NotesNoteSchema, List<AssistantFile>>('notes.note', 'attachments');
 
   /// Is Pinned
   ///
@@ -177,19 +182,19 @@ class FixedNotesFolder extends SchemaContainer {
 }
 
 // ──────────────────────────────────────────────────────────────────────
-// Names from before 0.0.10, when they had no domain prefix.
+// Names from before 0.0.11, when they had no domain prefix.
 
-/// [NotesNoteField], by its name before 0.0.10.
+/// [NotesNoteField], by its name before 0.0.11.
 typedef NoteField = NotesNoteField;
 
-/// [NotesAccountField], by its name before 0.0.10.
+/// [NotesAccountField], by its name before 0.0.11.
 typedef AccountField = NotesAccountField;
 
-/// [FixedNotesAccount], by its name before 0.0.10.
+/// [FixedNotesAccount], by its name before 0.0.11.
 typedef FixedAccount = FixedNotesAccount;
 
-/// [NotesFolderField], by its name before 0.0.10.
+/// [NotesFolderField], by its name before 0.0.11.
 typedef FolderField = NotesFolderField;
 
-/// [FixedNotesFolder], by its name before 0.0.10.
+/// [FixedNotesFolder], by its name before 0.0.11.
 typedef FixedFolder = FixedNotesFolder;

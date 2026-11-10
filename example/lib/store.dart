@@ -94,7 +94,14 @@ class JournalHandler implements JournalItemAssistantHandler {
 
   @override
   Future<void> create(String id, JournalItemValues values) async {
-    _store.journal.add(JournalItem(id: id, text: values.text ?? '', title: values.title, date: values.date ?? DateTime.now()));
+    _store.journal.add(JournalItem(
+      id: id,
+      text: values.text ?? '',
+      title: values.title,
+      date: values.date ?? DateTime.now(),
+      media: values.media ?? const [],
+      place: values.place,
+    ));
     _store.changed();
   }
 
@@ -104,7 +111,9 @@ class JournalHandler implements JournalItemAssistantHandler {
       e
         ..title = changes.titleCleared ? null : changes.title ?? e.title
         ..text = changes.text ?? e.text
-        ..date = changes.dateCleared ? null : changes.date ?? e.date;
+        ..date = changes.dateCleared ? null : changes.date ?? e.date
+        ..media = changes.media ?? e.media
+        ..place = changes.placeCleared ? null : changes.place ?? e.place;
     }
     _store.changed();
   }

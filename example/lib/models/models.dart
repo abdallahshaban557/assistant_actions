@@ -76,7 +76,7 @@ class MemoryItem {
   deleteEntry: true,
 )
 class JournalItem {
-  JournalItem({required this.id, required this.text, this.title, this.date});
+  JournalItem({required this.id, required this.text, this.title, this.date, this.media = const [], this.place});
 
   @EntityId()
   final String id;
@@ -89,6 +89,14 @@ class JournalItem {
 
   @JournalEntryField.entryDate
   DateTime? date;
+
+  /// Recordings and photos. Files Siri passes are copied into the app's
+  /// Application Support folder first.
+  @JournalEntryField.mediaItems
+  List<AssistantFile> media;
+
+  @JournalEntryField.location
+  AssistantPlace? place;
 }
 
 /// Level 3: a countdown Siri understands as `clock.timer`. `createTimer`

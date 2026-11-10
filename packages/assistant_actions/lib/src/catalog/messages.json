@@ -426,13 +426,6 @@
               "ref": "messages.messagePerson"
             }
           }
-        },
-        {
-          "name": "conversation",
-          "type": {
-            "kind": "entity",
-            "ref": "messages.conversation"
-          }
         }
       ]
     }

@@ -149,7 +149,7 @@ ${_propertyQuery(name, [const _Queryable('title', 'Title', 'string', optional: f
               ValueKind.decimal => 'double',
               ValueKind.boolean => 'bool',
               ValueKind.dateTime => 'date',
-              ValueKind.uri || ValueKind.duration || ValueKind.enumeration || ValueKind.entityId => null,
+              _ => null,
             }
             case final kind?)
           _Queryable(
@@ -641,6 +641,7 @@ extension ${e.swiftName}: IndexedEntity {
   static const _typeFloors = {
     'placeDescriptor': {'iOS': 26, 'macOS': 26},
     'sceneDescriptor': {'iOS': 26, 'macOS': 27},
+    'linkMetadata': {'iOS': 26.4, 'macOS': 26.4},
     // `AppUnionValue`.
     'union': {'iOS': 27, 'macOS': 27},
   };
@@ -696,10 +697,57 @@ extension ${e.swiftName}: IndexedEntity {
     for (final c in u.cases) {
       _out.writeln('  case ${swiftName(c.name)}(${_swiftType(c.type)})');
     }
+    final name = _unionName(u.id);
     _out
+      ..writeln('}')
+      ..writeln()
+      ..writeln('/// Crosses to Dart as `AssistantUnion`: `{case, kind, value}`.')
+      ..writeln(_availability(_unionFloor(u, {u.id})))
+      ..writeln('extension $name: AssistantEncodable {')
+      ..writeln('  var assistantValue: Any {')
+      ..writeln('    switch self {');
+    for (final c in u.cases) {
+      final member = SchemaMember(name: 'value', title: c.name, type: c.type);
+      final element = c.type.element;
+      final encoded = !_crossesToDart(element)
+          ? 'NSNull()'
+          : c.type.base.isList && element.kind != 'entity'
+              ? 'value.map { AssistantValues.encode(\$0) }'
+              : _encodeMember(member, 'value');
+      _out.writeln('    case .${swiftName(c.name)}(let value): '
+          'AssistantValues.encodeCase("${c.name}", kind: "${element.kind}", $encoded)');
+    }
+    _out
+      ..writeln('    }')
+      ..writeln('  }')
+      ..writeln()
+      ..writeln('  static func decode(_ value: Any?) -> $name? {')
+      ..writeln('    guard let (name, raw) = AssistantValues.unionCase(value) else { return nil }')
+      ..writeln('    switch name {');
+    for (final c in u.cases) {
+      // Entity cases decode only when the app adopts the entity.
+      final t = c.type;
+      if (t.base.kind == 'entity' && !_adopted.containsKey(t.base.ref)) continue;
+      if (t.base.isList && t.base.of!.base.kind == 'entity' && !_adopted.containsKey(t.base.of!.base.ref)) continue;
+      // Lists of values and types Dart can't send don't decode.
+      if (!_crossesToDart(t.element) || (t.base.isList && t.element.kind != 'entity')) continue;
+      final decoded = _decode(t.isOptional ? t : SchemaType('optional', of: t), 'raw', _unionOwner, resolve: 'true');
+      _out.writeln('    case "${c.name}": return ($decoded).map { .${swiftName(c.name)}(\$0) }');
+    }
+    _out
+      ..writeln('    default: return nil')
+      ..writeln('    }')
+      ..writeln('  }')
       ..writeln('}')
       ..writeln();
   }
+
+  /// Whether values of [element] (not optional, not a list) cross to Dart.
+  bool _crossesToDart(SchemaType element) =>
+      element.kind == 'entity' ? element.ref != null : dartElementType(element, app.openEnumNames) != null;
+
+  /// Stands in for the owner when decoding a union case (only for errors).
+  static const _unionOwner = EntitySchema(id: 'union.case', title: 'Union', availability: {}, properties: []);
 
   /// The earliest OS for [intent]: its catalog availability, its parameters'
   /// types and the entity it returns.
@@ -744,7 +792,7 @@ extension ${e.swiftName}: IndexedEntity {
         'duration' => 'Duration',
         'person' => 'IntentPerson',
         'stringSearchCriteria' => 'StringSearchCriteria',
-        'linkMetadata' => 'LPLinkMetadata',
+        'linkMetadata' => 'LinkMetadata',
         'sceneDescriptor' => 'SemanticContentDescriptor',
         'union' => _unionName(t.ref!),
         _ => throw InvalidGenerationSourceError(
@@ -764,6 +812,15 @@ extension ${e.swiftName}: IndexedEntity {
       }
       return t.isOptional ? 'AssistantValues.strings($value)?.map $lookup' : '(AssistantValues.strings($value) ?? []).map $lookup';
     }
+    if (base.isList) {
+      // Each element as an optional, dropping the ones that don't decode.
+      final each = _decode(SchemaType('optional', of: base.of!.base), r'$0', owner, resolve: resolve);
+      final list = t.isOptional
+          ? 'AssistantValues.items($value)?.compactMap { $each }'
+          : '(AssistantValues.items($value) ?? []).compactMap { $each }';
+      if (base.kind != 'set') return list;
+      return t.isOptional ? '$list.map { Set(\$0) }' : 'Set($list)';
+    }
     final decoder = switch (t.base.kind) {
       'string' => 'AssistantValues.string($value)',
       'attributedString' => 'AssistantValues.attributed($value)',
@@ -775,6 +832,11 @@ extension ${e.swiftName}: IndexedEntity {
       'url' => 'AssistantValues.url($value)',
       'duration' => 'AssistantValues.duration($value)',
       'enum' || 'openEnum' => 'AssistantValues.string($value).flatMap(${_enumName(t.base.ref!)}.init(rawValue:))',
+      'person' => 'AssistantValues.person($value)',
+      'placeDescriptor' => 'AssistantValues.place($value)',
+      'file' => 'AssistantValues.file($value)',
+      'recurrenceRule' => 'AssistantValues.recurrence($value)',
+      'union' => '${_unionName(t.base.ref!)}.decode($value)',
       _ => throw StateError('Cannot decode ${t.kind}'),
     };
     return t.isOptional ? decoder : '$decoder ?? ${_fallback(t, owner)}';
@@ -789,6 +851,9 @@ extension ${e.swiftName}: IndexedEntity {
         'double' => '0',
         'url' => 'URL(fileURLWithPath: "/")',
         'duration' => '.zero',
+        'person' => 'IntentPerson(identifier: .unknown, name: .unknown, handle: nil)',
+        'placeDescriptor' => 'PlaceDescriptor(representations: [.address("")], commonName: nil)',
+        'file' => 'IntentFile(data: Data(), filename: "")',
         _ => _default(t, owner, null),
       };
 
@@ -801,6 +866,9 @@ extension ${e.swiftName}: IndexedEntity {
     if (t.kind == 'entity') return optional ? 'AssistantValues.encode($n?.id)' : '$n.id';
     if (t.isList && t.of!.base.kind == 'entity') {
       return optional ? 'AssistantValues.encode($n?.map(\\.id))' : '$n.map(\\.id)';
+    }
+    if (t.isList) {
+      return optional ? '$n.map { \$0.map { AssistantValues.encode(\$0) } as Any } ?? NSNull()' : '$n.map { AssistantValues.encode(\$0) }';
     }
     return 'AssistantValues.encode($n)';
   }
@@ -1212,9 +1280,12 @@ struct ${s.className}${pascal(intent.name)}Intent: ForegroundContinuableIntent {
     final live = intent.isLive;
     final result = resultEntity(intent);
     final resultType = result == null ? null : _adopted[result]!.swiftName;
+    final unionType = intent.result?.element.kind == 'union' ? _unionName(intent.result!.element.ref!) : null;
     final returns = switch (callResult(intent)) {
       CallResult.entity => 'ReturnsValue<$resultType>',
       CallResult.entities => 'ReturnsValue<[$resultType]>',
+      CallResult.union => 'ReturnsValue<$unionType>',
+      CallResult.unions => 'ReturnsValue<[$unionType]>',
       _ => 'IntentResult',
     };
     final floor = _max(_intentFloor(intent), owner == null ? const {'iOS': 0, 'macOS': 0} : _entityFloor(owner.schema));
@@ -1251,7 +1322,7 @@ struct ${s.className}${pascal(intent.name)}Intent: ForegroundContinuableIntent {
         ..writeln('    return .result()');
     } else {
       if (!modes) _out.writeln(_foreground(activateOnMac: intent.opensApp));
-      _out.writeln('    ${result == null ? '_' : 'let reply'} = try await AssistantBridge.shared.perform("$id", args: args)');
+      _out.writeln('    ${intent.result == null ? '_' : 'let reply'} = try await AssistantBridge.shared.perform("$id", args: args)');
       switch (callResult(intent)) {
         case CallResult.entity:
           _out
@@ -1263,6 +1334,14 @@ struct ${s.className}${pascal(intent.name)}Intent: ForegroundContinuableIntent {
           _out
             ..writeln('    let ids = AssistantValues.stringList(reply)')
             ..writeln('    return .result(value: try await ${resultType}Query().entities(for: ids))');
+        case CallResult.union:
+          _out
+            ..writeln('    guard let value = $unionType.decode(AssistantValues.json(reply)) else {')
+            ..writeln('      throw AssistantActionError.failed("$method returned nothing Siri can use")')
+            ..writeln('    }')
+            ..writeln('    return .result(value: value)');
+        case CallResult.unions:
+          _out.writeln('    return .result(value: ((AssistantValues.json(reply) as? [Any]) ?? []).compactMap($unionType.decode))');
         default:
           _out.writeln('    return .result()');
       }

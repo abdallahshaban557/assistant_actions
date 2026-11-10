@@ -10,6 +10,7 @@
 library;
 
 import '../src/schema.dart';
+import '../src/values.dart';
 
 /// `clock.alarmTriggerState` ("Alarm Trigger State").
 enum ClockAlarmTriggerState {
@@ -69,12 +70,10 @@ class ClockAlarm extends SchemaEntity {
   final bool snoozeAlarm;
 
   /// Handle `clock.updateAlarm` ("Update Alarm"): calls
-  /// `Future<String> updateAlarm({required String alarm, bool? isEnabled, DateTime? time, String? label, bool? allowsSnooze})`
+  /// `Future<String> updateAlarm({required String alarm, bool? isEnabled, DateTime? time, String? label, AssistantRecurrence? recurrenceDays, bool? allowsSnooze})`
   /// live (on iOS, from the foreground).
   ///
   /// Update the alarm, for example, turn on / off the alarm, change the label, time, or repeating schedule
-  ///
-  /// Not passed to Dart yet: `recurrenceDays` (`recurrenceRule?`).
   final bool updateAlarm;
 }
 
@@ -85,8 +84,6 @@ final class ClockAlarmSchema {
 
 /// Members of `clock.alarm`, used as field annotations:
 /// `@ClockAlarmField.label …`.
-///
-/// Not mapped to Dart yet: `recurrenceDays` (`recurrenceRule?`). Generated entities give them their empty value.
 abstract final class ClockAlarmField {
   /// Time
   ///
@@ -102,6 +99,12 @@ abstract final class ClockAlarmField {
   ///
   /// Read-only in the schema: Siri reads it but never sets it.
   static const label = SchemaMember<ClockAlarmSchema, String?>('clock.alarm', 'label');
+
+  /// Recurrence Days
+  ///
+  /// Read-only in the schema: Siri reads it but never sets it.
+  static const recurrenceDays =
+      SchemaMember<ClockAlarmSchema, AssistantRecurrence?>('clock.alarm', 'recurrenceDays');
 
   /// Can Snooze
   ///
@@ -165,10 +168,13 @@ final class ClockStopwatchSchema {
 }
 
 /// Members of `clock.stopwatch`, used as field annotations:
-/// `@ClockStopwatchField.startTime …`.
-///
-/// Not mapped to Dart yet: `laps` (`[duration]`). Generated entities give them their empty value.
+/// `@ClockStopwatchField.laps …`.
 abstract final class ClockStopwatchField {
+  /// Laps
+  ///
+  /// Read-only in the schema: Siri reads it but never sets it.
+  static const laps = SchemaMember<ClockStopwatchSchema, List<Duration>>('clock.stopwatch', 'laps');
+
   /// Start Time
   ///
   /// Read-only in the schema: Siri reads it but never sets it.

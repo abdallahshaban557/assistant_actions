@@ -67,10 +67,12 @@ String generateSchemaLibrary(DomainCatalog catalog) {
       ..writeln('///')
       ..writeln("/// Not adoptable: ${[for (final MapEntry(:key, :value) in catalog.skipped.entries) '`$key` ($value)'].join(', ')}.");
   }
+  final usesValues = catalog.entities.values.any((e) => e.properties.any((p) => dartTypeFor(p.type)?.contains('Assistant') ?? false));
   out
     ..writeln('library;')
     ..writeln()
     ..writeln("import '../src/schema.dart';");
+  if (usesValues) out.writeln("import '../src/values.dart';");
 
   for (final e in catalog.enums.values) {
     if (e.cases.isEmpty) {
