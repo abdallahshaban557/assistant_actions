@@ -1,3 +1,34 @@
+## 0.0.20
+
+* `requiresUnlock:` (`Unlock.notRequired` / `required` / `onThisDevice`) on
+  `@AssistantActionsApp`, `@AssistantAction`, `@AssistantEntity`, schema
+  entity annotations and `…Intents` annotations keeps Siri from running
+  intents on a locked device. Schema intents that Apple requires to be
+  stricter (`system.open`, `journal.*`, …) are raised to
+  `onThisDevice`. Entity queries can't be protected (App Intents has no
+  setting for them), so Siri can still look up published titles on a
+  locked device.
+* `summary:` on `@AssistantAction` and `summaries:` on schema annotations
+  show actions in Shortcuts as sentences (`'Add {title} to {list}'`).
+* `systemImage:` on `@AssistantEntity`, schema entities and `CaseTitle`, and
+  the new `@EntityImage()` field annotation (a path, `file:` or `https:`
+  URL), give items images in Siri, Spotlight and Shortcuts.
+* Interactive result cards: `AssistantCard(buttons: [AssistantCardButton('Add
+  to list', action: 'toggleShoppingList', args: {...})])`. On iOS / macOS 26
+  a button runs the Dart action without leaving Siri (headless with
+  `@AssistantBackground()`), and the card in the action's `AssistantReply`
+  replaces the card. Buttons show when the app targets iOS 26 and macOS 26,
+  or when the intent opts in with `@AssistantAction(cardButtons: true)` or
+  `cardButtons: {'intent'}` on a schema annotation; otherwise, and below
+  26, cards show without them. A button naming an unknown action throws
+  `ArgumentError`.
+* Swift: `AssistantCardStore`, `AssistantCard.buttons` / `json` and
+  `AssistantCardView(_:intent:)`.
+* The bundled catalogs include each intent schema's minimum
+  `authenticationPolicy`; the schema libraries forward `requiresUnlock`,
+  `summaries`, `systemImage` and `cardButtons`. Generator API 13.
+* Needs assistant_actions_generator 0.0.17.
+
 ## 0.0.19
 
 * `AssistantActions.showing(item)` / `stopShowing()`: tell Siri and Apple
