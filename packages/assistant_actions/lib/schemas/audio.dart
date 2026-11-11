@@ -92,7 +92,7 @@ enum AudioQueueInsertionLocation {
 /// Map fields with [AudioAlbumField] and turn on the schema intents the app
 /// supports. Each one becomes a method on the generated handler.
 class AudioAlbum extends SchemaEntity {
-  const AudioAlbum() : super('audio.album');
+  const AudioAlbum({super.url, super.visualSearch}) : super('audio.album');
 }
 
 /// Marks members of `audio.album`.
@@ -149,7 +149,8 @@ class FixedAudioAlbum extends SchemaContainer {
 /// Map fields with [AudioAlgorithmicRadioStationField] and turn on the schema intents the app
 /// supports. Each one becomes a method on the generated handler.
 class AudioAlgorithmicRadioStation extends SchemaEntity {
-  const AudioAlgorithmicRadioStation() : super('audio.algorithmicRadioStation');
+  const AudioAlgorithmicRadioStation({super.url, super.visualSearch})
+      : super('audio.algorithmicRadioStation');
 }
 
 /// Marks members of `audio.algorithmicRadioStation`.
@@ -191,7 +192,7 @@ class FixedAudioAlgorithmicRadioStation extends SchemaContainer {
 /// Map fields with [AudioAmbientSoundField] and turn on the schema intents the app
 /// supports. Each one becomes a method on the generated handler.
 class AudioAmbientSound extends SchemaEntity {
-  const AudioAmbientSound() : super('audio.ambientSound');
+  const AudioAmbientSound({super.url, super.visualSearch}) : super('audio.ambientSound');
 }
 
 /// Marks members of `audio.ambientSound`.
@@ -226,7 +227,7 @@ class FixedAudioAmbientSound extends SchemaContainer {
 /// Map fields with [AudioArtistField] and turn on the schema intents the app
 /// supports. Each one becomes a method on the generated handler.
 class AudioArtist extends SchemaEntity {
-  const AudioArtist() : super('audio.artist');
+  const AudioArtist({super.url, super.visualSearch}) : super('audio.artist');
 }
 
 /// Marks members of `audio.artist`.
@@ -261,7 +262,7 @@ class FixedAudioArtist extends SchemaContainer {
 /// Map fields with [AudioAudiobookField] and turn on the schema intents the app
 /// supports. Each one becomes a method on the generated handler.
 class AudioAudiobook extends SchemaEntity {
-  const AudioAudiobook() : super('audio.audiobook');
+  const AudioAudiobook({super.url, super.visualSearch}) : super('audio.audiobook');
 }
 
 /// Marks members of `audio.audiobook`.
@@ -346,7 +347,8 @@ class FixedAudioAudiobook extends SchemaContainer {
 /// Map fields with [AudioClassicalMusicRecordingField] and turn on the schema intents the app
 /// supports. Each one becomes a method on the generated handler.
 class AudioClassicalMusicRecording extends SchemaEntity {
-  const AudioClassicalMusicRecording() : super('audio.classicalMusicRecording');
+  const AudioClassicalMusicRecording({super.url, super.visualSearch})
+      : super('audio.classicalMusicRecording');
 }
 
 /// Marks members of `audio.classicalMusicRecording`.
@@ -423,7 +425,7 @@ class FixedAudioClassicalMusicRecording extends SchemaContainer {
 /// Map fields with [AudioLiveRadioStationField] and turn on the schema intents the app
 /// supports. Each one becomes a method on the generated handler.
 class AudioLiveRadioStation extends SchemaEntity {
-  const AudioLiveRadioStation() : super('audio.liveRadioStation');
+  const AudioLiveRadioStation({super.url, super.visualSearch}) : super('audio.liveRadioStation');
 }
 
 /// Marks members of `audio.liveRadioStation`.
@@ -469,6 +471,8 @@ class FixedAudioLiveRadioStation extends SchemaContainer {
 class AudioNewsBrief extends SchemaEntity {
   const AudioNewsBrief({
     this.provider,
+    super.url,
+    super.visualSearch,
   }) : super('audio.newsBrief');
 
   /// The fixed `audio.newsProvider` every item belongs to, if any.
@@ -530,7 +534,7 @@ class FixedAudioNewsBrief extends SchemaContainer {
 /// Map fields with [AudioNewsProviderField] and turn on the schema intents the app
 /// supports. Each one becomes a method on the generated handler.
 class AudioNewsProvider extends SchemaEntity {
-  const AudioNewsProvider() : super('audio.newsProvider');
+  const AudioNewsProvider({super.url, super.visualSearch}) : super('audio.newsProvider');
 }
 
 /// Marks members of `audio.newsProvider`.
@@ -575,6 +579,8 @@ class AudioPlaylist extends SchemaEntity {
     this.addToPlaylist = false,
     super.dialogs,
     super.confirm,
+    super.url,
+    super.visualSearch,
   }) : super('audio.playlist');
 
   /// Handle `audio.addToPlaylist` ("Add Audio Item to Playlist"): calls
@@ -635,7 +641,7 @@ class FixedAudioPlaylist extends SchemaContainer {
 /// Map fields with [AudioPodcastCollectionField] and turn on the schema intents the app
 /// supports. Each one becomes a method on the generated handler.
 class AudioPodcastCollection extends SchemaEntity {
-  const AudioPodcastCollection() : super('audio.podcastCollection');
+  const AudioPodcastCollection({super.url, super.visualSearch}) : super('audio.podcastCollection');
 }
 
 /// Marks members of `audio.podcastCollection`.
@@ -673,6 +679,8 @@ class FixedAudioPodcastCollection extends SchemaContainer {
 class AudioPodcastEpisode extends SchemaEntity {
   const AudioPodcastEpisode({
     this.show,
+    super.url,
+    super.visualSearch,
   }) : super('audio.podcastEpisode');
 
   /// The fixed `audio.podcastShow` every item belongs to, if any.
@@ -742,7 +750,7 @@ class FixedAudioPodcastEpisode extends SchemaContainer {
 /// Map fields with [AudioPodcastShowField] and turn on the schema intents the app
 /// supports. Each one becomes a method on the generated handler.
 class AudioPodcastShow extends SchemaEntity {
-  const AudioPodcastShow() : super('audio.podcastShow');
+  const AudioPodcastShow({super.url, super.visualSearch}) : super('audio.podcastShow');
 }
 
 /// Marks members of `audio.podcastShow`.
@@ -785,7 +793,7 @@ class FixedAudioPodcastShow extends SchemaContainer {
 /// Map fields with [AudioRadioShowField] and turn on the schema intents the app
 /// supports. Each one becomes a method on the generated handler.
 class AudioRadioShow extends SchemaEntity {
-  const AudioRadioShow() : super('audio.radioShow');
+  const AudioRadioShow({super.url, super.visualSearch}) : super('audio.radioShow');
 }
 
 /// Marks members of `audio.radioShow`.
@@ -822,6 +830,8 @@ class FixedAudioRadioShow extends SchemaContainer {
 class AudioRadioShowEpisode extends SchemaEntity {
   const AudioRadioShowEpisode({
     this.show,
+    super.url,
+    super.visualSearch,
   }) : super('audio.radioShowEpisode');
 
   /// The fixed `audio.radioShow` every item belongs to, if any.
@@ -887,6 +897,8 @@ class FixedAudioRadioShowEpisode extends SchemaContainer {
 class AudioSong extends SchemaEntity {
   const AudioSong({
     this.album,
+    super.url,
+    super.visualSearch,
   }) : super('audio.song');
 
   /// The fixed `audio.album` every item belongs to, if any.
@@ -977,7 +989,7 @@ class FixedAudioSong extends SchemaContainer {
 /// Map fields with [AudioSongCollectionField] and turn on the schema intents the app
 /// supports. Each one becomes a method on the generated handler.
 class AudioSongCollection extends SchemaEntity {
-  const AudioSongCollection() : super('audio.songCollection');
+  const AudioSongCollection({super.url, super.visualSearch}) : super('audio.songCollection');
 }
 
 /// Marks members of `audio.songCollection`.
@@ -1023,6 +1035,8 @@ class AudioWarmupAudioQueueResult extends SchemaEntity {
     super.dialogs,
     super.confirm,
     super.replies,
+    super.url,
+    super.visualSearch,
   }) : super('audio.warmupAudioQueueResult');
 
   /// Handle `audio.playAudio` ("Play Audio Item"): calls

@@ -29,6 +29,8 @@ class WordProcessorDocument extends SchemaEntity {
     super.dialogs,
     super.confirm,
     super.replies,
+    super.url,
+    super.visualSearch,
   }) : super('wordProcessor.document');
 
   /// Handle `wordProcessor.open` ("Open Document"): calls
@@ -98,6 +100,8 @@ class WordProcessorTemplate extends SchemaEntity {
     this.create = false,
     super.dialogs,
     super.confirm,
+    super.url,
+    super.visualSearch,
   }) : super('wordProcessor.template');
 
   /// Handle `wordProcessor.create` ("Create Document"): calls
@@ -156,6 +160,8 @@ class WordProcessorPage extends SchemaEntity {
     super.dialogs,
     super.confirm,
     super.replies,
+    super.url,
+    super.visualSearch,
   }) : super('wordProcessor.page');
 
   /// The fixed `wordProcessor.document` every item belongs to (required by the schema).

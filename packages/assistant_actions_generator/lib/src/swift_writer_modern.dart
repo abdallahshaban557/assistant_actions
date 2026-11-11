@@ -246,3 +246,9 @@ extension ${entity}Query: IndexedEntityQuery {
 ''');
   }
 }
+
+/// `#if` / `#endif` lines around 26.4 / 27 SDK-only code inside a
+/// declaration (an `IntentValueRepresentation` in a transfer representation),
+/// as for `_newSdk`.
+const _newSdkStart = '    #if compiler(>=6.4)';
+const _newSdkEnd = '    #endif';

@@ -2,6 +2,7 @@ import 'package:assistant_actions/assistant_actions.dart';
 import 'package:assistant_actions/schemas/camera.dart';
 import 'package:assistant_actions/schemas/clock.dart';
 import 'package:assistant_actions/schemas/system.dart';
+import 'package:assistant_actions/schemas/visual_intelligence.dart';
 import 'package:flutter/foundation.dart';
 
 import 'assistant_actions.g.dart';
@@ -22,6 +23,8 @@ AssistantActionsRegistry appRegistry() {
     docItem: DocHandler(),
     system: SystemHandler(),
     camera: CameraHandler(),
+    visualIntelligence: VisualSearchHandler(),
+    visualSearch: store.visualSearch,
   );
 }
 
@@ -76,6 +79,25 @@ class Store extends ChangeNotifier {
 
   /// What Siri planned for each meal (`planMeal`).
   final plan = <Meal, String>{};
+  /// Recipes and journal entries for what Visual Intelligence saw: those
+  /// whose name or text has one of its labels.
+  List<Object> visualSearch(AssistantSemanticContent content) {
+    final labels = [for (final l in content.labels) l.toLowerCase()];
+    bool matches(String text) => labels.any(text.toLowerCase().contains);
+    return [
+      ...recipes.where((r) => matches(r.name)),
+      ...journal.where((e) => matches('${e.title ?? ''} ${e.text}')),
+    ];
+  }
+
+  /// Opens a deep link (`assistantactions://recipes/<id>`), such as one
+  /// `system.open` opened for a recipe. Returns whether it named one.
+  bool openLink(Uri link) {
+    if (link.scheme != 'assistantactions' || link.host != 'recipes' || link.pathSegments.isEmpty) return false;
+    onScreen = 'recipe ${link.pathSegments.first}';
+    changed();
+    return true;
+  }
 
   /// Tells listeners and republishes what Siri can see.
   void changed() => changedAndPublished();
@@ -292,7 +314,8 @@ class DocHandler implements DocItemAssistantHandler {
 }
 
 /// `system.open` and `system.searchInApp`: Siri opens an item, or the app's
-/// search, in the foreground.
+/// search, in the foreground. Recipes have a deep link, so `system.open`
+/// opens `assistantactions://recipes/<id>` instead (see [Store.openLink]).
 @SystemIntents(open: true, searchInApp: true)
 class SystemHandler implements SystemAssistantHandler {
   Store get _store => Store.instance;
@@ -301,9 +324,6 @@ class SystemHandler implements SystemAssistantHandler {
     _store.onScreen = what;
     _store.changed();
   }
-
-  @override
-  Future<void> openRecipe(String id) async => _show('recipe $id');
 
   @override
   Future<void> openTaskItem(String id) async => _show('task $id');
@@ -355,6 +375,18 @@ class CameraHandler implements CameraAssistantHandler {
   Future<void> stopCapture() async {
     Store.instance
       ..onScreen = null
+      ..changed();
+  }
+}
+
+/// `visualIntelligence.semanticContentSearch`: "more results" from Visual
+/// Intelligence opens the app's own search for what it saw.
+@VisualIntelligenceIntents(semanticContentSearch: true)
+class VisualSearchHandler implements VisualIntelligenceAssistantHandler {
+  @override
+  Future<void> semanticContentSearch({required AssistantSemanticContent semanticContent}) async {
+    Store.instance
+      ..onScreen = 'looking for ${semanticContent.labels.join(', ')}'
       ..changed();
   }
 }

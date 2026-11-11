@@ -10,6 +10,8 @@ part 'dart_writer_background.dart';
 
 part 'dart_writer_undo.dart';
 
+part 'dart_writer_intelligence.dart';
+
 /// Writes `lib/assistant_actions.g.dart`: the registry `AssistantActions.start`
 /// takes, plus a typed handler interface per schema entity.
 String writeDart(AppModel app) {
@@ -32,7 +34,7 @@ String writeDart(AppModel app) {
         if (k == IntentKind.call) i,
     for (final d in app.schemaDomains) ...d.intents,
   ].any((i) => const {CallResult.entities, CallResult.union, CallResult.unions}.contains(callResult(i)));
-  if (returnsLists) out.writeln("import 'dart:convert';");
+  if (returnsLists || _intelligenceNeedsJson(app)) out.writeln("import 'dart:convert';");
   out
     ..writeln()
     ..writeln("import 'package:assistant_actions/assistant_actions.dart';");
@@ -151,6 +153,7 @@ String writeDart(AppModel app) {
           }
       }
     }
+    _queryMethods(out, s);
     out.writeln('}');
   }
 
@@ -167,6 +170,8 @@ String writeDart(AppModel app) {
             if (!s.hasOwnOpen) s.className,
           for (final e in app.entities) e.className,
         ]) {
+          // Entities with a deep link open it instead.
+          if (app.opensUrl(name)) continue;
           out
             ..writeln()
             ..writeln('  /// Siri asked to open the `$name` with [id] (`system.open`): show it.')
@@ -190,6 +195,7 @@ String writeDart(AppModel app) {
     for (final e in finders) 'required FutureOr<${ref(e.library, e.className)}?> Function(String id) find${e.className},',
     for (final s in app.schemaEntities) 'required ${s.className}AssistantHandler ${camel(s.className)},',
     for (final d in app.schemaDomains) 'required ${d.handler} ${d.parameter},',
+    ..._visualSearchArgs(app),
   ];
   out
     ..writeln()
@@ -234,6 +240,8 @@ String writeDart(AppModel app) {
             if (!s.hasOwnOpen) s.className,
           for (final e in app.entities) e.className,
         ]) {
+          // Entities with a deep link open it instead.
+          if (app.opensUrl(name)) continue;
           out
             ..writeln("    'system.open.$name': (args) async {")
             ..writeln("      await ${d.parameter}.open$name(AssistantValue.string(args['id']) ?? (throw ArgumentError.notNull('id')));")
@@ -247,6 +255,7 @@ String writeDart(AppModel app) {
       if (d.undoable && intent.canUndo) _undoEntry(out, callActionId(null, intent), d.parameter, intent, null, app.openEnumNames);
     }
   }
+  _intelligenceEntries(out, app);
   out
     ..writeln('  },')
     ..writeln('  codecs: {');
@@ -311,6 +320,7 @@ String writeDart(AppModel app) {
     ..writeln('  },')
     ..writeln(');');
   if (app.background case final b?) _backgroundEntrypoint(out, b, ref);
+  _intelligenceTail(out, app, ref);
   return out.toString();
 }
 

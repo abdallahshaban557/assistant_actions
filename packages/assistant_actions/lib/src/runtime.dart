@@ -129,6 +129,51 @@ abstract final class AssistantActions {
     }
   }
 
+  /// Tells Siri and Apple Intelligence that [item] (of an `@AssistantEntity`
+  /// or schema entity class) is what's on screen, so "remind me about this"
+  /// or "summarize this" mean it. Call it when the item's screen appears,
+  /// and [stopShowing] when it goes.
+  ///
+  /// The item becomes the `appEntityIdentifier` of an `NSUserActivity` on
+  /// the app's key window (iOS 18.2+ / macOS 15.2+, and the OS version the
+  /// entity's schema needs). Returns whether it was attached: false on older
+  /// systems, without a window, or before [start].
+  static Future<bool> showing<T>(T item) async {
+    final codec = _codec<T>(item);
+    return await callSwift('context.showing', {'collection': codec.collection, 'id': codec.idOf(item)}) == true;
+  }
+
+  /// Nothing the app shows is an entity any more; see [showing].
+  static Future<void> stopShowing() async {
+    await callSwift('context.stopShowing');
+  }
+
+  /// Tells Siri the user opened [item] in the app, so Siri suggestions and
+  /// personal context learn what they use. Donates the item's `system.open`
+  /// intent, so it needs `@SystemIntents(open: true)`; returns whether Siri
+  /// got a donation.
+  ///
+  /// For actions the user runs in the app, call the generated
+  /// `AssistantDonations.<function>(...)` instead.
+  static Future<bool> donate<T>(T item) async {
+    final codec = _codec<T>(item);
+    return await callSwift('donate.entity', {'collection': codec.collection, 'id': codec.idOf(item)}) == true;
+  }
+
+  /// Donates `@AssistantAction` [action] run with [args] (encoded as Swift
+  /// expects). Used by the generated `AssistantDonations`; call those.
+  static Future<bool> donateAction(String action, Map<String, Object?> args) async =>
+      await callSwift('donate.action', {'action': action, 'args': args}) == true;
+
+  static EntityCodec<Object?> _codec<T>(T item) {
+    final codecs = _registry?.codecs ?? const {};
+    final codec = codecs[T] ?? codecs[item.runtimeType];
+    if (codec == null) {
+      throw StateError('No entity codec for ${item.runtimeType}. Is it annotated, and was start() called?');
+    }
+    return codec;
+  }
+
   /// Runs Swift feature [method] (registered with `AssistantHostCalls` in
   /// Swift) with [args] and returns its decoded JSON result. For features of
   /// assistant_actions; null when the runtime isn't started or there is no

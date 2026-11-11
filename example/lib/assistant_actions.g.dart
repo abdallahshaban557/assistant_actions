@@ -2,6 +2,7 @@
 // ignore_for_file: type=lint
 
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:assistant_actions/assistant_actions.dart';
 import 'package:assistant_actions/schemas/clock.dart' show ClockTimerState;
@@ -245,9 +246,6 @@ abstract interface class SystemAssistantHandler {
   /// Siri asked to open the `Countdown` with [id] (`system.open`): show it.
   Future<void> openCountdown(String id);
 
-  /// Siri asked to open the `Recipe` with [id] (`system.open`): show it.
-  Future<void> openRecipe(String id);
-
   /// Siri's `system.searchInApp` ("Search").
   /// Navigate to search results.
   Future<void> searchInApp({required String criteria});
@@ -270,6 +268,13 @@ abstract interface class CameraAssistantHandler {
   Future<void> stopCapture();
 }
 
+/// Handles Apple's `visualIntelligence` intents turned on with `@VisualIntelligenceIntents` on `VisualSearchHandler`.
+abstract interface class VisualIntelligenceAssistantHandler {
+  /// Siri's `visualIntelligence.semanticContentSearch` ("Show Visual Search Results").
+  /// Show more and richer visual search results in the app.
+  Future<void> semanticContentSearch({required AssistantSemanticContent semanticContent});
+}
+
 /// Pass to `AssistantActions.start`.
 AssistantActionsRegistry assistantActionsRegistry({
   required FutureOr<a1.Recipe?> Function(String id) findRecipe,
@@ -280,6 +285,8 @@ AssistantActionsRegistry assistantActionsRegistry({
   required DocItemAssistantHandler docItem,
   required SystemAssistantHandler system,
   required CameraAssistantHandler camera,
+  required VisualIntelligenceAssistantHandler visualIntelligence,
+  required FutureOr<Iterable<Object>> Function(AssistantSemanticContent content) visualSearch,
 }) => AssistantActionsRegistry(
   actions: {
     'addToShoppingList': (args) async {
@@ -423,12 +430,6 @@ AssistantActionsRegistry assistantActionsRegistry({
       );
       return null;
     },
-    'system.open.Recipe': (args) async {
-      await system.openRecipe(
-        AssistantValue.string(args['id']) ?? (throw ArgumentError.notNull('id')),
-      );
-      return null;
-    },
     'system.searchInApp': (args) async {
       await system.searchInApp(
         criteria:
@@ -450,6 +451,22 @@ AssistantActionsRegistry assistantActionsRegistry({
     'camera.stopCapture': (args) async {
       await camera.stopCapture();
       return null;
+    },
+    'visualIntelligence.semanticContentSearch': (args) async {
+      await visualIntelligence.semanticContentSearch(
+        semanticContent:
+            AssistantValue.semanticContent(args['semanticContent']) ??
+            (throw ArgumentError.notNull('semanticContent')),
+      );
+      return null;
+    },
+    'visualIntelligence.search': (args) async {
+      final content =
+          AssistantValue.semanticContent(args['content']) ?? const AssistantSemanticContent();
+      return jsonEncode([
+        for (final item in await visualSearch(content))
+          if (_visualSearchReference(item) case final reference?) reference,
+      ]);
     },
   },
   codecs: {
@@ -557,3 +574,72 @@ AssistantActionsRegistry assistantActionsRegistry({
 /// `appRegistry`.
 @pragma('vm:entry-point')
 Future<void> assistantActionsBackgroundMain() => AssistantActions.startInBackground(a2.appRegistry);
+
+/// The collection and id of a `visualSearch` result; null for items Visual
+/// Intelligence can't show (no `visualSearch: true` on their class).
+Map<String, String>? _visualSearchReference(Object item) => switch (item) {
+  a1.Recipe e => {'collection': 'Recipe', 'id': e.id},
+  a1.JournalItem e => {'collection': 'JournalItem', 'id': e.id},
+  a1.DocItem e => {'collection': 'DocItem', 'id': e.path},
+  _ => null,
+};
+
+/// Tells Siri the user just ran an action in the app, so Siri suggestions and
+/// personal context learn it (`IntentDonationManager`). Each returns whether
+/// Siri got the donation. For items the user opened, use
+/// `AssistantActions.donate(item)`.
+abstract final class AssistantDonations {
+  /// The user ran `addToShoppingList` ("Add to Shopping List") in the app.
+  static Future<bool> addToShoppingList(a1.Recipe recipe, {int? servings}) =>
+      AssistantActions.donateAction('addToShoppingList', {
+        'recipe': recipe.id,
+        'servings': servings,
+      });
+
+  /// The user ran `removeFromShoppingList` ("Remove from Shopping List") in the app.
+  static Future<bool> removeFromShoppingList(a1.Recipe recipe) =>
+      AssistantActions.donateAction('removeFromShoppingList', {'recipe': recipe.id});
+
+  /// The user ran `showRecipeCard` ("Show Recipe Card") in the app.
+  static Future<bool> showRecipeCard(a1.Recipe recipe) =>
+      AssistantActions.donateAction('showRecipeCard', {'recipe': recipe.id});
+
+  /// The user ran `pickRecipe` ("Pick a Recipe") in the app.
+  static Future<bool> pickRecipe({Meal meal = Meal.dinner}) =>
+      AssistantActions.donateAction('pickRecipe', {'meal': AssistantValue.encodeEnum(meal)});
+
+  /// The user ran `countOpenTasks` ("Count Open Tasks") in the app.
+  static Future<bool> countOpenTasks() => AssistantActions.donateAction('countOpenTasks', const {});
+
+  /// The user ran `planMeal` ("Plan a Meal") in the app.
+  static Future<bool> planMeal(a1.Recipe recipe, {Meal meal = Meal.dinner}) =>
+      AssistantActions.donateAction('planMeal', {
+        'recipe': recipe.id,
+        'meal': AssistantValue.encodeEnum(meal),
+      });
+
+  /// The user ran `quickestRecipe` ("Quickest Recipe") in the app.
+  static Future<bool> quickestRecipe({Duration? under}) => AssistantActions.donateAction(
+    'quickestRecipe',
+    {'under': AssistantValue.encodeDuration(under)},
+  );
+
+  /// The user ran `shoppingList` ("Shopping List") in the app.
+  static Future<bool> shoppingList() => AssistantActions.donateAction('shoppingList', const {});
+
+  /// The user ran `nextTask` ("Next Task") in the app.
+  static Future<bool> nextTask() => AssistantActions.donateAction('nextTask', const {});
+
+  /// The user ran `archiveDoneTasks` ("Archive Done Tasks") in the app.
+  static Future<bool> archiveDoneTasks() =>
+      AssistantActions.donateAction('archiveDoneTasks', const {});
+
+  /// The user ran `stopRecording` ("Stop Recording") in the app.
+  static Future<bool> stopRecording() => AssistantActions.donateAction('stopRecording', const {});
+
+  /// The user looked at what `showOpenTasks` ("Show Open Tasks") answers, in the app.
+  static Future<bool> showOpenTasks() => AssistantActions.donateAction('showOpenTasks', const {});
+
+  /// The user looked at what `quickRecipes` ("Quick Recipes") answers, in the app.
+  static Future<bool> quickRecipes() => AssistantActions.donateAction('quickRecipes', const {});
+}

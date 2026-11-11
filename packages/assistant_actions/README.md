@@ -575,6 +575,115 @@ Titles and descriptions of the generated intents live in the
 `Localizable.xcstrings` by hand. (Not yet verified on a device with
 assistant_actions.) Spoken dialogs are plain strings: localize them in Dart
 and return them from the action.
+### Apple Intelligence in context
+
+**What's on screen.** Tell Siri which item the user is looking at, so
+"remind me about this" or "summarize this" mean it:
+
+```dart
+@override
+void initState() {
+  super.initState();
+  AssistantActions.showing(recipe);   // any @AssistantEntity or schema entity
+}
+
+@override
+void dispose() {
+  AssistantActions.stopShowing();
+  super.dispose();
+}
+```
+
+The item becomes the `appEntityIdentifier` of an `NSUserActivity`
+(`<bundle id>.assistant_actions.showing`) on the app's key window, on iOS
+18.2+ / macOS 15.2+ (and the OS version the entity's schema needs).
+`showing` returns whether it was attached. A file entity (`files.file`) is
+identified by the `FileEntityIdentifier` of its path.
+
+**Sharing items with other apps.** Every generated entity is `Transferable`,
+as text (its title, subtitle and text fields), so Apple Intelligence can hand
+it to another app. Where Apple's schema catalog asks for more, the entity
+exports that too, when the member is mapped: a journal entry's `location` and
+a maps place's `place` as a `PlaceDescriptor` (iOS / macOS 26.4+), and the
+`person` of a calendar attendee, message person or phone person as an
+`IntentPerson`. A file entity also hands over the file itself.
+
+**Deep links.** Give an entity a URL template, with `{id}` for the item's id:
+
+```dart
+@AssistantEntity(title: 'Recipe', url: 'cookbook://recipes/{id}')
+class Recipe { ... }
+
+@RemindersReminder(createReminder: true, url: 'cookbook://tasks/{id}')
+class TaskItem { ... }
+```
+
+The entity becomes a `URLRepresentableEntity` (iOS 18+ / macOS 15+), so
+Apple Intelligence can link to items. With `@SystemIntents(open: true)`,
+opening such an item opens its link (`URLRepresentableIntent`) instead of
+calling the handler's `open…` method, which isn't generated for it. An
+`@IntentShortcut('system.open', …)` on the class still works: the shortcut
+opens the item's link. The app handles the link like any deep link:
+
+1. Register the scheme in both Runners' `Info.plist` (`CFBundleURLTypes`).
+2. On iOS, set `FlutterDeepLinkingEnabled` to `true` in `ios/Runner/Info.plist`
+   and route the link: with `go_router` or `MaterialApp.router` it arrives as
+   a route; otherwise override `didPushRouteInformation` in a
+   `WidgetsBindingObserver` and read `routeInformation.uri` (see the
+   example's `main.dart`).
+3. On macOS, Flutter doesn't route links itself: receive them with a package
+   such as `app_links`, or in the `AppDelegate`'s `application(_:open:)`.
+
+**Donations.** Tell Siri what the user does in the app, so Siri suggestions
+and personal context learn it:
+
+```dart
+await AssistantActions.donate(recipe);   // the user opened it
+await AssistantDonations.addToShoppingList(recipe, servings: 2);   // ran an action
+```
+
+`donate(item)` donates the item's `system.open` intent, so it needs
+`@SystemIntents(open: true)`. The generated `AssistantDonations` has one
+method per `@AssistantAction` (and snapshot answer), with the function's
+parameters and defaults (entities and lists of them, enums, lists,
+durations, people, places and files), whether it runs deferred, live or
+in the background. Actions are also `PredictableIntent`s, so Siri can
+suggest them with the values donated. Each returns whether Siri got the
+donation (`IntentDonationManager`). Focus filters are set by the system, so
+they aren't donated.
+
+**Visual Intelligence.** `visualSearch: true` on entity annotations lets
+Visual Intelligence show the app's items for what the camera or a screenshot
+shows. The registry then takes a `visualSearch` callback that returns the
+items (of any of those classes):
+
+```dart
+@AssistantEntity(title: 'Recipe', visualSearch: true)
+class Recipe { ... }
+
+await AssistantActions.start(assistantActionsRegistry(
+  visualSearch: (content) => recipes.where((r) => content.labels.any(r.name.contains)),
+  ...
+));
+```
+
+`content` is an `AssistantSemanticContent`: the `labels` Visual Intelligence
+recognised and the `image`, a PNG `AssistantFile` (delete it when done).
+Queries can't bring the app forward, so with `@AssistantBackground()` they
+start the headless engine (`AssistantBackground.shared.prepare()`); without
+it they wait up to 3 s for the app's Dart. When Dart isn't there (iOS
+doesn't start Flutter without a scene), Swift answers from the published
+items whose text matches the labels. One entity type needs
+iOS 26 / macOS 27; several make a union, iOS / macOS 27.
+`@VisualIntelligenceIntents(semanticContentSearch: true)` adds "more results",
+which opens the app with the same content.
+
+**Queries.** Importing queries in Apple's catalog are opt-ins on the entity
+annotation: `@MapsPlace(placeIntentValueQuery: true)` lets Apple Intelligence
+find the app's places for a `PlaceDescriptor` (Apple's "Start Navigation" use
+case needs it), with `placeIntentValueQuery(AssistantPlace place)` on the
+generated handler returning ids; without Flutter, the published places within
+150 m (or with its name) answer.
 
 ## Run
 
@@ -654,7 +763,8 @@ No Runner changes are needed.
 - Published entities are also indexed in Spotlight (iOS 18+ / macOS 15+), and
   kept in step with Siri's changes, so Siri can find "my reminders in App".
 - Dart and Swift call each other directly over FFI (Pigeon native interop,
-  `pigeons/assistant_api.dart`), with no platform channels.
+  `pigeons/assistant_api.dart`), with no platform channels. Features such as
+  `showing` and donations run Swift by name over its one `invoke` method.
 - With `@AssistantBackground()`, the generated `AssistantActionsAppBackground`
   class tells the runtime the entrypoint, the way the Spotlight indexer is found
   by class name. Dart on the headless engine claims it over a host call, so

@@ -12,6 +12,18 @@ public protocol AssistantEncodable {
   var assistantValue: Any { get }
 }
 
+/// Thrown by a generated `Transferable` export when the item has no value
+/// for the member it exports (a journal entry without a location).
+public enum AssistantTransferError: Error, CustomStringConvertible {
+  case noValue(String)
+
+  public var description: String {
+    switch self {
+    case .noValue(let member): return "The item has no \(member)"
+    }
+  }
+}
+
 /// People, places, files and recurrence rules cross to Dart as small maps
 /// (see `values.dart`); unions as `{case, kind, value}`.
 extension AssistantValues {
@@ -71,13 +83,7 @@ extension AssistantValues {
   /// Dart can read it even when the call is queued, and returns its path.
   public static func encode(_ file: IntentFile?) -> Any {
     guard let file else { return NSNull() }
-    do {
-      let folder = try FileManager.default
-        .url(for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
-        .appendingPathComponent("assistant_actions/files/\(UUID().uuidString)", isDirectory: true)
-      try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-      let name = file.filename.isEmpty ? "file" : file.filename
-      let destination = folder.appendingPathComponent(name)
+    return saveFile(named: file.filename, type: file.type) { destination in
       if let source = file.fileURL {
         let scoped = source.startAccessingSecurityScopedResource()
         defer { if scoped { source.stopAccessingSecurityScopedResource() } }
@@ -85,12 +91,60 @@ extension AssistantValues {
       } else {
         try file.data.write(to: destination)
       }
+    }
+  }
+
+  /// Writes a file Dart will read into a new folder in Application Support
+  /// (`assistant_actions/files/<uuid>/`) with [write], and returns it as an
+  /// `AssistantFile` map (or NSNull if writing failed).
+  public static func saveFile(named name: String, type: UTType?, write: (URL) throws -> Void) -> Any {
+    do {
+      let folder = try FileManager.default
+        .url(for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
+        .appendingPathComponent("assistant_actions/files/\(UUID().uuidString)", isDirectory: true)
+      try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+      let name = name.isEmpty ? "file" : name
+      let destination = folder.appendingPathComponent(name)
+      try write(destination)
       var map: [String: Any] = ["path": destination.path, "name": name]
-      if let type = file.type { map["type"] = type.identifier }
+      if let type { map["type"] = type.identifier }
       return map
     } catch {
       return NSNull()
     }
+  }
+
+  /// The items a Dart handler returned as `[{collection, id}]` (the
+  /// registry's `visualSearch`), in order.
+  public static func references(_ reply: String?) -> [(collection: String, id: String)] {
+    ((json(reply) as? [Any]) ?? []).compactMap { item in
+      guard let map = item as? [String: Any], let collection = map["collection"] as? String,
+        let id = map["id"] as? String
+      else { return nil }
+      return (collection, id)
+    }
+  }
+
+  // ── Text ──
+
+  /// A text summary of an item, for `Transferable` exports and predictions:
+  /// [parts] (encoded values) that are text, or people and places as their
+  /// names, one per line, skipping empty and repeated ones.
+  public static func text(_ parts: [Any], separator: String = "\n") -> String {
+    var seen: [String] = []
+    for part in parts {
+      let text: String?
+      switch part {
+      case let string as String: text = string
+      case let map as [String: Any]:
+        text = (map["name"] as? String) ?? (map["address"] as? String) ?? (map["email"] as? String)
+          ?? (map["phone"] as? String)
+      default: text = nil
+      }
+      let trimmed = text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+      if !trimmed.isEmpty && !seen.contains(trimmed) { seen.append(trimmed) }
+    }
+    return seen.joined(separator: separator)
   }
 
   public static func file(_ value: Any?) -> IntentFile? {

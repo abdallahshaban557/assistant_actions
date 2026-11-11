@@ -39,6 +39,8 @@ class FilesFile extends SchemaEntity {
     super.confirm,
     super.confirmDeletes,
     super.replies,
+    super.url,
+    super.visualSearch,
   }) : super('files.file');
 
   /// Handle `files.openFile` ("Open Item"): calls

@@ -45,6 +45,8 @@ class WhiteboardBoard extends SchemaEntity {
     super.confirm,
     super.confirmDeletes,
     super.replies,
+    super.url,
+    super.visualSearch,
   }) : super('whiteboard.board');
 
   /// Handle `whiteboard.createItem` ("Add Item to Board"): calls
@@ -114,6 +116,8 @@ class WhiteboardItem extends SchemaEntity {
     super.dialogs,
     super.confirm,
     super.confirmDeletes,
+    super.url,
+    super.visualSearch,
   }) : super('whiteboard.item');
 
   /// Handle `whiteboard.updateItem` ("Update Board’s Item"): updates items.

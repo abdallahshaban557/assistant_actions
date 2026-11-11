@@ -38,6 +38,8 @@ class ReaderPage extends SchemaEntity {
     super.confirm,
     super.confirmDeletes,
     super.replies,
+    super.url,
+    super.visualSearch,
   }) : super('reader.page');
 
   /// Handle `reader.openPage` ("Open Page"): calls
@@ -108,6 +110,8 @@ class ReaderDocument extends SchemaEntity {
     this.openDocument = false,
     super.dialogs,
     super.confirm,
+    super.url,
+    super.visualSearch,
   }) : super('reader.document');
 
   /// Handle `reader.rotateDocuments` ("Rotate Documents"): calls

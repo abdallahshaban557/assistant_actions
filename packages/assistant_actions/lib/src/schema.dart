@@ -11,6 +11,8 @@ abstract class SchemaEntity {
     this.confirm = const {},
     this.confirmDeletes = true,
     this.replies = const {},
+    this.url,
+    this.visualSearch = false,
   });
 
   /// The schema's identifier, such as `reminders.reminder`.
@@ -37,6 +39,14 @@ abstract class SchemaEntity {
   /// (what Siri says, a result card, or several items to choose from)
   /// instead of a plain value. Changes those methods' return types.
   final Set<String> replies;
+
+  /// A deep link to an item, such as `'mira://tasks/{id}'`; see
+  /// `AssistantEntity.url`.
+  final String? url;
+
+  /// Visual Intelligence shows these items for what the camera or a
+  /// screenshot shows; see `AssistantEntity.visualSearch`.
+  final bool visualSearch;
 }
 
 /// A member of schema entity [S] with Dart type [T], used as a field

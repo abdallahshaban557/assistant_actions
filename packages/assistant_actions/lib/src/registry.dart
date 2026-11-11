@@ -29,6 +29,9 @@ class EntityCodec<T> {
   final String? Function(T item)? subtitle;
   final Map<String, Object?> Function(T item) fields;
 
+  /// [item]'s id. (A method, so it works through an `EntityCodec<Object?>`.)
+  String idOf(T item) => id(item);
+
   Map<String, Object?> encode(T item) => {
         'id': id(item),
         'title': title(item),
@@ -129,6 +132,8 @@ abstract final class AssistantValue {
   static AssistantPlace? place(Object? v) => v is Map ? AssistantPlace.fromJson(v.cast()) : null;
   static AssistantFile? file(Object? v) => v is Map && v['path'] is String ? AssistantFile.fromJson(v.cast()) : null;
   static AssistantRecurrence? recurrence(Object? v) => v is Map ? AssistantRecurrence(v.cast()) : null;
+  static AssistantSemanticContent? semanticContent(Object? v) =>
+      v is Map ? AssistantSemanticContent.fromJson(v.cast()) : null;
 
   static Map<String, Object?>? encodePerson(AssistantPerson? p) => p?.toJson();
   static Map<String, Object?>? encodePlace(AssistantPlace? p) => p?.toJson();

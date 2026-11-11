@@ -321,6 +321,64 @@ void main() {
     expect(host.calls, ['invoke background.claim'], reason: 'the inbox is left for the app engine');
     expect(host.inbox, hasLength(1));
   });
+  group('Apple Intelligence in context', () {
+    final registry = AssistantActionsRegistry(codecs: {
+      _Item: EntityCodec<_Item>('Item', id: (e) => e.id, title: (e) => e.name, fields: (e) => const {}),
+    });
+    const walk = _Item('w1', 'Walk', null);
+
+    test('showing, stopShowing and donate name the item to Swift', () async {
+      final host = _CallingHost();
+      await AssistantActions.start(registry, host: host);
+      expect(await AssistantActions.showing(walk), isFalse, reason: 'the echo host returns no true');
+      await AssistantActions.stopShowing();
+      await AssistantActions.donate(walk);
+      await AssistantActions.donateAction('pinNote', {'note': 'w1', 'times': 2});
+      expect(host.invoked, [
+        ['context.showing', {'collection': 'Item', 'id': 'w1'}],
+        ['context.stopShowing', <String, Object?>{}],
+        ['donate.entity', {'collection': 'Item', 'id': 'w1'}],
+        [
+          'donate.action',
+          {
+            'action': 'pinNote',
+            'args': {'note': 'w1', 'times': 2},
+          },
+        ],
+      ]);
+    });
+
+    test('showing reports what Swift did, and needs an entity class', () async {
+      await AssistantActions.start(registry, host: _CallingHost(reply: 'true'));
+      expect(await AssistantActions.showing(walk), isTrue);
+      expect(await AssistantActions.showing<Object>(walk), isTrue, reason: 'found by runtime type');
+      expect(() => AssistantActions.showing('not an entity'), throwsStateError);
+      await AssistantActions.start(registry, host: _FakeHost([]));
+      expect(await AssistantActions.donate(walk), isFalse, reason: 'no Swift side');
+    });
+
+    test('Visual Intelligence content decodes labels and the image', () {
+      final content = AssistantValue.semanticContent({
+        'labels': ['dog', 3, 'golden retriever'],
+        'image': {'path': '/tmp/image.png', 'name': 'image.png', 'type': 'public.png'},
+      })!;
+      expect(content.labels, ['dog', 'golden retriever']);
+      expect(content.image, const AssistantFile(path: '/tmp/image.png', name: 'image.png', type: 'public.png'));
+      expect(AssistantSemanticContent.fromJson(content.toJson()), content);
+      expect(AssistantValue.semanticContent({'labels': <String>[]})!.image, isNull);
+      expect(AssistantValue.semanticContent('nope'), isNull);
+    });
+
+    test('schema and plain entity annotations take a deep link and Visual Intelligence', () {
+      const entry = JournalEntry(createEntry: true, url: 'mira://journal/{id}', visualSearch: true);
+      expect((entry.url, entry.visualSearch), ('mira://journal/{id}', true));
+      expect(const NotesNote().url, isNull);
+      const recipe = AssistantEntity(title: 'Recipe', url: 'cook://recipes/{id}');
+      expect((recipe.url, recipe.visualSearch), ('cook://recipes/{id}', false));
+      final catalog = jsonDecode(File('lib/src/catalog/journal.json').readAsStringSync()) as Map;
+      expect((catalog['queries'] as Map)['entryTransferable']['property'], 'location');
+    });
+  });
 }
 
 class _BackgroundHost extends _FakeHost implements AssistantHostCalls {
@@ -338,9 +396,15 @@ class _BackgroundHost extends _FakeHost implements AssistantHostCalls {
 enum _Case { a, b, this$ }
 
 class _CallingHost extends _FakeHost implements AssistantHostCalls {
-  _CallingHost() : super([]);
+  _CallingHost({this.reply}) : super([]);
+
+  /// What every call returns; by default it echoes the call.
+  final String? reply;
+  final invoked = <List<Object?>>[];
 
   @override
-  Future<String?> invoke(String method, String argsJson) async =>
-      jsonEncode({'method': method, 'args': jsonDecode(argsJson)});
+  Future<String?> invoke(String method, String argsJson) async {
+    invoked.add([method, jsonDecode(argsJson)]);
+    return reply ?? jsonEncode({'method': method, 'args': jsonDecode(argsJson)});
+  }
 }

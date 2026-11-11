@@ -262,10 +262,23 @@ class CaseTitle {
 /// as a parameter and Siri can search it. Publish the current items with
 /// `AssistantActions.publish`.
 class AssistantEntity {
-  const AssistantEntity({required this.title});
+  const AssistantEntity({required this.title, this.url, this.visualSearch = false});
 
   /// The type's name, such as `Recipe`.
   final String title;
+
+  /// A deep link to an item, such as `'cookbook://recipes/{id}'`, where
+  /// `{id}` is the item's id. The entity becomes a `URLRepresentableEntity`
+  /// (iOS 18+ / macOS 15+), so Apple Intelligence can link to items, and
+  /// `system.open` opens the link instead of calling the handler's
+  /// `open…` method, which isn't generated for it. Register the scheme and
+  /// handle the link in the app (see the README).
+  final String? url;
+
+  /// Visual Intelligence shows these items for what the camera or a
+  /// screenshot shows: the registry's `visualSearch` callback picks them,
+  /// from the image's labels and pixels.
+  final bool visualSearch;
 }
 
 /// The field holding an entity's unique, stable id (a `String`).

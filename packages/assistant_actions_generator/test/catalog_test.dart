@@ -141,4 +141,65 @@ void main() {
       expect(library, isNot(contains('this.search')));
     });
   });
+
+  group('query schemas', () {
+    test('exporting queries name the member they hand to other apps', () {
+      final q = journal.queries['journal.entryTransferable']!;
+      expect((q.entity, q.direction, q.type.kind, q.property), ('journal.entry', 'exporting', 'placeDescriptor', 'location'));
+      expect(q.exports, isTrue);
+      expect(journal.queriesFor(journal.entities['journal.entry']!), [q]);
+      for (final (domain, id, entity) in [
+        ('calendar', 'calendar.attendeeTransferable', 'calendar.attendee'),
+        ('messages', 'messages.messagePersonTransferable', 'messages.messagePerson'),
+        ('phone', 'phone.phonePersonTransferable', 'phone.phonePerson'),
+      ]) {
+        final person = _load(domain).queries[id]!;
+        expect((person.entity, person.type.kind, person.property), (entity, 'person', 'person'), reason: id);
+      }
+    });
+
+    test('maps imports places with an IntentValueQuery; private queries are skipped', () {
+      final maps = _load('maps');
+      final import = maps.queries['maps.placeIntentValueQuery']!;
+      expect((import.entity, import.imports, import.type.kind, import.property), ('maps.place', true, 'placeDescriptor', null));
+      expect(import.availability, {'iOS': 27, 'macOS': 27});
+      expect(maps.queries['maps.placeTransferable']!.property, 'place');
+      expect(maps.queries.containsKey('maps.parkingLocationDataTransferable'), isFalse);
+      expect(maps.skipped['parkingLocationDataTransferable'], 'no public definition in the SDK');
+    });
+
+    test('queries round-trip through JSON', () {
+      final maps = _load('maps');
+      final again = DomainCatalog.fromJson(jsonDecode(jsonEncode(maps.toJson())) as Map<String, Object?>);
+      expect(again.queries.keys, maps.queries.keys);
+      expect(again.queries['maps.placeIntentValueQuery']!.toJson(), maps.queries['maps.placeIntentValueQuery']!.toJson());
+      expect(reminders.queries, isEmpty);
+    });
+
+    test('typed schema libraries turn importing queries on and describe exports', () {
+      final maps = generateSchemaLibrary(_load('maps'));
+      expect(maps, contains('this.placeIntentValueQuery = false,'));
+      expect(maps, contains('`Future<List<String>> placeIntentValueQuery(AssistantPlace place)` on the generated handler'));
+      expect(maps, contains("Apple Intelligence can hand an item's `place` to other apps"));
+      final library = generateSchemaLibrary(journal);
+      expect(library, contains('super.url,'));
+      expect(library, contains('super.visualSearch'));
+      expect(library, isNot(contains('entryTransferable = false')), reason: 'exports are always on');
+    });
+  });
+
+  test('deep link templates are absolute URLs with {id} only', () {
+    expect(urlTemplateError('cook://recipes/{id}'), isNull);
+    expect(urlTemplateError('https://cook.example/r/{id}?from=siri'), isNull);
+    expect(urlTemplateError('cook://recipes/{name}'), contains('can only use {id}, not {name}'));
+    expect(urlTemplateError('cook://recipes'), contains('needs {id}'));
+    expect(urlTemplateError('recipes/{id}'), contains('must be an absolute URL'));
+  });
+
+  test('Visual Intelligence content reaches Dart', () {
+    final search = _load('visualIntelligence').intents['visualIntelligence.semanticContentSearch']!;
+    expect(droppedArgs(search), isEmpty);
+    expect(callSignature(search, null),
+        'Future<void> semanticContentSearch({required AssistantSemanticContent semanticContent})');
+  });
 }

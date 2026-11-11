@@ -277,6 +277,68 @@ class IntentSchema {
       };
 }
 
+/// An App Schema query (`querySchema` in Apple's catalog): how Apple
+/// Intelligence moves a system value into or out of items of an entity
+/// schema.
+///
+/// * Exporting queries (`journal.entryTransferable`) hand the value of
+///   [property] (a journal entry's `location`) to other apps; the generated
+///   entity's `Transferable` conformance exports it.
+/// * Importing queries (`maps.placeIntentValueQuery`) find the app's items
+///   for a value, such as the places matching a `PlaceDescriptor`; the
+///   generated `IntentValueQuery` answers them.
+class QuerySchema {
+  const QuerySchema({
+    required this.id,
+    required this.entity,
+    required this.direction,
+    required this.type,
+    required this.availability,
+    this.property,
+  });
+
+  factory QuerySchema.fromJson(String id, Map<String, Object?> json) => QuerySchema(
+        id: id,
+        entity: json['entity'] as String,
+        direction: json['direction'] as String,
+        type: SchemaType.fromJson((json['type'] as Map).cast()),
+        availability: (json['availability'] as Map?)?.cast<String, num>() ?? const {},
+        property: json['property'] as String?,
+      );
+
+  /// `journal.entryTransferable`.
+  final String id;
+
+  /// The entity schema whose items the query exports or finds, such as
+  /// `journal.entry`.
+  final String entity;
+
+  /// `exporting` or `importing`.
+  final String direction;
+
+  /// The system value exported or imported: `placeDescriptor`, `person`.
+  final SchemaType type;
+
+  final Map<String, num> availability;
+
+  /// The member an exporting query takes the value from (`location`).
+  final String? property;
+
+  bool get exports => direction == 'exporting';
+  bool get imports => direction == 'importing';
+
+  String get domain => id.split('.').first;
+  String get name => id.split('.').last;
+
+  Map<String, Object?> toJson() => {
+        'entity': entity,
+        'direction': direction,
+        'type': type.toJson(),
+        'availability': availability,
+        if (property != null) 'property': property,
+      };
+}
+
 /// How an intent schema changes items of an entity schema.
 ///
 /// [record] intents (`journal.createAudioEntry`) take nothing and return
@@ -297,6 +359,7 @@ class DomainCatalog {
     required this.enums,
     required this.intents,
     this.unions = const {},
+    this.queries = const {},
     this.skipped = const {},
   });
 
@@ -323,6 +386,10 @@ class DomainCatalog {
         for (final MapEntry(:key, :value) in ((json['unions'] as Map?) ?? const {}).cast<String, Object?>().entries)
           '$domain.$key': UnionSchema.fromJson('$domain.$key', (value as Map).cast()),
       },
+      queries: {
+        for (final MapEntry(:key, :value) in ((json['queries'] as Map?) ?? const {}).cast<String, Object?>().entries)
+          '$domain.$key': QuerySchema.fromJson('$domain.$key', (value as Map).cast()),
+      },
       skipped: ((json['skipped'] as Map?) ?? const {}).cast<String, String>(),
     );
   }
@@ -339,6 +406,15 @@ class DomainCatalog {
   final Map<String, EnumSchema> enums;
   final Map<String, IntentSchema> intents;
   final Map<String, UnionSchema> unions;
+
+  /// Query schemas, by id (`journal.entryTransferable`).
+  final Map<String, QuerySchema> queries;
+
+  /// The queries over items of [entity].
+  List<QuerySchema> queriesFor(EntitySchema entity) => [
+        for (final q in queries.values)
+          if (q.entity == entity.id) q,
+      ];
 
   /// Schemas in Apple's catalog for this domain that apps can't adopt, with
   /// why: no public Swift definition in the SDK, or deprecated.
@@ -449,6 +525,7 @@ class DomainCatalog {
         'enums': {for (final e in enums.values) e.name: e.toJson()},
         if (unions.isNotEmpty) 'unions': {for (final u in unions.values) u.name: u.toJson()},
         'intents': {for (final i in intents.values) i.name: i.toJson()},
+        if (queries.isNotEmpty) 'queries': {for (final q in queries.values) q.name: q.toJson()},
         if (skipped.isNotEmpty) 'skipped': skipped,
       };
 }

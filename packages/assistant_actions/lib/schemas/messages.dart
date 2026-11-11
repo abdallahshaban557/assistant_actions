@@ -51,7 +51,7 @@ class MessagesCustomReaction extends SchemaEnumCases {
 /// Map fields with [MessagesConversationField] and turn on the schema intents the app
 /// supports. Each one becomes a method on the generated handler.
 class MessagesConversation extends SchemaEntity {
-  const MessagesConversation() : super('messages.conversation');
+  const MessagesConversation({super.url, super.visualSearch}) : super('messages.conversation');
 }
 
 /// Marks members of `messages.conversation`.
@@ -115,7 +115,8 @@ abstract final class MessagesConversationField {
 /// Map fields with [MessagesCustomAttachmentField] and turn on the schema intents the app
 /// supports. Each one becomes a method on the generated handler.
 class MessagesCustomAttachment extends SchemaEntity {
-  const MessagesCustomAttachment() : super('messages.customAttachment');
+  const MessagesCustomAttachment({super.url, super.visualSearch})
+      : super('messages.customAttachment');
 }
 
 /// Marks members of `messages.customAttachment`.
@@ -170,6 +171,8 @@ class MessagesMessage extends SchemaEntity {
     super.dialogs,
     super.confirm,
     super.replies,
+    super.url,
+    super.visualSearch,
   }) : super('messages.message');
 
   /// Handle `messages.editSentMessage` ("Edit Sent Message"): calls
@@ -326,8 +329,10 @@ abstract final class MessagesMessageField {
 ///
 /// Map fields with [MessagesMessagePersonField] and turn on the schema intents the app
 /// supports. Each one becomes a method on the generated handler.
+///
+/// Apple Intelligence can hand an item's `person` to other apps as a `person` (`messages.messagePersonTransferable`), when that member is mapped.
 class MessagesMessagePerson extends SchemaEntity {
-  const MessagesMessagePerson() : super('messages.messagePerson');
+  const MessagesMessagePerson({super.url, super.visualSearch}) : super('messages.messagePerson');
 }
 
 /// Marks members of `messages.messagePerson`.

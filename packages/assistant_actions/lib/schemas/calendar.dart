@@ -46,8 +46,10 @@ enum CalendarAttendeeStatus {
 ///
 /// Map fields with [CalendarAttendeeField] and turn on the schema intents the app
 /// supports. Each one becomes a method on the generated handler.
+///
+/// Apple Intelligence can hand an item's `person` to other apps as a `person` (`calendar.attendeeTransferable`), when that member is mapped.
 class CalendarAttendee extends SchemaEntity {
-  const CalendarAttendee() : super('calendar.attendee');
+  const CalendarAttendee({super.url, super.visualSearch}) : super('calendar.attendee');
 }
 
 /// Marks members of `calendar.attendee`.
@@ -93,7 +95,7 @@ abstract final class CalendarAttendeeField {
 /// Syncable (`SyncableEntity`), like Apple's own: keep each `@EntityId()`
 /// stable across launches and devices. Opt out with `@AssistantSyncable(false)`.
 class CalendarCalendar extends SchemaEntity {
-  const CalendarCalendar() : super('calendar.calendar');
+  const CalendarCalendar({super.url, super.visualSearch}) : super('calendar.calendar');
 }
 
 /// Marks members of `calendar.calendar`.
@@ -143,6 +145,8 @@ class CalendarEvent extends SchemaEntity {
     super.dialogs,
     super.confirm,
     super.replies,
+    super.url,
+    super.visualSearch,
   }) : super('calendar.event');
 
   /// The fixed `calendar.calendar` every item belongs to (required by the schema).

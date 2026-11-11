@@ -711,6 +711,20 @@
       ]
     }
   },
+  "queries": {
+    "messagePersonTransferable": {
+      "entity": "messages.messagePerson",
+      "direction": "exporting",
+      "type": {
+        "kind": "person"
+      },
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "property": "person"
+    }
+  },
   "skipped": {
     "sendMessageReaction": "no public definition in the SDK"
   }

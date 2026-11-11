@@ -103,6 +103,8 @@ Future<void> main(List<String> args) async {
         skipped: Map.fromEntries(skipped.entries.toList()..sort((a, b) => a.key.compareTo(b.key))),
       );
       catalog = _withoutPrivateReferences(catalog, public, skipped);
+      catalog = _withQueries(
+          catalog, _latest(await _query(db, "select * from querySchema where domainID = '$domain'")), context, skipped);
       final json = p.join(root, 'lib', 'src', 'catalog', '$domain.json');
       final library = p.join(root, 'lib', 'schemas', schemaLibraryFile(domain));
       if (catalog.entities.isEmpty && catalog.intents.isEmpty) {
@@ -118,6 +120,7 @@ Future<void> main(List<String> args) async {
       await _run('dart', ['format', '--page-width', '100', library]);
       summary.add('$domain: ${catalog.entities.length} entities, ${catalog.enums.length} enums, '
           '${catalog.unions.length} unions, ${catalog.intents.length} intents'
+          '${catalog.queries.isEmpty ? '' : ', ${catalog.queries.length} queries'}'
           '${skipped.isEmpty ? '' : ', ${skipped.length} skipped'}');
     }
     stdout.writeln(summary.join('\n'));
@@ -216,6 +219,54 @@ DomainCatalog _withoutPrivateReferences(DomainCatalog catalog, Map<String, Objec
       for (final u in catalog.unions.values)
         if (u.cases.every((c) => privateRef(c.type, {u.id}) == null)) u.id: u,
     },
+    skipped: Map.fromEntries(skipped.entries.toList()..sort((a, b) => a.key.compareTo(b.key))),
+  );
+}
+
+/// [catalog] with its query schemas (`querySchema` rows): exporting queries
+/// (`journal.entryTransferable`, a `Transferable` export of a member) and
+/// importing ones (`maps.placeIntentValueQuery`, an `IntentValueQuery`).
+/// The SDK has no Swift names for queries: the metadata processor matches
+/// them by entity and value type. So a query is kept when Apple's catalog
+/// makes it public (`_visibility` 0) and the entity it's over was kept;
+/// the others are recorded in [skipped].
+DomainCatalog _withQueries(
+    DomainCatalog catalog, Iterable<Map<String, Object?>> rows, _Context context, Map<String, String> skipped) {
+  final queries = <String, QuerySchema>{};
+  for (final row in rows) {
+    final name = _name(context.names, catalog.domain, row);
+    if (name == null) continue;
+    final target = ((_json(row['value']) as Map)['entity'] as Map)['_0'] as Map;
+    final entityName = context.names['${target['domainID']}/${target['id']}'] ?? camel(target['id'] as String);
+    final entity = '${target['domainID']}.$entityName';
+    final MapEntry(key: direction, value: spec) = (_json(row['kind']) as Map).entries.single;
+    final value = (spec as Map)[direction == 'exporting' ? 'to' : 'from'] as Map;
+    if (row['_visibility'] != 0) {
+      skipped[name] = 'no public definition in the SDK';
+      continue;
+    }
+    if (!catalog.entities.containsKey(entity)) {
+      skipped[name] = 'uses $entity, which is not public';
+      continue;
+    }
+    queries['${catalog.domain}.$name'] = QuerySchema(
+      id: '${catalog.domain}.$name',
+      entity: entity,
+      direction: direction as String,
+      type: context.type(value),
+      availability: _availability(row['availability']),
+      property: row['sourceProperty'] as String?,
+    );
+  }
+  return DomainCatalog(
+    domain: catalog.domain,
+    hash: catalog.hash,
+    xcode: catalog.xcode,
+    entities: catalog.entities,
+    enums: catalog.enums,
+    intents: catalog.intents,
+    unions: catalog.unions,
+    queries: queries,
     skipped: Map.fromEntries(skipped.entries.toList()..sort((a, b) => a.key.compareTo(b.key))),
   );
 }

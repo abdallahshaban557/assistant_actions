@@ -9,8 +9,10 @@
 // without `ForegroundContinuableIntent`).
 //
 // 1. Writes a throwaway Flutter app whose models adopt every schema entity
-//    the generator can adopt (each mappable member mapped, every intent
-//    turned on) and every domain's `…Intents`.
+//    the generator can adopt (each mappable member mapped, every intent and
+//    importing query turned on, a deep link on every other entity, Visual
+//    Intelligence search on a few) and every domain's `…Intents`, plus a
+//    plain entity and action (deep link, donations, predictions).
 // 2. Runs the real builder on it (`build_runner`), then `flutter analyze` on
 //    the generated Dart.
 // 3. Compiles the generated Swift with the runtime's Swift (a stub stands in
@@ -77,7 +79,8 @@ Future<void> main(List<String> args) async {
 
   stdout
     ..writeln()
-    ..writeln('Adopted ${plan.adopted.length} entities, ${plan.intentCount} intents in ${plan.domains.length} domains.');
+    ..writeln('Adopted ${plan.adopted.length} entities, ${plan.intentCount} intents, ${plan.queryCount} queries '
+        'in ${plan.domains.length} domains.');
   if (plan.skipped.isNotEmpty) {
     stdout.writeln('Not adopted:');
     for (final MapEntry(:key, :value) in plan.skipped.entries) {
@@ -95,8 +98,8 @@ Future<void> main(List<String> args) async {
 /// A Markdown table of what each domain supports, from the validated plan.
 String _report(_Plan plan) {
   final out = StringBuffer()
-    ..writeln('| Domain | Support | Entities | Intents | Gaps |')
-    ..writeln('|---|---|---|---|---|');
+    ..writeln('| Domain | Support | Entities | Intents | Queries | Gaps |')
+    ..writeln('|---|---|---|---|---|---|');
   for (final d in plan.domains..sort()) {
     final catalog = plan.catalogs[d]!;
     final entities = catalog.entities.values.toList();
@@ -119,7 +122,12 @@ String _report(_Plan plan) {
     final notPublic = catalog.skipped.length;
     if (notPublic > 0) gaps.add('$notPublic schemas not adoptable (${_reasons(catalog.skipped.values)})');
     final full = adopted == entities.length && served.length == intents.length && gaps.length == (notPublic > 0 ? 1 : 0);
+    // Every query is served when its entity is adopted: exports by the
+    // entity's Transferable conformance, imports by an IntentValueQuery.
+    final queries = catalog.queries.values;
+    final queried = queries.where((q) => plan.adopted.containsKey(q.entity)).length;
     out.writeln('| `$d` | ${full ? 'Full' : 'Partial'} | $adopted/${entities.length} | ${served.length}/${intents.length} | '
+        '${queries.isEmpty ? '' : '$queried/${queries.length}'} | '
         '${gaps.isEmpty ? '' : gaps.join('; ').replaceAll('|', '\\|')} |');
   }
   return out.toString();
@@ -204,6 +212,12 @@ class _Plan {
     return null;
   }
 
+  /// Query schemas over adopted entities: exporting ones (Transferable) and
+  /// importing ones (IntentValueQuery), all on.
+  int get queryCount => [
+        for (final e in adopted.values) ...catalogs[e.domain]!.queriesFor(e),
+      ].length;
+
   int get intentCount =>
       intents.values.fold(0, (n, l) => n + l.length) + domainIntents.values.fold(0, (n, l) => n + l.length);
 
@@ -284,6 +298,14 @@ dev_dependencies:
         ..writeln('enum ${openEnums[e.id]} { first, second }');
     }
   }
+  // Visual Intelligence search on the first adopted entity of a few domains
+  // (one query, so a union of their types).
+  final visual = {
+    for (final d in const ['notes', 'journal', 'photos', 'maps'])
+      if (plan.domains.contains(d))
+        ?plan.catalogs[d]!.entities.values.where((e) => plan.adopted.containsKey(e.id)).firstOrNull?.id,
+  };
+  var linked = 0;
   for (final d in plan.domains) {
     final catalog = plan.catalogs[d]!;
     final domainIntents = plan.domainIntents[d]!;
@@ -311,6 +333,10 @@ dev_dependencies:
           for (final (intent, kind) in catalog.intentsFor(e))
             if (plan.intents[e.id]!.contains(intent)) (intent, kind),
         ]),
+        for (final q in catalog.queriesFor(e))
+          if (q.imports) '${q.name}: true',
+        if (linked++ % 2 == 0) "url: 'validation://${e.domain}/${e.name}/{id}'",
+        if (visual.contains(e.id)) 'visualSearch: true',
       ];
       models
         ..writeln()
@@ -338,6 +364,18 @@ dev_dependencies:
       models.writeln('}');
     }
   }
+  models.writeln('''
+
+/// A plain entity: deep link, Visual Intelligence, Transferable.
+@AssistantEntity(title: 'Validation Note', url: 'validation://notes/{id}', visualSearch: true)
+class ValidationNote {
+  ValidationNote(this.id, this.title);
+  @EntityId()
+  final String id;
+  @DisplayTitle()
+  final String title;
+  int? rank;
+}''');
   File(p.join(lib.path, 'models.dart')).writeAsStringSync(models.toString());
   File(p.join(lib.path, 'assistant_actions.dart')).writeAsStringSync('''
 @AssistantActionsApp(name: 'Schema Validation')
@@ -345,13 +383,16 @@ library;
 
 import 'package:assistant_actions/assistant_actions.dart';
 
-// ignore: unused_import
 import 'models.dart';
 ${_background ? '''
 
 @AssistantBackground()
 AssistantActionsRegistry backgroundRegistry() => const AssistantActionsRegistry();
-''' : ''}''');
+''' : ''}
+/// A plain action, for donations and predictions.
+@AssistantAction(title: 'Pin Note', dialog: 'Pinned {note}.')
+Future<void> pinNote(ValidationNote note, {int? times, DateTime? until}) async {}
+''');
 }
 
 String _className(EntitySchema e) => '${pascal(e.domain)}${pascal(e.name)}Item';
@@ -413,7 +454,7 @@ Future<bool> _processSwift(String swift, String platform, String out, {String? d
     for (final f in ['AssistantValues', 'AssistantInbox', 'AssistantSnapshot', 'AssistantQuery', 'AssistantSpotlight',
       'AssistantMatch', 'AssistantComparison', 'AssistantRichValues', 'AssistantHostCalls', 'AssistantReply',
       'AssistantDialog', 'AssistantInteraction', 'AssistantCardView', 'AssistantLiveCall', 'AssistantLiveIntents',
-      'AssistantFileIDs', 'AssistantUndo'])
+      'AssistantFileIDs', 'AssistantUndo', 'AssistantContext', 'AssistantVisualIntelligence'])
       p.join(sources, '$f.swift'),
   ];
   final ios = platform == 'ios';
@@ -490,6 +531,7 @@ import Foundation
 public final class AssistantBridge {
   public static let shared = AssistantBridge()
   public func perform(_ action: String, args: [String: Any]) async throws -> String? { nil }
+  public func waitUntilReady(timeout: TimeInterval) async -> Bool { false }
   public func inboxChanged() {}
 }
 

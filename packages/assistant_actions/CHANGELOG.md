@@ -1,3 +1,32 @@
+## 0.0.19
+
+* `AssistantActions.showing(item)` / `stopShowing()`: tell Siri and Apple
+  Intelligence which entity is on screen, so "remind me about this" means
+  it (an `NSUserActivity` with `appEntityIdentifier` on the key window, iOS
+  18.2+ / macOS 15.2+). File entities are identified by their
+  `FileEntityIdentifier`.
+* `AssistantActions.donate(item)` donates an item the user opened (its
+  `system.open` intent); the generated `AssistantDonations` donates actions
+  the user runs in the app, with the functions' parameters (entities and
+  lists of them, enums, lists, durations, people, places, files, defaults).
+* `url:` and `visualSearch:` on `@AssistantEntity` and every schema entity
+  annotation (`SchemaEntity.url` / `visualSearch`, forwarded by the schema
+  libraries alongside `dialogs`, `confirm` and `replies`).
+* `AssistantSemanticContent`: what Visual Intelligence saw (its labels, and
+  the image as a PNG `AssistantFile`). `visualIntelligence.semanticContentSearch`
+  now passes it to Dart, and `AssistantValue.semanticContent` decodes it.
+* The catalogs include Apple's query schemas (`queries`): exporting ones
+  (`journal.entryTransferable`, `maps.placeTransferable`, the attendee,
+  message person and phone person ones) and importing ones, which are
+  opt-ins on the entity annotation (`@MapsPlace(placeIntentValueQuery: true)`).
+* Swift: `AssistantContext`, `AssistantTransferError`,
+  `AssistantValues.text` / `saveFile` / `references` /
+  `encode(SemanticContentDescriptor)`, and label and place matching in
+  `AssistantMatch`. `EntityCodec.idOf`. Generator API 12.
+* Visual Intelligence needs Xcode 27 (Swift 6.4); with older Xcodes it is
+  left out and the package still builds.
+* Needs assistant_actions_generator 0.0.16.
+
 ## 0.0.18
 
 * `files.file` is supported: a file entity's `@EntityId()` is the file's path

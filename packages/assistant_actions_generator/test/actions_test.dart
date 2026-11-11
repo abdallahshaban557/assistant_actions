@@ -511,4 +511,53 @@ void main() {
       expect(filter, contains('"meal": AssistantValues.encode(meal),'));
     });
   });
+
+  group('donations and predictions', () {
+    final share = _action('share', params: [
+      ParamModel(name: 'recipes', title: 'Recipes', named: true, entity: _recipe, entityList: true),
+      ParamModel(name: 'tags', title: 'Tags', named: true, value: const ValueType(ValueKind.string, list: true)),
+      ParamModel(name: 'length', title: 'Length', named: true, value: const ValueType(ValueKind.duration, nullable: true)),
+      ParamModel(name: 'who', title: 'Who', named: true, value: const ValueType(ValueKind.person, nullable: true)),
+      ParamModel(name: 'where', title: 'Where', named: true, value: const ValueType(ValueKind.place)),
+    ]);
+
+    test('donated values decode into every parameter type', () {
+      final swift = SwiftWriter(_app(actions: [_plan(), share])).write();
+      final donate = block(swift, '  private static func donateAction(');
+      expect(donate, contains(
+          '      if let value = AssistantValues.string(values["meal"]).flatMap(MealEnum.init(rawValue:)) { intent.meal = value }'));
+      expect(donate, contains('    case "share":\n      guard #available(iOS 26.0, macOS 26.0, *) else { return false }'),
+          reason: 'PlaceDescriptor is iOS 26, like the action');
+      expect(donate, contains(r'guard let recipesValue = AssistantValues.strings(values["recipes"])?.compactMap({ id in '
+          r'AssistantSnapshot.records("Recipe").first(where: { $0.id == id }) }).map({ $0.map(RecipeEntity.init(record:)) })'));
+      expect(donate, contains(r'guard let tagsValue = AssistantValues.items(values["tags"])?.compactMap({ AssistantValues.string($0) })'));
+      expect(donate, contains(
+          r'intent.length = AssistantValues.double(values["length"]).map({ Measurement(value: $0, unit: UnitDuration.seconds) })'));
+      expect(donate, contains('intent.who = AssistantValues.person(values["who"])'));
+      expect(donate, contains('guard let whereValue = AssistantValues.place(values["where"]) else { return false }'));
+      final prediction = block(swift, 'extension ShareAction: PredictableIntent {');
+      expect(swift, contains('@available(iOS 26.0, macOS 26.0, *)\nextension ShareAction: PredictableIntent {'));
+      expect(prediction, contains(r'recipes.map(\.title).joined(separator: ", "), tags.map { $0 }.joined(separator: ", "), '
+          r'length.map { $0.formatted() } ?? ""'));
+    });
+
+    test('AssistantDonations mirrors each function, defaults included', () {
+      final dart = writeDart(_app(actions: [_plan(), share]));
+      expect(dart, contains('static Future<bool> planMeal(a1.Recipe recipe, {Meal meal = Meal.dinner}) =>'));
+      expect(dart, contains("AssistantActions.donateAction('planMeal', {'recipe': recipe.id, 'meal': AssistantValue.encodeEnum(meal)});"));
+      expect(dart, contains('static Future<bool> share({required List<a1.Recipe> recipes, required List<String> tags, '
+          'Duration? length, AssistantPerson? who, required AssistantPlace where}) =>'));
+      expect(dart, contains("'recipes': [for (final e in recipes) e.id],"));
+      expect(dart, contains("'length': AssistantValue.encodeDuration(length),"));
+    });
+
+    test('Focus filters are set by the system, so are neither donated nor predicted', () {
+      final filter = _action('applyFocus', focusFilter: const FocusFilterModel(), params: [
+        ParamModel(name: 'quiet', title: 'Quiet', named: true, value: const ValueType(ValueKind.boolean)),
+      ]);
+      final app = _app(actions: [filter]);
+      expect(SwiftWriter(app).write(), isNot(contains('PredictableIntent')));
+      expect(writeDart(app), isNot(contains('AssistantDonations')));
+    });
+  });
 }

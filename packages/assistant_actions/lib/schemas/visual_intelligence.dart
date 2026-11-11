@@ -30,11 +30,9 @@ class VisualIntelligenceIntents extends SchemaIntents {
   }) : super('visualIntelligence');
 
   /// Handle `visualIntelligence.semanticContentSearch` ("Show Visual Search Results"): calls
-  /// `Future<void> semanticContentSearch()`
+  /// `Future<void> semanticContentSearch({required AssistantSemanticContent semanticContent})`
   /// live, with the app in the foreground.
   ///
   /// Show more and richer visual search results in the app.
-  ///
-  /// Not passed to Dart yet: `semanticContent` (`sceneDescriptor`).
   final bool semanticContentSearch;
 }

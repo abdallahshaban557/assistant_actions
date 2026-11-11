@@ -36,6 +36,20 @@
     }
   },
   "intents": {},
+  "queries": {
+    "phonePersonTransferable": {
+      "entity": "phone.phonePerson",
+      "direction": "exporting",
+      "type": {
+        "kind": "person"
+      },
+      "availability": {
+        "iOS": 27,
+        "macOS": 27
+      },
+      "property": "person"
+    }
+  },
   "skipped": {
     "answerCall": "no public definition in the SDK",
     "audioRoute": "no public definition in the SDK",

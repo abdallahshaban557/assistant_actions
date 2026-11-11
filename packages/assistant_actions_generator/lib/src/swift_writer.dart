@@ -11,6 +11,7 @@ part 'swift_writer_surfaces.dart';
 part 'swift_writer_background.dart';
 part 'swift_writer_files.dart';
 part 'swift_writer_modern.dart';
+part 'swift_writer_intelligence.dart';
 
 /// Writes `AssistantActions.g.swift`, compiled into the generated
 /// `assistant_actions_app` plugin.
@@ -52,6 +53,7 @@ class SwiftWriter {
     _spotlight();
     _entityConformances();
     _backgroundEntrypoint();
+    _intelligence();
     body.write(_publicize(_out.toString()));
 
     return [
@@ -60,6 +62,8 @@ class SwiftWriter {
       '',
       'import AppIntents',
       'import CoreSpotlight',
+      // `Transferable` entities.
+      'import CoreTransferable',
       'import Foundation',
       for (final framework in _imports.toList()..sort())
         if (_optionalFrameworks.contains(framework))
@@ -1380,6 +1384,10 @@ ${_continuableExtension(name, modes, availability)}${_liveConformances(name, flo
       for (final e in app.entities) (e.className, e.swiftName, _max(intent.availability, const {'iOS': 18, 'macOS': 15})),
     ];
     for (final (className, swift, floor) in targets) {
+      if (app.opensUrl(className)) {
+        _urlOpenIntent(className, swift, floor);
+        continue;
+      }
       final name = 'Open${className}Intent';
       // Below 26, it continues in the foreground; from 26 it declares that it
       // opens the app.

@@ -255,6 +255,20 @@
       ]
     }
   },
+  "queries": {
+    "entryTransferable": {
+      "entity": "journal.entry",
+      "direction": "exporting",
+      "type": {
+        "kind": "placeDescriptor"
+      },
+      "availability": {
+        "iOS": 18,
+        "macOS": 15
+      },
+      "property": "location"
+    }
+  },
   "skipped": {
     "search": "deprecated: Use .system.searchInApp instead"
   }

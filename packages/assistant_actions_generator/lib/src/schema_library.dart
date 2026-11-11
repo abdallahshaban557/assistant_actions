@@ -133,7 +133,15 @@ String generateSchemaLibrary(DomainCatalog catalog) {
         ..writeln('/// Syncable (`SyncableEntity`), like Apple\'s own: keep each `@EntityId()`')
         ..writeln('/// stable across launches and devices. Opt out with `@AssistantSyncable(false)`.');
     }
+    final queries = catalog.queriesFor(entity);
+    for (final q in queries.where((q) => q.exports)) {
+      out
+        ..writeln('///')
+        ..writeln('/// Apple Intelligence can hand an item\'s `${q.property}` to other apps as a '
+            '`${q.type}` (`${q.id}`), when that member is mapped.');
+    }
     out.writeln('class ${names.annotation} extends SchemaEntity {');
+    final imports = queries.where((q) => q.imports).toList();
     final params = [
       for (final m in containers) m.type.isOptional ? 'this.${m.name},' : 'required this.${m.name},',
       for (final (intent, _) in intents) 'this.${intent.name} = false,',
@@ -141,11 +149,13 @@ String generateSchemaLibrary(DomainCatalog catalog) {
       if (intents.isNotEmpty) ...['super.dialogs,', 'super.confirm,'],
       if (intents.any((e) => e.$2 == IntentKind.delete)) 'super.confirmDeletes,',
       if (intents.any((e) => canReply(e.$1, e.$2))) 'super.replies,',
+      for (final q in imports) 'this.${q.name} = false,',
+      'super.url,',
+      // A trailing comma keeps long lists one per line; short ones stay on one.
+      containers.isEmpty && intents.isEmpty && imports.isEmpty ? 'super.visualSearch' : 'super.visualSearch,',
     ];
     out
-      ..writeln(params.isEmpty
-          ? '  const ${names.annotation}()'
-          : '  const ${names.annotation}({${params.join(' ')}})')
+      ..writeln('  const ${names.annotation}({${params.join(' ')}})')
       ..writeln("      : super('${entity.id}');")
       ..writeln();
     for (final m in containers) {
@@ -160,6 +170,14 @@ String generateSchemaLibrary(DomainCatalog catalog) {
       _intentDoc(out, intent, kind, entity);
       out
         ..writeln('  final bool ${intent.name};')
+        ..writeln();
+    }
+    for (final q in imports) {
+      out
+        ..writeln('  /// Answer `${q.id}`: Apple Intelligence finds items for a `${q.type}` with')
+        ..writeln('  /// `${queryMethodSignature(q)}` on the generated handler, live')
+        ..writeln('  /// (when Flutter isn\'t running, from the published items).')
+        ..writeln('  final bool ${q.name};')
         ..writeln();
     }
     out
@@ -297,7 +315,8 @@ void _intentDoc(StringBuffer out, IntentSchema intent, IntentKind kind, EntitySc
       if (intent.id == 'system.open') {
         out
           ..writeln('$head: Siri opens one of the app\'s entities.')
-          ..writeln('  /// Generates an `open<Class>(String id)` handler method per adopted entity.');
+          ..writeln('  /// Generates an `open<Class>(String id)` handler method per adopted entity')
+          ..writeln('  /// (entities with a `url` open their deep link instead).');
         return;
       }
       out

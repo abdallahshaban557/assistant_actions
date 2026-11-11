@@ -31,7 +31,7 @@ enum RemindersLocationTriggerEvent {
 /// Map fields with [RemindersGroupField] and turn on the schema intents the app
 /// supports. Each one becomes a method on the generated handler.
 class RemindersGroup extends SchemaEntity {
-  const RemindersGroup() : super('reminders.group');
+  const RemindersGroup({super.url, super.visualSearch}) : super('reminders.group');
 }
 
 /// Marks members of `reminders.group`.
@@ -83,6 +83,8 @@ class RemindersList extends SchemaEntity {
     this.createList = false,
     super.dialogs,
     super.confirm,
+    super.url,
+    super.visualSearch,
   }) : super('reminders.list');
 
   /// Handle `reminders.createList` ("Create List"): creates items.
@@ -138,6 +140,8 @@ class RemindersReminder extends SchemaEntity {
     super.dialogs,
     super.confirm,
     super.confirmDeletes,
+    super.url,
+    super.visualSearch,
   }) : super('reminders.reminder');
 
   /// The fixed `reminders.list` every item belongs to (required by the schema).
@@ -231,6 +235,8 @@ class RemindersSection extends SchemaEntity {
     this.createSection = false,
     super.dialogs,
     super.confirm,
+    super.url,
+    super.visualSearch,
   }) : super('reminders.section');
 
   /// The fixed `reminders.list` every item belongs to (required by the schema).
@@ -281,7 +287,8 @@ class FixedRemindersSection extends SchemaContainer {
 /// Map fields with [RemindersLocationTriggerField] and turn on the schema intents the app
 /// supports. Each one becomes a method on the generated handler.
 class RemindersLocationTrigger extends SchemaEntity {
-  const RemindersLocationTrigger() : super('reminders.locationTrigger');
+  const RemindersLocationTrigger({super.url, super.visualSearch})
+      : super('reminders.locationTrigger');
 }
 
 /// Marks members of `reminders.locationTrigger`.

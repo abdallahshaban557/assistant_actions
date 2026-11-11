@@ -27,8 +27,10 @@ enum PhoneAudioVisualMode {
 ///
 /// Map fields with [PhonePhonePersonField] and turn on the schema intents the app
 /// supports. Each one becomes a method on the generated handler.
+///
+/// Apple Intelligence can hand an item's `person` to other apps as a `person` (`phone.phonePersonTransferable`), when that member is mapped.
 class PhonePhonePerson extends SchemaEntity {
-  const PhonePhonePerson() : super('phone.phonePerson');
+  const PhonePhonePerson({super.url, super.visualSearch}) : super('phone.phonePerson');
 }
 
 /// Marks members of `phone.phonePerson`.

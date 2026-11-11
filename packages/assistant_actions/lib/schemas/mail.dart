@@ -26,7 +26,7 @@ class MailCategory extends SchemaEnumCases {
 /// Map fields with [MailAccountField] and turn on the schema intents the app
 /// supports. Each one becomes a method on the generated handler.
 class MailAccount extends SchemaEntity {
-  const MailAccount() : super('mail.account');
+  const MailAccount({super.url, super.visualSearch}) : super('mail.account');
 }
 
 /// Marks members of `mail.account`.
@@ -71,6 +71,8 @@ class FixedMailAccount extends SchemaContainer {
 class MailMailbox extends SchemaEntity {
   const MailMailbox({
     required this.account,
+    super.url,
+    super.visualSearch,
   }) : super('mail.mailbox');
 
   /// The fixed `mail.account` every item belongs to (required by the schema).
@@ -134,6 +136,8 @@ class MailDraft extends SchemaEntity {
     super.confirm,
     super.confirmDeletes,
     super.replies,
+    super.url,
+    super.visualSearch,
   }) : super('mail.draft');
 
   /// The fixed `mail.account` every item belongs to (required by the schema).
@@ -254,6 +258,8 @@ class MailMessage extends SchemaEntity {
     super.confirm,
     super.confirmDeletes,
     super.replies,
+    super.url,
+    super.visualSearch,
   }) : super('mail.message');
 
   /// The fixed `mail.account` every item belongs to (required by the schema).
@@ -399,7 +405,7 @@ abstract final class MailMessageField {
 /// Map fields with [MailThreadField] and turn on the schema intents the app
 /// supports. Each one becomes a method on the generated handler.
 class MailThread extends SchemaEntity {
-  const MailThread() : super('mail.thread');
+  const MailThread({super.url, super.visualSearch}) : super('mail.thread');
 }
 
 /// Marks members of `mail.thread`.

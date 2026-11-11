@@ -78,6 +78,8 @@ class PhotosAsset extends SchemaEntity {
     super.confirm,
     super.confirmDeletes,
     super.replies,
+    super.url,
+    super.visualSearch,
   }) : super('photos.asset');
 
   /// Handle `photos.createAssets` ("Create Photos"): calls
@@ -322,6 +324,8 @@ class PhotosAlbum extends SchemaEntity {
     super.confirm,
     super.confirmDeletes,
     super.replies,
+    super.url,
+    super.visualSearch,
   }) : super('photos.album');
 
   /// Handle `photos.createAlbum` ("Create Album"): creates items.
@@ -391,6 +395,8 @@ class PhotosRecognizedPerson extends SchemaEntity {
     this.updateRecognizedPerson = false,
     super.dialogs,
     super.confirm,
+    super.url,
+    super.visualSearch,
   }) : super('photos.recognizedPerson');
 
   /// Handle `photos.updateRecognizedPerson` ("Update Person"): updates items.
