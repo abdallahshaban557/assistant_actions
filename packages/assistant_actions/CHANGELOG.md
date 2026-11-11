@@ -43,6 +43,9 @@
 * `install` gives the generated plugin the Runner's deployment targets, so
   the generated Swift can drop what they deprecate.
 * `AssistantInbox.create` takes an optional `id`.
+* Cancellation and long-running calls need Xcode 27 (Swift 6.4), whose SDKs
+  have `CancellableIntent` and `LongRunningIntent`; with older Xcodes live
+  calls are plain ones, and the package still builds.
 * Needs assistant_actions_generator 0.0.15.
 
 ## 0.0.17

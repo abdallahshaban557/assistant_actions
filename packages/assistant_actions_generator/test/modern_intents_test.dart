@@ -130,7 +130,7 @@ void main() {
       expect(_load('notes').entities['notes.note']!.isSyncable, isTrue);
       expect(_load('reminders').entities['reminders.reminder']!.isSyncable, isFalse);
       final swift = SwiftWriter(_app(schemaEntities: [_note()])).write();
-      expect(swift, contains('@available(iOS 27.0, macOS 27.0, *)\nextension MemoryItemEntity: SyncableEntity {}'));
+      expect(swift, contains('#if compiler(>=6.4)\n@available(iOS 27.0, macOS 27.0, *)\nextension MemoryItemEntity: SyncableEntity {}\n#endif'));
       expect(SwiftWriter(_app(schemaEntities: [_note(syncable: false)])).write(), isNot(contains('SyncableEntity')));
     });
 
@@ -159,7 +159,7 @@ void main() {
 
   test('every entity query is an IndexedEntityQuery from iOS 27', () {
     final swift = SwiftWriter(_app(schemaEntities: [_task()])).write();
-    expect(swift, contains('@available(iOS 27.0, macOS 27.0, *)\nextension TaskItemEntityQuery: IndexedEntityQuery {'));
+    expect(swift, contains('#if compiler(>=6.4)\n@available(iOS 27.0, macOS 27.0, *)\nextension TaskItemEntityQuery: IndexedEntityQuery {'));
     expect(swift, contains('func reindexEntities(for identifiers: [TaskItemEntity.ID], indexDescription: CSSearchableIndexDescription)'));
     expect(swift, contains('try await CSSearchableIndex.default().indexAppEntities(try await allEntities())'));
   });
@@ -241,6 +241,19 @@ void main() {
       expect(swift, contains('@available(iOS 26.4, macOS 26.4, *)\nextension CountTasksAction: CancellableIntent {}'));
       expect(swift, contains('@available(iOS 27.0, macOS 27.0, *)\nextension CountTasksAction: LongRunningIntent {}'));
       expect(SwiftWriter(_app(actions: [_live()])).write(), isNot(contains('LongRunningIntent')));
+    });
+
+    test('types only in the 27 SDKs compile only with Xcode 27 (Swift 6.4)', () {
+      final swift = SwiftWriter(_app(actions: [_live(longRunning: true)], schemaEntities: [_note()])).write();
+      expect(swift, contains('extension CountTasksAction: ProgressReportingIntent {}\n\n#if compiler(>=6.4)\n'
+          '@available(iOS 26.4, macOS 26.4, *)\nextension CountTasksAction: CancellableIntent {}\n\n'
+          '@available(iOS 27.0, macOS 27.0, *)\nextension CountTasksAction: LongRunningIntent {}\n#endif'));
+      for (final type in ['CancellableIntent', 'LongRunningIntent', 'SyncableEntity', 'IndexedEntityQuery']) {
+        for (final line in swift.split('\n').where((l) => l.startsWith('extension ') && l.contains(': $type'))) {
+          final before = swift.substring(0, swift.indexOf(line));
+          expect(before.lastIndexOf('#if compiler(>=6.4)'), greaterThan(before.lastIndexOf('#endif')), reason: line);
+        }
+      }
     });
 
     test('@AssistantLongRunning() makes a schema class\'s live intents long-running', () {
