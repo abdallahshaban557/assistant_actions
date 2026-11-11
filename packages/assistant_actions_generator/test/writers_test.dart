@@ -788,10 +788,12 @@ void main() {
       final ext = block(swift, 'extension JournalItemEntity: Transferable {');
       expect(swift, contains('@available(iOS 26.4, macOS 26.4, *)\nextension JournalItemEntity: Transferable {'));
       expect(ext, contains('''
+    #if compiler(>=6.4)
     IntentValueRepresentation(exporting: { (item: JournalItemEntity) throws -> PlaceDescriptor in
       guard let value = item.location else { throw AssistantTransferError.noValue("location") }
       return value
-    })'''));
+    })
+    #endif'''));
       // Without the location mapped there is nothing to export.
       final plain = SwiftWriter(_journalApp()).write();
       expect(plain, contains('@available(iOS 26.0, macOS 26.0, *)\nextension JournalItemEntity: Transferable {'));
@@ -922,7 +924,7 @@ extension RecipeEntity: URLRepresentableEntity {
       expect(query, contains('AssistantBridge.shared.perform("Spot.placeIntentValueQuery", args: ["place": value])'));
       expect(query, contains('AssistantSnapshot.records("Spot"), matchingPlace: value, field: "where",'));
       expect(block(swift, 'extension SpotEntity: Transferable {'),
-          contains('IntentValueRepresentation(exporting: { (item: SpotEntity) -> PlaceDescriptor in item.place })'));
+          contains('    #if compiler(>=6.4)\n    IntentValueRepresentation(exporting: { (item: SpotEntity) -> PlaceDescriptor in item.place })\n    #endif'));
       final dart = writeDart(app);
       expect(dart, contains('  Future<List<String>> placeIntentValueQuery(AssistantPlace place);'));
       expect(dart, contains("'Spot.placeIntentValueQuery': (args) async {"));
@@ -935,6 +937,7 @@ extension RecipeEntity: URLRepresentableEntity {
       final swift = SwiftWriter(app).write();
       expect(swift, contains('#if canImport(VisualIntelligence)\n  import VisualIntelligence\n#endif'));
       final query = block(swift, 'struct AssistantVisualSearchQuery: IntentValueQuery {');
+      expect(swift, contains('#if canImport(VisualIntelligence) && compiler(>=6.4)\n'));
       expect(swift, contains('@available(iOS 26.0, macOS 27.0, *)\nstruct AssistantVisualSearchQuery: IntentValueQuery {'));
       expect(query, contains('func values(for input: SemanticContentDescriptor) async throws -> [RecipeEntity] {'));
       expect(query, contains('"visualIntelligence.search", args: ["content": AssistantValues.encode(input), "collections": ["Recipe"]])'));

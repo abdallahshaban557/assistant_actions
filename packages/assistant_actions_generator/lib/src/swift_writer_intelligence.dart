@@ -150,12 +150,17 @@ extension $name: Transferable {
       final type = _swiftType(q.type);
       if (schema.property(q.property!)!.type.isOptional) {
         _out
+          ..writeln(_newSdkStart)
           ..writeln('    IntentValueRepresentation(exporting: { (item: $name) throws -> $type in')
           ..writeln('      guard let value = item.$member else { throw AssistantTransferError.noValue("${q.property}") }')
           ..writeln('      return value')
-          ..writeln('    })');
+          ..writeln('    })')
+          ..writeln(_newSdkEnd);
       } else {
-        _out.writeln('    IntentValueRepresentation(exporting: { (item: $name) -> $type in item.$member })');
+        _out
+          ..writeln(_newSdkStart)
+          ..writeln('    IntentValueRepresentation(exporting: { (item: $name) -> $type in item.$member })')
+          ..writeln(_newSdkEnd);
       }
     }
     _out
@@ -472,7 +477,8 @@ struct ${s.className}${pascal(q.name)}: IntentValueQuery {
     final result = single ? types.single.$2 : 'AssistantVisualSearchResult';
     String caseName(String className) => swiftName(camel(className));
     final collections = types.map((t) => '"${t.$1}"').join(', ');
-    _out.writeln('#if canImport(VisualIntelligence)');
+    // Like the runtime's `AssistantVisualIntelligence.swift`: Xcode 27 only.
+    _out.writeln('#if canImport(VisualIntelligence) && compiler(>=6.4)');
     if (!single) {
       _out
         ..writeln('/// What Visual Intelligence search returns: an item of one of the types.')

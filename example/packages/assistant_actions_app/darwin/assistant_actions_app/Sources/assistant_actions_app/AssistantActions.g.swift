@@ -2054,8 +2054,10 @@ struct VisualIntelligenceSemanticContentSearchIntent {
 @available(iOS 26.0, macOS 27.0, *)
 extension VisualIntelligenceSemanticContentSearchIntent: ProgressReportingIntent {}
 
+#if compiler(>=6.4)
 @available(iOS 26.4, macOS 27.0, *)
 extension VisualIntelligenceSemanticContentSearchIntent: CancellableIntent {}
+#endif
 #endif
 
 @available(iOS 18.0, macOS 15.0, *)
@@ -2348,10 +2350,12 @@ extension JournalItemEntity: Sendable {}
 extension JournalItemEntity: Transferable {
   static var transferRepresentation: some TransferRepresentation {
     ProxyRepresentation(exporting: { (item: JournalItemEntity) in item.transferText })
+    #if compiler(>=6.4)
     IntentValueRepresentation(exporting: { (item: JournalItemEntity) throws -> PlaceDescriptor in
       guard let value = item.location else { throw AssistantTransferError.noValue("location") }
       return value
     })
+    #endif
   }
 
   /// The item as text: its title and text, people and places.
@@ -2487,7 +2491,7 @@ extension QuickRecipesAction: PredictableIntent {
   }
 }
 
-#if canImport(VisualIntelligence)
+#if canImport(VisualIntelligence) && compiler(>=6.4)
 /// What Visual Intelligence search returns: an item of one of the types.
 @available(iOS 27.0, macOS 27.0, *)
 @UnionValue

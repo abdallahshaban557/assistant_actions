@@ -23,6 +23,8 @@
   `AssistantValues.text` / `saveFile` / `references` /
   `encode(SemanticContentDescriptor)`, and label and place matching in
   `AssistantMatch`. `EntityCodec.idOf`. Generator API 12.
+* Visual Intelligence needs Xcode 27 (Swift 6.4); with older Xcodes it is
+  left out and the package still builds.
 * Needs assistant_actions_generator 0.0.16.
 
 ## 0.0.18

@@ -1,8 +1,9 @@
 import Foundation
 
 // VisualIntelligence isn't in every SDK (the iOS simulator's lacks it), so
-// this compiles only where it is.
-#if canImport(VisualIntelligence)
+// this compiles only where it is, and only with Xcode 27 (Swift 6.4), whose
+// SDKs the generated search query is written for.
+#if canImport(VisualIntelligence) && compiler(>=6.4)
   import CoreImage
   import UniformTypeIdentifiers
   import VisualIntelligence

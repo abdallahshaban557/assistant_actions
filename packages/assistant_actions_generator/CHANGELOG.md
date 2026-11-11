@@ -10,6 +10,9 @@
 * Deep links: `url:` makes a `URLRepresentableEntity`, and its `system.open`
   a `URLRepresentableIntent` that opens the link (App Shortcuts for it, with
   `@IntentShortcut`, keep working).
+* `IntentValueRepresentation` exports and the Visual Intelligence query are
+  inside `#if compiler(>=6.4)`, so the generated code builds with Xcodes
+  before 27 too.
 * Plain actions and snapshot answers are `PredictableIntent`s; generated
   `AssistantDonations` and the donation host calls. Focus filters are left
   out.
