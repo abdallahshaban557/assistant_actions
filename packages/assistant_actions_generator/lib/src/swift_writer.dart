@@ -8,6 +8,7 @@ import 'schema_calls.dart';
 part 'swift_writer_actions.dart';
 part 'swift_writer_interaction.dart';
 part 'swift_writer_surfaces.dart';
+part 'swift_writer_background.dart';
 
 /// Writes `AssistantActions.g.swift`, compiled into the generated
 /// `assistant_actions_app` plugin.
@@ -47,6 +48,7 @@ class SwiftWriter {
     }
     if (app.schemaEntities.isNotEmpty || app.schemaDomains.isNotEmpty || _actionSchemaTypes.isNotEmpty) _schemas();
     _spotlight();
+    _backgroundEntrypoint();
     body.write(_publicize(_out.toString()));
 
     return [
@@ -1081,7 +1083,7 @@ ${queryables.isEmpty ? '' : '\n${_propertyQuery(name, queryables, 'all()')}'}}
         }
         _out.writeln('''
     let id = AssistantInbox.create("${s.collection}", fields: fields)
-    AssistantBridge.shared.inboxChanged()''');
+    $_inboxChanged''');
         final created = '$entity(record: AssistantRecord(id: id, title: "", fields: fields))';
         _out.writeln(dialog == null
             ? '    return .result(value: $created)'
@@ -1124,7 +1126,7 @@ ${queryables.isEmpty ? '' : '\n${_propertyQuery(name, queryables, 'all()')}'}}
         }
         _out
           ..writeln('    AssistantInbox.update("${s.collection}", id: target.id, fields: fields, cleared: cleared)')
-          ..writeln('    AssistantBridge.shared.inboxChanged()')
+          ..writeln('    $_inboxChanged')
           ..writeln('    let updated = target');
         for (final field in byField.keys) {
           final members = [
@@ -1152,7 +1154,7 @@ ${queryables.isEmpty ? '' : '\n${_propertyQuery(name, queryables, 'all()')}'}}
     for item in entities {
       AssistantInbox.delete("${s.collection}", id: item.id)
     }
-    AssistantBridge.shared.inboxChanged()
+    $_inboxChanged
     return ${_resultOf(dialog: dialog)}''');
     }
     _out
@@ -1254,6 +1256,9 @@ ${reply ? '''    let reply = AssistantReply(json: try await $call)
     // From iOS 26 an intent that opens the app declares it (`supportedModes`),
     // and the system brings the app forward before `perform`.
     final modes = live && intent.opensApp && _norm(floor)['iOS']! >= 26;
+    // With background execution, from iOS 26 too (see `_backgroundModes`).
+    final background = _backgroundCapable(intent);
+    final from26 = _norm(floor)['iOS']! >= 26;
     final args = [
       for (final p in intent.parameters)
         if (callArg(p) case final a?) '      "${p.name}": ${_encodeArg(a)},',
@@ -1267,8 +1272,9 @@ ${reply ? '''    let reply = AssistantReply(json: try await $call)
     _out
       ..writeln(_availability(floor))
       ..writeln('@AppIntent(schema: .${intent.id})')
-      ..writeln('struct $name${live && !modes ? ': ForegroundContinuableIntent' : ''} {');
+      ..writeln('struct $name${live && !modes && !(background && from26) ? ': ForegroundContinuableIntent' : ''} {');
     if (modes) _out.writeln('  static let supportedModes: IntentModes = .foreground\n');
+    if (background) _out.writeln(_backgroundModes(from26: from26));
     for (final p in intent.parameters) {
       _out.writeln('  var ${swiftName(p.name)}: ${_swiftType(p.type)}');
     }
@@ -1281,13 +1287,18 @@ ${reply ? '''    let reply = AssistantReply(json: try await $call)
     if (!live) {
       _out
         ..writeln('    AssistantInbox.call("$id", args: args)')
-        ..writeln('    AssistantBridge.shared.inboxChanged()')
+        ..writeln('    $_inboxChanged')
         ..writeln('    return ${_resultOf(dialog: dialog)}');
-    } else if (reply) {
-      if (!modes) _out.writeln(_foreground(activateOnMac: intent.opensApp));
-      _replyResult(intent, id, method, result, resultType, unionType, dialog);
     } else {
-      if (!modes) _out.writeln(_foreground(activateOnMac: intent.opensApp));
+      if (background) {
+        _out.writeln(_backgroundPrelude(from26: from26));
+      } else if (!modes) {
+        _out.writeln(_foreground(activateOnMac: intent.opensApp));
+      }
+    }
+    if (live && reply) {
+      _replyResult(intent, id, method, result, resultType, unionType, dialog);
+    } else if (live) {
       _out.writeln('    ${intent.result == null ? '_' : 'let reply'} = try await AssistantBridge.shared.perform("$id", args: args)');
       switch (callResult(intent)) {
         case CallResult.entity:

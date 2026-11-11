@@ -20,7 +20,9 @@ The validator adopts every schema at once in a throwaway app and runs the
 builder, `flutter analyze`, and Apple's `appintentsmetadataprocessor` for macOS
 and the iOS simulator. Every other intent also gets a spoken result, a
 confirmation and, when it's live, a Dart reply with a result card, so both
-shapes of each intent are checked. Paste its report into
+shapes of each intent are checked. The app sets up background execution
+(`@AssistantBackground()`); `--no-background` checks the output without it.
+Paste its report into
 `packages/assistant_actions/doc/schemas.md`.
 
 ## Releasing

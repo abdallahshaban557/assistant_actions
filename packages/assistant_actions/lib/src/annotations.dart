@@ -18,6 +18,40 @@ class AssistantActionsApp {
   final ShortcutTileColor? shortcutTileColor;
 }
 
+/// Lets Siri run the app's Dart on iOS without opening the app: put it on a
+/// top-level function that returns the registry `AssistantActions.start`
+/// takes (or a `Future` of it), in `lib/assistant_actions.dart` or a library
+/// it imports.
+///
+/// ```dart
+/// @AssistantBackground()
+/// Future<AssistantActionsRegistry> appRegistry() async {
+///   await Database.open();
+///   return assistantActionsRegistry(taskItem: TaskHandler(), ...);
+/// }
+/// ```
+///
+/// When an intent needs Dart and the app has no Flutter engine (Siri launched
+/// it in the background), the runtime starts a headless engine that builds
+/// the registry with this function and answers there, instead of asking to
+/// open the app. [Runs.withFlutter] actions and live schema intents run
+/// there; intents that open the app ([AssistantAction.opensApp], schema
+/// intents such as `system.open` or `journal.createAudioEntry`) still come to
+/// the foreground. The headless engine has its own Dart memory, so the app's
+/// data must be persisted, not only held in memory. Check
+/// `AssistantActions.inBackground` to tell the two engines apart.
+///
+/// The app's `main` should use the same function:
+/// `await AssistantActions.start(await appRegistry());`.
+class AssistantBackground {
+  const AssistantBackground({this.applyQueued = true});
+
+  /// Also apply queued intents (`Runs.deferred` actions and schema creates,
+  /// updates, deletes and calls) right away on the headless engine, instead
+  /// of at the next launch. Siri waits for Dart to start before it answers.
+  final bool applyQueued;
+}
+
 /// Where an action's Dart function runs.
 enum Runs {
   /// Works without Flutter running. The call is queued and Siri replies at
@@ -26,8 +60,10 @@ enum Runs {
   deferred,
 
   /// Calls the function live and speaks what it returns. On iOS the app is
-  /// brought to the foreground first if it isn't active; macOS answers in
-  /// place.
+  /// brought to the foreground first if it isn't active, unless the app sets
+  /// up [AssistantBackground], in which case Dart answers in the background
+  /// (set [AssistantAction.opensApp] for actions that need the app's
+  /// screen). macOS answers in place.
   withFlutter,
 }
 
@@ -48,6 +84,7 @@ class AssistantAction {
     this.liveActivity = false,
     this.searchKeywords = const [],
     this.isDiscoverable = true,
+    this.opensApp = false,
   });
 
   final String title;
@@ -65,7 +102,9 @@ class AssistantAction {
   /// is already running (say, the app is recording in the background), the
   /// function runs at once, without bringing the app forward. Otherwise
   /// [Runs.deferred] queues the call as usual and [Runs.withFlutter] brings
-  /// the app forward first. No effect on macOS, which has no Live Activities.
+  /// the app forward first; with [AssistantBackground], both start Dart on the
+  /// headless engine instead (for [Runs.deferred], unless `applyQueued` is
+  /// false). No effect on macOS, which has no Live Activities.
   final bool liveActivity;
 
   /// More words Shortcuts and Spotlight find the action by.
@@ -74,6 +113,10 @@ class AssistantAction {
   /// Whether the action shows in Shortcuts and Spotlight. Hidden actions can't
   /// be App Shortcuts.
   final bool isDiscoverable;
+  /// The action shows something in the app, so it always brings the app to
+  /// the foreground (and, on macOS, activates it), even when Dart could run
+  /// in the background with [AssistantBackground]. [Runs.withFlutter] only.
+  final bool opensApp;
 
   /// What Siri says when the action finishes. `{name}` is replaced with the
   /// parameter `name`. Required for [Runs.deferred]; for [Runs.withFlutter]

@@ -1,3 +1,25 @@
+## 0.0.17
+
+* `@AssistantBackground()`: on iOS, Siri runs the app's Dart without opening
+  the app. Mark the top-level function that builds the registry; when an
+  intent needs Dart and the app has no Flutter engine, the runtime starts a
+  headless `FlutterEngine` at the generated entrypoint, registers the app's
+  plugins on it (the Runner's `GeneratedPluginRegistrant`, found by name, or
+  `AssistantBackground.registerPlugins`), and answers there. No Runner changes
+  are needed. The headless engine stops `AssistantBackground.shared.keepAlive`
+  seconds (30) after its last use, and as soon as it's idle once the app's own
+  engine starts; Dart on it claims it over a host call, so it stands down if
+  the app's engine started first.
+* With it, queued intents (`Runs.deferred`, schema creates, updates, deletes
+  and queued calls) are applied right away on the headless engine before Siri
+  answers, unless `@AssistantBackground(applyQueued: false)`.
+* `AssistantActions.inBackground` and `AssistantActions.startInBackground`
+  (called by generated code). Swift `AssistantBackground` (`prepare`,
+  `applyInbox`, `keepAlive`, `registerPlugins`).
+* `@AssistantAction(opensApp: true)`: a `Runs.withFlutter` action that always
+  comes to the foreground (and activates the app on macOS).
+* Needs assistant_actions_generator 0.0.14.
+
 ## 0.0.16
 
 * `@AssistantEnum` and `@CaseTitle`: the app's enums as App Enums, with case

@@ -146,7 +146,7 @@ public struct AddToShoppingListAction: AppIntent {
       "servings": AssistantValues.encode(servings),
     ]
     AssistantInbox.call("addToShoppingList", args: args)
-    AssistantBridge.shared.inboxChanged()
+    await AssistantBackground.shared.applyInbox()
     return .result(dialog: IntentDialog(stringLiteral: "Added \(recipe.title) to your list."))
   }
 }
@@ -167,7 +167,7 @@ public struct RemoveFromShoppingListAction: AppIntent {
     ]
     try await assistantConfirm("Remove \(recipe.title) from your shopping list?")
     AssistantInbox.call("removeFromShoppingList", args: args)
-    AssistantBridge.shared.inboxChanged()
+    await AssistantBackground.shared.applyInbox()
     return .result(dialog: IntentDialog(stringLiteral: "Removed \(recipe.title)."))
   }
 }
@@ -175,6 +175,11 @@ public struct RemoveFromShoppingListAction: AppIntent {
 /// `showRecipeCard` in Dart (runs with Flutter).
 public struct ShowRecipeCardAction: AppIntent, ForegroundContinuableIntent {
   public static let title: LocalizedStringResource = "Show Recipe Card"
+
+  #if os(iOS)
+  @available(iOS 26.0, *)
+  public static var supportedModes: IntentModes { [.background, .foreground(.dynamic)] }
+  #endif
 
   @Parameter(title: "Recipe")
   public var recipe: RecipeEntity
@@ -187,9 +192,14 @@ public struct ShowRecipeCardAction: AppIntent, ForegroundContinuableIntent {
       "recipe": recipe.id,
     ]
     #if os(iOS)
-      // iOS doesn't start the Flutter engine without a scene, so answer from the foreground.
-      if UIApplication.shared.applicationState != .active {
-        try await requestToContinueInForeground()
+      // Dart answers in the background (on a headless engine if the app has none);
+      // the app comes forward only if that fails.
+      if !(await AssistantBackground.shared.prepare()), UIApplication.shared.applicationState != .active {
+        if #available(iOS 26.0, *) {
+          try await continueInForeground()
+        } else {
+          try await requestToContinueInForeground()
+        }
       }
     #endif
     let reply = AssistantReply(json: try await AssistantBridge.shared.perform("showRecipeCard", args: args))
@@ -200,6 +210,11 @@ public struct ShowRecipeCardAction: AppIntent, ForegroundContinuableIntent {
 /// `pickRecipe` in Dart (runs with Flutter).
 public struct PickRecipeAction: AppIntent, ForegroundContinuableIntent {
   public static let title: LocalizedStringResource = "Pick a Recipe"
+
+  #if os(iOS)
+  @available(iOS 26.0, *)
+  public static var supportedModes: IntentModes { [.background, .foreground(.dynamic)] }
+  #endif
 
   @Parameter(title: "Meal", default: .dinner)
   public var meal: MealEnum
@@ -213,9 +228,14 @@ public struct PickRecipeAction: AppIntent, ForegroundContinuableIntent {
     ]
     try await assistantConfirm("Pick a recipe for \(String(localized: meal.localizedStringResource))?")
     #if os(iOS)
-      // iOS doesn't start the Flutter engine without a scene, so answer from the foreground.
-      if UIApplication.shared.applicationState != .active {
-        try await requestToContinueInForeground()
+      // Dart answers in the background (on a headless engine if the app has none);
+      // the app comes forward only if that fails.
+      if !(await AssistantBackground.shared.prepare()), UIApplication.shared.applicationState != .active {
+        if #available(iOS 26.0, *) {
+          try await continueInForeground()
+        } else {
+          try await requestToContinueInForeground()
+        }
       }
     #endif
     let reply = AssistantReply(json: try await AssistantBridge.shared.perform("pickRecipe", args: args))
@@ -229,15 +249,25 @@ public struct PickRecipeAction: AppIntent, ForegroundContinuableIntent {
 public struct CountOpenTasksAction: AppIntent, ForegroundContinuableIntent {
   public static let title: LocalizedStringResource = "Count Open Tasks"
 
+  #if os(iOS)
+  @available(iOS 26.0, *)
+  public static var supportedModes: IntentModes { [.background, .foreground(.dynamic)] }
+  #endif
+
   public init() {}
 
   @MainActor
   public func perform() async throws -> some IntentResult & ProvidesDialog {
     let args: [String: Any] = [:]
     #if os(iOS)
-      // iOS doesn't start the Flutter engine without a scene, so answer from the foreground.
-      if UIApplication.shared.applicationState != .active {
-        try await requestToContinueInForeground()
+      // Dart answers in the background (on a headless engine if the app has none);
+      // the app comes forward only if that fails.
+      if !(await AssistantBackground.shared.prepare()), UIApplication.shared.applicationState != .active {
+        if #available(iOS 26.0, *) {
+          try await continueInForeground()
+        } else {
+          try await requestToContinueInForeground()
+        }
       }
     #endif
     let reply = try await AssistantBridge.shared.perform("countOpenTasks", args: args)
@@ -265,7 +295,7 @@ public struct PlanMealAction: AppIntent {
       "meal": AssistantValues.encode(meal),
     ]
     AssistantInbox.call("planMeal", args: args)
-    AssistantBridge.shared.inboxChanged()
+    await AssistantBackground.shared.applyInbox()
     return .result(dialog: IntentDialog(stringLiteral: "Planned \(recipe.title) for \(String(localized: meal.localizedStringResource))."))
   }
 }
@@ -274,6 +304,11 @@ public struct PlanMealAction: AppIntent {
 public struct QuickestRecipeAction: AppIntent, ForegroundContinuableIntent {
   public static let title: LocalizedStringResource = "Quickest Recipe"
   public static let description = IntentDescription("Finds the quickest recipe, for use in a shortcut.")
+
+  #if os(iOS)
+  @available(iOS 26.0, *)
+  public static var supportedModes: IntentModes { [.background, .foreground(.dynamic)] }
+  #endif
 
   @Parameter(title: "Under")
   public var under: Measurement<UnitDuration>?
@@ -286,9 +321,14 @@ public struct QuickestRecipeAction: AppIntent, ForegroundContinuableIntent {
       "under": AssistantValues.encode(under),
     ]
     #if os(iOS)
-      // iOS doesn't start the Flutter engine without a scene, so answer from the foreground.
-      if UIApplication.shared.applicationState != .active {
-        try await requestToContinueInForeground()
+      // Dart answers in the background (on a headless engine if the app has none);
+      // the app comes forward only if that fails.
+      if !(await AssistantBackground.shared.prepare()), UIApplication.shared.applicationState != .active {
+        if #available(iOS 26.0, *) {
+          try await continueInForeground()
+        } else {
+          try await requestToContinueInForeground()
+        }
       }
     #endif
     let reply = try await AssistantBridge.shared.perform("quickestRecipe", args: args)
@@ -303,15 +343,25 @@ public struct QuickestRecipeAction: AppIntent, ForegroundContinuableIntent {
 public struct ShoppingListAction: AppIntent, ForegroundContinuableIntent {
   public static let title: LocalizedStringResource = "Shopping List"
 
+  #if os(iOS)
+  @available(iOS 26.0, *)
+  public static var supportedModes: IntentModes { [.background, .foreground(.dynamic)] }
+  #endif
+
   public init() {}
 
   @MainActor
   public func perform() async throws -> some IntentResult & ReturnsValue<[String]> & ProvidesDialog {
     let args: [String: Any] = [:]
     #if os(iOS)
-      // iOS doesn't start the Flutter engine without a scene, so answer from the foreground.
-      if UIApplication.shared.applicationState != .active {
-        try await requestToContinueInForeground()
+      // Dart answers in the background (on a headless engine if the app has none);
+      // the app comes forward only if that fails.
+      if !(await AssistantBackground.shared.prepare()), UIApplication.shared.applicationState != .active {
+        if #available(iOS 26.0, *) {
+          try await continueInForeground()
+        } else {
+          try await requestToContinueInForeground()
+        }
       }
     #endif
     let reply = try await AssistantBridge.shared.perform("shoppingList", args: args)
@@ -323,8 +373,12 @@ public struct ShoppingListAction: AppIntent, ForegroundContinuableIntent {
 
 /// `nextTask` in Dart (runs with Flutter).
 @available(iOS 27.0, macOS 27.0, *)
-public struct NextTaskAction: AppIntent, ForegroundContinuableIntent {
+public struct NextTaskAction: AppIntent {
   public static let title: LocalizedStringResource = "Next Task"
+
+  #if os(iOS)
+  public static let supportedModes: IntentModes = [.background, .foreground(.dynamic)]
+  #endif
 
   public init() {}
 
@@ -332,9 +386,10 @@ public struct NextTaskAction: AppIntent, ForegroundContinuableIntent {
   public func perform() async throws -> some IntentResult & ReturnsValue<TaskItemEntity?> & ProvidesDialog {
     let args: [String: Any] = [:]
     #if os(iOS)
-      // iOS doesn't start the Flutter engine without a scene, so answer from the foreground.
-      if UIApplication.shared.applicationState != .active {
-        try await requestToContinueInForeground()
+      // Dart answers in the background (on a headless engine if the app has none);
+      // the app comes forward only if that fails.
+      if !(await AssistantBackground.shared.prepare()), UIApplication.shared.applicationState != .active {
+        try await continueInForeground()
       }
     #endif
     let reply = try await AssistantBridge.shared.perform("nextTask", args: args)
@@ -355,7 +410,7 @@ public struct StopRecordingAction: AppIntent {
   @MainActor
   public func perform() async throws -> some IntentResult & ProvidesDialog {
     let args: [String: Any] = [:]
-    if AssistantBridge.shared.isReady {
+    if await AssistantBackground.shared.prepare() {
       _ = try await AssistantBridge.shared.perform("stopRecording", args: args)
     } else {
       AssistantInbox.call("stopRecording", args: args)
@@ -394,7 +449,7 @@ public struct ApplyFocusFocusFilter: SetFocusFilterIntent {
       "hideTasks": AssistantValues.encode(hideTasks),
       "note": AssistantValues.encode(note),
     ]
-    if AssistantBridge.shared.isReady {
+    if await AssistantBackground.shared.prepare() {
       _ = try await AssistantBridge.shared.perform("applyFocus", args: args)
     } else {
       AssistantInbox.call("applyFocus", args: args)
@@ -1120,7 +1175,7 @@ public struct TaskItemCreateReminderIntent {
     fields["title"] = AssistantValues.encode(title)
     fields["due"] = AssistantValues.encode(dueDate)
     let id = AssistantInbox.create("TaskItem", fields: fields)
-    AssistantBridge.shared.inboxChanged()
+    await AssistantBackground.shared.applyInbox()
     let value = TaskItemEntity(record: AssistantRecord(id: id, title: "", fields: fields))
     return .result(value: value, dialog: IntentDialog(stringLiteral: "Added \(self.title) to your tasks."))
   }
@@ -1138,7 +1193,7 @@ struct TaskItemDeleteRemindersIntent {
     for item in entities {
       AssistantInbox.delete("TaskItem", id: item.id)
     }
-    AssistantBridge.shared.inboxChanged()
+    await AssistantBackground.shared.applyInbox()
     return .result(dialog: IntentDialog(stringLiteral: "Deleted \(AssistantDialog.list(self.entities.map { item in item.title }))."))
   }
 }
@@ -1172,7 +1227,7 @@ struct TaskItemUpdateReminderIntent {
     }
     if isCompleted != nil { fields["done"] = AssistantValues.encode(isCompleted) }
     AssistantInbox.update("TaskItem", id: target.id, fields: fields, cleared: cleared)
-    AssistantBridge.shared.inboxChanged()
+    await AssistantBackground.shared.applyInbox()
     let updated = target
     if let value = fields["title"] {
       updated.title = AssistantValues.string(value) ?? ""
@@ -1205,7 +1260,7 @@ struct MemoryItemCreateNoteIntent {
     fields["text"] = AssistantValues.encodeJoined([AssistantValues.encode(name), AssistantValues.encode(content)])
     fields["pinned"] = AssistantValues.encode(isPinned)
     let id = AssistantInbox.create("MemoryItem", fields: fields)
-    AssistantBridge.shared.inboxChanged()
+    await AssistantBackground.shared.applyInbox()
     return .result(value: MemoryItemEntity(record: AssistantRecord(id: id, title: "", fields: fields)))
   }
 }
@@ -1227,7 +1282,7 @@ struct MemoryItemUpdateNoteIntent {
     if name != nil { fields["text"] = AssistantValues.encode(name) }
     if isPinned != nil { fields["pinned"] = AssistantValues.encode(isPinned) }
     AssistantInbox.update("MemoryItem", id: target.id, fields: fields, cleared: cleared)
-    AssistantBridge.shared.inboxChanged()
+    await AssistantBackground.shared.applyInbox()
     let updated = target
     if let value = fields["text"] {
       updated.name = AssistantValues.attributed(value) ?? AttributedString("")
@@ -1255,7 +1310,7 @@ struct MemoryItemAppendTextIntent {
     let cleared: [String] = []
     fields["text"] = AssistantValues.append(AssistantValues.string(AssistantValues.encode(target.content)), AssistantValues.string(AssistantValues.encode(content)) ?? "")
     AssistantInbox.update("MemoryItem", id: target.id, fields: fields, cleared: cleared)
-    AssistantBridge.shared.inboxChanged()
+    await AssistantBackground.shared.applyInbox()
     let updated = target
     if let value = fields["text"] {
       updated.name = AssistantValues.attributed(value) ?? AttributedString("")
@@ -1286,7 +1341,7 @@ struct JournalItemCreateEntryIntent {
     fields["media"] = mediaItems.map { AssistantValues.encode($0) }
     fields["date"] = AssistantValues.encode(entryDate)
     let id = AssistantInbox.create("JournalItem", fields: fields)
-    AssistantBridge.shared.inboxChanged()
+    await AssistantBackground.shared.applyInbox()
     return .result(value: JournalItemEntity(record: AssistantRecord(id: id, title: "", fields: fields)))
   }
 }
@@ -1347,7 +1402,7 @@ struct JournalItemUpdateEntryIntent {
     @unknown default: break
     }
     AssistantInbox.update("JournalItem", id: target.id, fields: fields, cleared: cleared)
-    AssistantBridge.shared.inboxChanged()
+    await AssistantBackground.shared.applyInbox()
     let updated = target
     if let value = fields["title"] {
       updated.title = AssistantValues.string(value)
@@ -1388,7 +1443,7 @@ struct JournalItemDeleteEntryIntent {
     for item in entities {
       AssistantInbox.delete("JournalItem", id: item.id)
     }
-    AssistantBridge.shared.inboxChanged()
+    await AssistantBackground.shared.applyInbox()
     return .result()
   }
 }
@@ -1407,7 +1462,7 @@ struct CountdownCreateTimerIntent {
     fields["length"] = AssistantValues.encode(duration)
     fields["label"] = AssistantValues.encode(label)
     let id = AssistantInbox.create("Countdown", fields: fields)
-    AssistantBridge.shared.inboxChanged()
+    await AssistantBackground.shared.applyInbox()
     let value = CountdownEntity(record: AssistantRecord(id: id, title: "", fields: fields))
     return .result(value: value, dialog: IntentDialog(stringLiteral: "Started a \(AssistantDialog.text(self.duration)) timer."))
   }
@@ -1426,7 +1481,7 @@ struct CountdownPauseTimerIntent {
     ]
     try await assistantConfirm("Pause \((self.timer.label ?? ""))?")
     AssistantInbox.call("Countdown.pauseTimer", args: args)
-    AssistantBridge.shared.inboxChanged()
+    await AssistantBackground.shared.applyInbox()
     return .result(dialog: IntentDialog(stringLiteral: "Paused."))
   }
 }
@@ -1443,7 +1498,7 @@ struct CountdownResumeTimerIntent {
       "timer": timer.id,
     ]
     AssistantInbox.call("Countdown.resumeTimer", args: args)
-    AssistantBridge.shared.inboxChanged()
+    await AssistantBackground.shared.applyInbox()
     return .result()
   }
 }
@@ -1603,7 +1658,7 @@ struct CameraStopCaptureIntent {
   func perform() async throws -> some IntentResult {
     let args: [String: Any] = [:]
     AssistantInbox.call("camera.stopCapture", args: args)
-    AssistantBridge.shared.inboxChanged()
+    await AssistantBackground.shared.applyInbox()
     return .result()
   }
 }
@@ -1717,4 +1772,15 @@ public final class AssistantActionsAppSpotlight: NSObject, AssistantSpotlightInd
     }
   }
 }
+
+#if os(iOS)
+  /// Where `AssistantBackground` starts Dart on a headless engine: the
+  /// generated `assistantActionsBackgroundMain`, which builds the registry with
+  /// `appRegistry`.
+  @objc(AssistantActionsAppBackground)
+  public final class AssistantActionsAppBackground: NSObject, AssistantBackgroundEntrypoint {
+    public static let entrypoint = "assistantActionsBackgroundMain"
+    public static let libraryURI = "package:assistant_actions_example/assistant_actions.g.dart"
+  }
+#endif
 

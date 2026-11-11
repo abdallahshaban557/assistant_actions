@@ -13,10 +13,20 @@ public final class AssistantActionsPlugin: NSObject, FlutterPlugin {
   public static func register(with registrar: FlutterPluginRegistrar) {
     MainActor.assumeIsolated {
       AssistantBridge.shared.engineStarted()
-      AssistantLiveActivities.register()
+      AssistantBackground.shared.engineRegistered()
+      setUpBridge()
     }
+  }
+
+  /// Registers the host API Dart calls, and the runtime's host calls. Also
+  /// run by the headless engine before its plugins register, in case an app's
+  /// own plugin registration leaves this plugin out.
+  @MainActor
+  static func setUpBridge() {
     // Registering also keeps the linker from stripping the generated setup class.
     AssistantHostApiSetup.register(api: AssistantHostApiImpl())
+    AssistantBackground.registerHostCalls()
+    AssistantLiveActivities.register()
   }
 }
 

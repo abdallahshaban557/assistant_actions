@@ -1,7 +1,7 @@
 // Checks every App Schema the bundled catalogs offer against Apple's own
 // tools, end to end:
 //
-//   dart run tool/validate_schemas.dart [--keep] [--report=FILE] [domain...]
+//   dart run tool/validate_schemas.dart [--keep] [--no-background] [--report=FILE] [domain...]
 //
 // 1. Writes a throwaway Flutter app whose models adopt every schema entity
 //    the generator can adopt (each mappable member mapped, every intent
@@ -12,6 +12,10 @@
 //    for the Flutter bridge) for macOS and the iOS simulator, and runs
 //    Apple's `appintentsmetadataprocessor` on each, which validates schema
 //    conformance.
+//
+// The app sets up background execution (`@AssistantBackground()`), so live
+// intents get their background variants; `--no-background` checks the
+// output for apps without it.
 //
 // Prints what it couldn't adopt and why, and exits non-zero on any error.
 // `--report` writes a Markdown table of what each domain supports.
@@ -30,8 +34,12 @@ final _here = p.dirname(Platform.script.toFilePath());
 final _runtime = p.normalize(p.join(_here, '..', '..', 'assistant_actions'));
 final _generator = p.normalize(p.join(_here, '..'));
 
+/// The validation app has an `@AssistantBackground()` registry function.
+var _background = true;
+
 Future<void> main(List<String> args) async {
   final keep = args.contains('--keep');
+  _background = !args.contains('--no-background');
   final report = args.where((a) => a.startsWith('--report=')).map((a) => a.substring(9)).firstOrNull;
   final only = args.where((a) => !a.startsWith('--')).toSet();
   final catalogs = <String, DomainCatalog>{
@@ -315,7 +323,11 @@ import 'package:assistant_actions/assistant_actions.dart';
 
 // ignore: unused_import
 import 'models.dart';
-''');
+${_background ? '''
+
+@AssistantBackground()
+AssistantActionsRegistry backgroundRegistry() => const AssistantActionsRegistry();
+''' : ''}''');
 }
 
 String _className(EntitySchema e) => '${pascal(e.domain)}${pascal(e.name)}Item';
@@ -458,6 +470,18 @@ public final class AssistantBridge {
 public enum AssistantActionError: Error {
   case notRunning
   case failed(String)
+}
+
+@MainActor
+public final class AssistantBackground {
+  public static let shared = AssistantBackground()
+  public func prepare(timeout: TimeInterval = 15) async -> Bool { false }
+  public func applyInbox(timeout: TimeInterval = 10) async {}
+}
+
+@objc public protocol AssistantBackgroundEntrypoint {
+  static var entrypoint: String { get }
+  static var libraryURI: String { get }
 }
 ''';
 

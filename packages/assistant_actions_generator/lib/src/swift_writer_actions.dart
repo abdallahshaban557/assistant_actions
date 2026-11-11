@@ -56,13 +56,18 @@ extension _Actions on SwiftWriter {
     final foreground = a.runs == RunsModel.withFlutter;
     final result = a.result;
     final floor = _actionFloor(a);
+    // With `@AssistantBackground()`, live actions run Dart in the background
+    // on iOS (see swift_writer_background.dart) unless they open the app.
+    final background = foreground && _background && !a.opensApp;
+    final from26 = SwiftWriter._norm(floor)['iOS']! >= 26;
     _out.writeln('/// `${a.functionName}` in Dart (${foreground ? 'runs with Flutter' : 'deferred'}).');
     if (_above(floor)) _out.writeln(_availability(floor));
     _out
-      ..writeln('public struct ${a.swiftName}: AppIntent${foreground ? ', ForegroundContinuableIntent' : ''} {')
+      ..writeln('public struct ${a.swiftName}: AppIntent${foreground && !(background && from26) ? ', ForegroundContinuableIntent' : ''} {')
       ..writeln('  public static let title: LocalizedStringResource = "${SwiftWriter._escape(a.title)}"')
       ..write(_describe(a.title, a.description, a.searchKeywords, a.isDiscoverable))
       ..writeln();
+    if (background) _out.writeln(_backgroundModes(from26: from26, access: 'public '));
     for (final p in a.params) {
       final options = [
         'title: "${SwiftWriter._escape(p.title)}"',
@@ -92,16 +97,22 @@ extension _Actions on SwiftWriter {
     } else if (!foreground) {
       _out.writeln('''
     AssistantInbox.call("${a.id}", args: args)
-    AssistantBridge.shared.inboxChanged()
+    $_inboxChanged
     return .result(dialog: IntentDialog(stringLiteral: $dialog))''');
     } else {
-      _out.writeln('''
+      if (background) {
+        _out.writeln(_backgroundPrelude(from26: from26));
+      } else if (a.opensApp) {
+        _out.writeln(_foreground(activateOnMac: true));
+      } else {
+        _out.writeln('''
     #if os(iOS)
       // iOS doesn't start the Flutter engine without a scene, so answer from the foreground.
       if UIApplication.shared.applicationState != .active {
         try await requestToContinueInForeground()
       }
     #endif''');
+      }
       if (reply) {
         _out.writeln('    let reply = AssistantReply(json: try await AssistantBridge.shared.perform("${a.id}", args: args))');
         if (result != null) _out.write(_decodeResult(result, a, source: 'reply.value', reply: true));

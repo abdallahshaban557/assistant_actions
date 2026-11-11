@@ -1,22 +1,12 @@
 import 'package:assistant_actions/assistant_actions.dart';
 import 'package:flutter/material.dart';
 
-import 'assistant_actions.g.dart';
 import 'store.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  final store = Store.instance;
-  await AssistantActions.start(assistantActionsRegistry(
-    findRecipe: (id) => store.recipes.where((r) => r.id == id).firstOrNull,
-    taskItem: TaskHandler(),
-    memoryItem: MemoryHandler(),
-    journalItem: JournalHandler(),
-    countdown: CountdownHandler(),
-    system: SystemHandler(),
-    camera: CameraHandler(),
-  ));
-  store.changed();
+  await AssistantActions.start(appRegistry());
+  Store.instance.changed();
   runApp(const ExampleApp());
 }
 

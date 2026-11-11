@@ -284,6 +284,55 @@ void main() {
     expect(const AssistantAction(title: 'T').isDiscoverable, isTrue);
     expect(ShortcutTileColor.values.length, 15, reason: "one per App Intents' ShortcutTileColor case");
   });
+  test('startInBackground claims the headless engine, drains, then reports ready over host calls', () async {
+    final applied = <String>[];
+    final host = _BackgroundHost(claim: true, [jsonEncode({'kind': 'call', 'action': 'add', 'args': {'n': 1}})]);
+    await AssistantActions.startInBackground(
+      () async => AssistantActionsRegistry(actions: {'add': (args) async => (applied..add('add ${args['n']}')).last}),
+      host: host,
+    );
+    expect(AssistantActions.inBackground, isTrue);
+    expect(applied, ['add 1']);
+    expect(host.calls, ['invoke background.claim', 'drainInbox', 'invoke background.ready'],
+        reason: 'ready goes through background.ready, never markReady');
+    expect(await AssistantActions.perform('add', jsonEncode({'n': 2})), 'add 2');
+  });
+
+  test('the drain action applies the inbox and answers once it is applied', () async {
+    final applied = <String>[];
+    final host = _FakeHost([]);
+    await AssistantActions.start(
+      AssistantActionsRegistry(actions: {'add': (args) async => (applied..add('add ${args['n']}')).last}),
+      host: host,
+    );
+    host.inbox = [jsonEncode({'kind': 'call', 'action': 'add', 'args': {'n': 7}})];
+    expect(await AssistantActions.perform(AssistantActions.drainAction, '{}'), isNull);
+    expect(applied, ['add 7']);
+  });
+
+  test('startInBackground stands down when Swift declines (the app engine started)', () async {
+    final host = _BackgroundHost(claim: false, [jsonEncode({'kind': 'call', 'action': 'add', 'args': {}})]);
+    var built = false;
+    await AssistantActions.startInBackground(() {
+      built = true;
+      return const AssistantActionsRegistry();
+    }, host: host);
+    expect(built, isTrue);
+    expect(host.calls, ['invoke background.claim'], reason: 'the inbox is left for the app engine');
+    expect(host.inbox, hasLength(1));
+  });
+}
+
+class _BackgroundHost extends _FakeHost implements AssistantHostCalls {
+  _BackgroundHost(super.inbox, {required this.claim});
+
+  final bool claim;
+
+  @override
+  Future<String?> invoke(String method, String argsJson) async {
+    calls.add('invoke $method');
+    return method == 'background.claim' ? jsonEncode(claim) : null;
+  }
 }
 
 enum _Case { a, b, this$ }

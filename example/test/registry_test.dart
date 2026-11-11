@@ -51,15 +51,7 @@ void main() {
       ..recordingActivity = null
       ..hideTasks = false
       ..focusNote = null;
-    registry = assistantActionsRegistry(
-      findRecipe: (id) => store.recipes.where((r) => r.id == id).firstOrNull,
-      taskItem: TaskHandler(),
-      memoryItem: MemoryHandler(),
-      journalItem: JournalHandler(),
-      countdown: CountdownHandler(),
-      system: SystemHandler(),
-      camera: CameraHandler(),
-    );
+    registry = appRegistry();
     // The handlers republish after each change, which needs a started runtime.
     await AssistantActions.start(registry, host: _NoHost());
   });
@@ -257,4 +249,17 @@ void main() {
     expect(store.recording, isTrue);
     expect(store.recordingActivity, isNull);
   });
+
+  // Last: it switches the runtime to the headless engine's mode.
+  test('the headless engine builds the same registry and answers live actions', () async {
+    store.tasks.add(TaskItem(id: 't1', title: 'Call mum'));
+    await AssistantActions.startInBackground(appRegistry, host: _BackgroundHost());
+    expect(await AssistantActions.perform('countOpenTasks', '{}'), 'You have 1 open task (answered in the background).');
+  });
+}
+
+/// Swift's side of the headless engine: lets Dart claim it.
+class _BackgroundHost extends _NoHost implements AssistantHostCalls {
+  @override
+  Future<String?> invoke(String method, String argsJson) async => method == 'background.claim' ? 'true' : null;
 }

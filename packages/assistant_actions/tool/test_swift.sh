@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Compiles the runtime's Foundation-only Swift with test/swift/main.swift and
+# Compiles the runtime's Foundation-only Swift (everything but the plugin
+# class and the headless engine, which need Flutter) with test/swift/main.swift and
 # runs it. macOS only; needs Xcode's command line tools.
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -13,5 +14,6 @@ swiftc -module-name assistant_actions -o "$out/tests" \
   "$src/AssistantCardView.swift" \
   "$src/AssistantActivityAttributes.swift" "$src/AssistantLiveActivities.swift" \
   "$src/AssistantShortcutParameters.swift" \
+  "$src/AssistantBridge.swift" "$src/AssistantApi.g.swift" "$src/AssistantBackground.swift" \
   test/swift/main.swift
 "$out/tests"

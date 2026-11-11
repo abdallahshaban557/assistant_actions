@@ -77,7 +77,9 @@ Future<AssistantReply<Recipe>> pickRecipe({Meal meal = Meal.dinner}) async {
 )
 Future<String> countOpenTasks() async {
   final open = Store.instance.tasks.where((t) => !t.done).length;
-  return open == 1 ? 'You have 1 open task.' : 'You have $open open tasks.';
+  // On iOS, with the app closed, this runs on the headless engine.
+  final where = AssistantActions.inBackground ? ' (answered in the background)' : '';
+  return open == 1 ? 'You have 1 open task$where.' : 'You have $open open tasks$where.';
 }
 
 /// An App Shortcut with parameters: "Cook Pancakes for breakfast in …" works

@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'dart:ui' show DartPluginRegistrant;
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
@@ -33,11 +35,51 @@ abstract final class AssistantActions {
   static Future<void> start(AssistantActionsRegistry registry, {@visibleForTesting AssistantHost? host}) async {
     _registry = registry;
     if (host == null && !_supported) return;
-    _host = host ?? FfiAssistantHost();
-    if (host == null) AssistantFlutterApi.setUp(_FlutterApi());
-    _lifecycle ??= AppLifecycleListener(onResume: () => unawaited(drain()));
+    _connect(host ?? FfiAssistantHost(), live: host == null);
     await drain();
     await _host!.markReady();
+  }
+
+  /// Whether this Dart runs on the headless engine Swift starts for Siri on
+  /// iOS (see `AssistantBackground`), not in the app's own engine.
+  static bool get inBackground => _inBackground;
+  static bool _inBackground = false;
+
+  /// The headless engine's entrypoint: builds the registry with the
+  /// `@AssistantBackground()` function [registry], then does what [start]
+  /// does. Generated code calls it from `assistantActionsBackgroundMain`;
+  /// apps don't.
+  ///
+  /// If the app's own engine started meanwhile, Swift declines this one and
+  /// it stays idle until Swift shuts it down.
+  static Future<void> startInBackground(
+    FutureOr<AssistantActionsRegistry> Function() registry, {
+    @visibleForTesting AssistantHost? host,
+  }) async {
+    if (host == null) {
+      if (!_supported) return;
+      WidgetsFlutterBinding.ensureInitialized();
+      DartPluginRegistrant.ensureInitialized();
+    }
+    _inBackground = true;
+    final built = await registry();
+    final target = host ?? FfiAssistantHost();
+    if (target is! AssistantHostCalls) return;
+    final calls = target as AssistantHostCalls;
+    // Claiming and setting up the Flutter API happen with no await between
+    // them, so the app's engine can't start in the middle.
+    if (await calls.invoke('background.claim', '{}') != 'true') return;
+    _registry = built;
+    _connect(target, live: host == null);
+    await drain();
+    // Not markReady: Swift ignores this engine if the app's started since.
+    await calls.invoke('background.ready', '{}');
+  }
+
+  static void _connect(AssistantHost host, {required bool live}) {
+    _host = host;
+    if (live) AssistantFlutterApi.setUp(_FlutterApi());
+    _lifecycle ??= AppLifecycleListener(onResume: () => unawaited(drain()));
   }
 
   /// Publishes the current [items] of an `@AssistantEntity` or schema entity
@@ -98,9 +140,21 @@ abstract final class AssistantActions {
     return result == null ? null : jsonDecode(result);
   }
 
+  /// The action Swift performs to apply the inbox and wait until it's done
+  /// (`AssistantBackground.applyInbox`), unlike `inboxChanged`, which
+  /// doesn't wait.
+  @internal
+  static const drainAction = 'assistant_actions.drainInbox';
+
   /// Runs a `Runs.withFlutter` action for Swift.
   @visibleForTesting
   static Future<String?> perform(String action, String argsJson) async {
+    if (action == drainAction) {
+      // A drain already running may have read the inbox before this item.
+      if (_draining case final running?) await running;
+      await drain();
+      return null;
+    }
     final handler = _registry?.actions[action];
     if (handler == null) throw ArgumentError.value(action, 'action', 'Unknown action');
     return handler((jsonDecode(argsJson) as Map).cast<String, Object?>());

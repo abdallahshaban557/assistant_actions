@@ -5,8 +5,10 @@ The `build_runner` generator for
 `@AssistantAction`, `@AssistantEntity`, `@AssistantFocusFilter` and App Schema annotations from
 `lib/assistant_actions.dart` and writes:
 
-- `lib/assistant_actions.g.dart` — the registry for `AssistantActions.start` and
-  a typed handler interface per schema entity;
+- `lib/assistant_actions.g.dart` — the registry for `AssistantActions.start`,
+  a typed handler interface per schema entity, and, with an
+  `@AssistantBackground()` function, the entrypoint of the headless engine
+  that answers Siri on iOS without opening the app;
 - `packages/assistant_actions_app/.../AssistantActions.g.swift` — the App
   Intents, entities, queries and schema containers;
 - `apple/AssistantShortcuts.g.swift` — the App Shortcuts (for plain actions,
