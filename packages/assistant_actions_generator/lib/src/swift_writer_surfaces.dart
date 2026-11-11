@@ -9,9 +9,12 @@ extension _Surfaces on SwiftWriter {
   ///
   /// With `@AssistantBackground(applyQueued: true)`, Dart is started on the
   /// headless engine when the app has none, so the call runs at once there too.
+  ///
+  /// A Live Activity action's call is a live call (`callDart`), which reports
+  /// progress and can be cancelled; a Focus filter's isn't.
   String _performOrQueue(ActionModel a) => '''
     if ${app.background?.applyQueued ?? false ? 'await AssistantBackground.shared.prepare()' : 'AssistantBridge.shared.isReady'} {
-      _ = try await AssistantBridge.shared.perform("${a.id}", args: args)
+      _ = try await ${a.liveActivity ? 'callDart' : 'AssistantBridge.shared.perform'}("${a.id}", args: args)
     } else {
       AssistantInbox.call("${a.id}", args: args)
     }''';
@@ -71,28 +74,27 @@ extension _Surfaces on SwiftWriter {
   ///
   /// With `@AssistantBackground()`, a `Runs.withFlutter` one starts Dart on the
   /// headless engine instead, like any background action.
-  String _liveActivityPerform(ActionModel a, String dialog) {
+  String _liveActivityPerform(ActionModel a, String dialog, Map<String, _Mode> modes) {
     if (a.runs == RunsModel.deferred) {
       return '''
 ${_performOrQueue(a)}
     return .result(dialog: IntentDialog(stringLiteral: $dialog))''';
     }
-    final call = '''
-    ${a.returnsReply ? 'let reply = AssistantReply(json: try await AssistantBridge.shared.perform("${a.id}", args: args))' : 'let reply = try await AssistantBridge.shared.perform("${a.id}", args: args)'}
-    return ${a.returnsReply ? _resultOf(dialog: 'reply.dialog ?? $dialog', snippet: true) : '.result(dialog: IntentDialog(stringLiteral: reply ?? $dialog))'}''';
-    if (_background) {
-      return '${_backgroundPrelude(from26: SwiftWriter._norm(_actionFloor(a))['iOS']! >= 26)}\n$call';
-    }
-    return '''
-    #if os(iOS)
-      // A Live Activity intent can run in the background; the Flutter engine
-      // only starts with a scene, so come forward unless Dart already runs.
-      if !AssistantBridge.shared.isReady && UIApplication.shared.applicationState != .active {
-        try await requestToContinueInForeground()
-      }
-    #endif
-    ${a.returnsReply ? 'let reply = AssistantReply(json: try await AssistantBridge.shared.perform("${a.id}", args: args))' : 'let reply = try await AssistantBridge.shared.perform("${a.id}", args: args)'}
-    return ${a.returnsReply ? _resultOf(dialog: 'reply.dialog ?? $dialog', snippet: true) : '.result(dialog: IntentDialog(stringLiteral: reply ?? $dialog))'}''';
+    final call = a.returnsReply
+        ? 'let reply = AssistantReply(json: try await callDart("${a.id}", args: args))'
+        : 'let reply = try await callDart("${a.id}", args: args)';
+    final result = a.returnsReply
+        ? _resultOf(dialog: 'reply.dialog ?? $dialog', snippet: true)
+        : '.result(dialog: IntentDialog(stringLiteral: reply ?? $dialog))';
+    // Without background execution, iOS comes forward unless Dart already runs.
+    final forward = _foregroundLines(modes,
+        activateOnMac: false,
+        unlessReady: !_background,
+        comment: _background
+            ? null
+            : '      // A Live Activity intent can run in the background; the Flutter engine\n'
+                '      // only starts with a scene, so come forward unless Dart already runs.');
+    return '$forward\n    $call\n    return $result';
   }
 
   /// `LiveActivityIntent` is iOS-only.

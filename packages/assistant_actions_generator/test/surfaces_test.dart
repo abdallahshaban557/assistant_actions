@@ -101,7 +101,7 @@ void main() {
       final swift = SwiftWriter(_app([_recording(RunsModel.deferred)])).write();
       expect(swift, contains('''
     if AssistantBridge.shared.isReady {
-      _ = try await AssistantBridge.shared.perform("stopRecording", args: args)
+      _ = try await callDart("stopRecording", args: args)
     } else {
       AssistantInbox.call("stopRecording", args: args)
     }
@@ -139,7 +139,7 @@ void main() {
     );
     final swift = SwiftWriter(_app([action])).write();
     expect(swift, contains('if !AssistantBridge.shared.isReady && UIApplication.shared.applicationState != .active'));
-    expect(swift, contains('let reply = AssistantReply(json: try await AssistantBridge.shared.perform("stopRecording", args: args))'));
+    expect(swift, contains('let reply = AssistantReply(json: try await callDart("stopRecording", args: args))'));
     expect(swift, contains('ProvidesDialog & ShowsSnippetView'));
     expect(swift, contains('extension StopRecordingAction: LiveActivityIntent {}'));
   });

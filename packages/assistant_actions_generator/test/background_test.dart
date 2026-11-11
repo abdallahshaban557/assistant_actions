@@ -163,7 +163,7 @@ void main() {
         }
       }
     #endif
-    let reply = try await AssistantBridge.shared.perform("countTasks", args: args)'''));
+    let reply = try await callDart("countTasks", args: args)'''));
     });
 
     test('opensApp actions still come to the foreground, and activate on macOS', () {
@@ -219,7 +219,7 @@ void main() {
       expect(record, isNot(contains('AssistantBridge.shared.isReady')));
       final stop = _block(swift, 'public struct StopRecordingAction');
       expect(stop, contains('    if await AssistantBackground.shared.prepare() {\n'
-          '      _ = try await AssistantBridge.shared.perform("stopRecording", args: args)\n'
+          '      _ = try await callDart("stopRecording", args: args)\n'
           '    } else {\n'
           '      AssistantInbox.call("stopRecording", args: args)'));
       expect(swift, contains('extension RecordAction: LiveActivityIntent {}'));

@@ -131,6 +131,23 @@ Future<ActionResult<TaskItem?>> nextTask() async {
   return ActionResult(next, dialog: next == null ? 'Nothing is due.' : 'Next up: ${next.title}.');
 }
 
+/// Level 1, live and long-running: reports progress to Siri as it goes and
+/// stops if the user cancels (`AssistantCall.current`).
+@AssistantAction(title: 'Archive Done Tasks', runs: Runs.withFlutter, longRunning: true)
+Future<String> archiveDoneTasks() async {
+  final call = AssistantCall.current;
+  final done = Store.instance.tasks.where((t) => t.done).toList();
+  var archived = 0;
+  for (final task in done) {
+    if (call?.isCancelled ?? false) break;
+    Store.instance.tasks.remove(task);
+    archived++;
+    await call?.reportProgress(completed: archived, total: done.length);
+  }
+  Store.instance.changed();
+  return archived == 1 ? 'Archived 1 task.' : 'Archived $archived tasks.';
+}
+
 /// Answered from published data in Swift, without starting Flutter: open
 /// tasks, soonest first.
 @AssistantAction(

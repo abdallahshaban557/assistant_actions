@@ -189,6 +189,74 @@ offered.
 The journal schemas date from iOS 18, but `location`'s `PlaceDescriptor`
 needs iOS / macOS 26, so the generated journal types are available from 26.
 
+### Files
+
+`files.file` is Apple's `FileEntity`, whose ids are `FileEntityIdentifier`s.
+In Dart the `@EntityId()` is the file's absolute path (or a `file://` URL);
+Swift gives Siri a file identifier for it (a bookmark, which follows the file)
+and finds your published item again from the identifiers Siri passes back.
+Ids that aren't paths of existing files become draft identifiers.
+
+```dart
+import 'package:assistant_actions/schemas/files.dart';
+
+@FilesFile(openFile: true, moveFiles: true, createFolder: true, renameFile: true, deleteFiles: true)
+class DocItem {
+  @EntityId() String path;
+  @FilesFileField.creationDate DateTime? created;
+}
+```
+
+Every intent gets paths: `openFile({required String target})`,
+`moveFiles({required List<String> entities, required String destinationFolder})`,
+`createFolder(...)` returns the new folder's path (publish it first),
+`renameFile(...)`, and `deleteFiles` arrives as `delete(id)`.
+
+### Syncable, undoable and long-running intents
+
+- **Syncable** (`SyncableEntity`, iOS / macOS 27): entities Apple makes
+  syncable in its own apps (`notes.note`, `reminders.list`, `calendar.event`,
+  …) are syncable here too, so Siri can carry them into schema intents by id.
+  `@AssistantSyncable()` opts any other entity in (the example's reminders do),
+  `@AssistantSyncable(false)` opts out. Keep the ids stable.
+- **Undo** (`UndoableIntent`, iOS / macOS 26): with `@AssistantUndoable()` on a
+  schema class, the user can undo what Siri did. Creates, updates and deletes
+  are undone for you, through the same handler (`delete` undoes a create,
+  `create` brings back a deleted item with its id and published fields).
+  Other intents get an `undo…` method with the same arguments
+  (`undoPauseTimer({required String timer})`).
+- **Live calls** (`Runs.withFlutter` actions and schema intents that wait for
+  Dart) report progress and can be cancelled (`ProgressReportingIntent`, and
+  `CancellableIntent` from 26.4):
+
+  ```dart
+  @AssistantAction(title: 'Archive Done Tasks', runs: Runs.withFlutter, longRunning: true)
+  Future<String> archiveDoneTasks() async {
+    final call = AssistantCall.current;
+    for (final (i, task) in done.indexed) {
+      if (call?.isCancelled ?? false) break;
+      await archive(task);
+      await call?.reportProgress(completed: i + 1, total: done.length);
+    }
+    return 'Done.';
+  }
+  ```
+
+  `longRunning: true` (or `@AssistantLongRunning()` on a schema class) makes
+  them `LongRunningIntent`s (27), which keep running in the background.
+
+### Deployment targets
+
+The generated Swift compiles in `packages/assistant_actions_app` at its
+`Package.swift` platforms, which `dart run assistant_actions:install` copies
+from the Runner targets (at least iOS 17 / macOS 14). From iOS 26 / macOS 26,
+`ForegroundContinuableIntent` is deprecated, so for those targets the
+generator declares `supportedModes` (`.foreground(.dynamic)`, and
+`continueInForeground` on iOS) instead, and stays warning-free either way.
+After raising the Runner's deployment target, run `install` again, then
+`build_runner`. The builder's `ios_deployment_target` / `macos_deployment_target`
+options (`build.yaml`) override it.
+
 ### Answer from published data, without starting the app
 
 Put `@AssistantAction` on a `const SnapshotAnswer<T>` and Siri answers in

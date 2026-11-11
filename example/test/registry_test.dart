@@ -220,6 +220,44 @@ void main() {
     expect(entry.place?.name, 'Lake');
   });
 
+  test('undoing a timer pause resumes it; undoing a create deletes it', () async {
+    await apply(const InboxChange(kind: 'create', collection: 'Countdown', id: 'c1', fields: {'length': 60.0}));
+    await registry.actions['Countdown.pauseTimer']!({'timer': 'c1'});
+    // What Swift's AssistantUndo queues when the user undoes the pause.
+    await registry.actions['Countdown.pauseTimer.undo']!({'timer': 'c1'});
+    expect(store.timers.single.state.name, 'running');
+    await apply(const InboxChange(kind: 'delete', collection: 'Countdown', id: 'c1'));
+    expect(store.timers, isEmpty);
+  });
+
+  test('undoing a task delete creates it again with its id', () async {
+    store.tasks.add(TaskItem(id: 't1', title: 'Call mum'));
+    await apply(const InboxChange(kind: 'delete', collection: 'TaskItem', id: 't1'));
+    await apply(const InboxChange(kind: 'create', collection: 'TaskItem', id: 't1', fields: {'title': 'Call mum'}));
+    expect(store.tasks.single.id, 't1');
+  });
+
+  test('files.* intents get paths', () async {
+    store.docs
+      ..clear()
+      ..add(DocItem(path: '/Documents/a.txt'));
+    expect(await AssistantActions.perform('DocItem.createFolder', '{"fileName":"Old","target":"/Documents"}'),
+        '/Documents/Old');
+    await AssistantActions.perform('DocItem.moveFiles', '{"entities":["/Documents/a.txt"],"destinationFolder":"/Documents/Old"}');
+    await AssistantActions.perform('DocItem.renameFile', '{"target":"/Documents/Old/a.txt","newName":"b.txt"}');
+    expect(store.docs.map((d) => d.path), ['/Documents/Old/b.txt', '/Documents/Old']);
+    await apply(const InboxChange(kind: 'delete', collection: 'DocItem', id: '/Documents/Old/b.txt'));
+    expect(store.docs.single.name, 'Old');
+    expect(registry.codecs[DocItem]!.encode(store.docs.single)['id'], '/Documents/Old');
+  });
+
+  test('a long-running action sees its call and stops when cancelled', () async {
+    store.tasks.addAll([TaskItem(id: 'a', title: 'A', done: true), TaskItem(id: 'b', title: 'B', done: true)]);
+    final reply = AssistantActions.perform('archiveDoneTasks', '{"${AssistantCall.argument}":"call-1"}');
+    await AssistantActions.perform(AssistantCall.cancelAction, '{"call":"call-1"}');
+    expect(await reply, 'Archived 1 task.', reason: 'it archives one, then sees the cancel');
+  });
+
   test('the Focus filter applies its values, and its defaults when the Focus ends', () async {
     await AssistantActions.perform('applyFocus', '{"hideTasks":true,"note":"Deep work"}');
     expect((store.hideTasks, store.focusNote), (true, 'Deep work'));

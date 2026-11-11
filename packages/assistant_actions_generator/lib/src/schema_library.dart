@@ -120,11 +120,18 @@ String generateSchemaLibrary(DomainCatalog catalog) {
         out.writeln('/// `replies` lets live intents\' handlers return an `AssistantReply`.');
       }
     }
-    if (entity.protocols.contains('file')) {
+    if (entity.isFile) {
       out
         ..writeln('///')
-        ..writeln('/// Not supported yet: Apple requires file-based ids (`FileEntity`) for this')
-        ..writeln('/// schema, and the generator rejects it.');
+        ..writeln('/// A file entity (`FileEntity`): the `@EntityId()` is the file\'s absolute')
+        ..writeln('/// path (or a `file://` URL), which Swift turns into a `FileEntityIdentifier`.')
+        ..writeln('/// Ids that aren\'t paths become draft identifiers.');
+    }
+    if (entity.isSyncable) {
+      out
+        ..writeln('///')
+        ..writeln('/// Syncable (`SyncableEntity`), like Apple\'s own: keep each `@EntityId()`')
+        ..writeln('/// stable across launches and devices. Opt out with `@AssistantSyncable(false)`.');
     }
     out.writeln('class ${names.annotation} extends SchemaEntity {');
     final params = [

@@ -49,6 +49,9 @@ class PhotosRotationDirection extends SchemaEnumCases {
 /// `dialogs` and `confirm` give, by intent name, what Siri says when one
 /// finishes and what it asks first (deletes ask by default; see `confirmDeletes`).
 /// `replies` lets live intents' handlers return an `AssistantReply`.
+///
+/// Syncable (`SyncableEntity`), like Apple's own: keep each `@EntityId()`
+/// stable across launches and devices. Opt out with `@AssistantSyncable(false)`.
 class PhotosAsset extends SchemaEntity {
   const PhotosAsset({
     this.createAssets = false,
@@ -305,6 +308,9 @@ class FixedPhotosAsset extends SchemaContainer {
 /// `dialogs` and `confirm` give, by intent name, what Siri says when one
 /// finishes and what it asks first (deletes ask by default; see `confirmDeletes`).
 /// `replies` lets live intents' handlers return an `AssistantReply`.
+///
+/// Syncable (`SyncableEntity`), like Apple's own: keep each `@EntityId()`
+/// stable across launches and devices. Opt out with `@AssistantSyncable(false)`.
 class PhotosAlbum extends SchemaEntity {
   const PhotosAlbum({
     this.createAlbum = false,
@@ -377,6 +383,9 @@ abstract final class PhotosAlbumField {
 ///
 /// `dialogs` and `confirm` give, by intent name, what Siri says when one
 /// finishes and what it asks first.
+///
+/// Syncable (`SyncableEntity`), like Apple's own: keep each `@EntityId()`
+/// stable across launches and devices. Opt out with `@AssistantSyncable(false)`.
 class PhotosRecognizedPerson extends SchemaEntity {
   const PhotosRecognizedPerson({
     this.updateRecognizedPerson = false,

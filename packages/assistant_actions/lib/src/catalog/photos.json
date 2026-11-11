@@ -141,6 +141,9 @@
           },
           "updatable": false
         }
+      ],
+      "protocols": [
+        "syncable"
       ]
     },
     "album": {
@@ -181,6 +184,9 @@
           "updatable": false,
           "indexingKey": "kind"
         }
+      ],
+      "protocols": [
+        "syncable"
       ]
     },
     "recognizedPerson": {
@@ -208,6 +214,9 @@
           "updatable": false,
           "indexingKey": "favorited"
         }
+      ],
+      "protocols": [
+        "syncable"
       ]
     }
   },

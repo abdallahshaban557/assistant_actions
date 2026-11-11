@@ -168,11 +168,67 @@ abstract interface class CountdownAssistantHandler {
   /// `timer` is the id of a `clock.timer` item.
   Future<void> pauseTimer({required String timer});
 
+  /// The user undid `clock.pauseTimer` ("Pause Timer"): reverse what
+  /// `pauseTimer` did. Gets the same arguments.
+  Future<void> undoPauseTimer({required String timer});
+
   /// Siri's `clock.resumeTimer` ("Resume Timer"), applied when the app next runs.
   /// Resume a timer
   ///
   /// `timer` is the id of a `clock.timer` item.
   Future<void> resumeTimer({required String timer});
+
+  /// The user undid `clock.resumeTimer` ("Resume Timer"): reverse what
+  /// `resumeTimer` did. Gets the same arguments.
+  Future<void> undoResumeTimer({required String timer});
+  Future<void> delete(String id);
+}
+
+/// Siri's values for a `DocItem` (`files.file`).
+///
+/// A null field is unchanged, unless its `…Cleared` getter says Siri removed
+/// the value.
+class DocItemValues {
+  const DocItemValues({this.created, this.cleared = const {}});
+
+  final DateTime? created;
+
+  /// Fields Siri cleared (set to no value), by Dart field name.
+  final Set<String> cleared;
+
+  /// Siri removed `created` (for example, took a due date off a reminder).
+  bool get createdCleared => cleared.contains('created');
+}
+
+/// Applies the changes Siri makes to `DocItem` items through
+/// `files.openFile`, `files.moveFiles`, `files.createFolder`, `files.renameFile`, `files.deleteFiles`.
+abstract interface class DocItemAssistantHandler {
+  /// Siri's `files.openFile` ("Open Item").
+  /// Opens a selected file or folder.
+  ///
+  /// `target` is the id of a `files.file` item.
+  Future<void> openFile({required String target});
+
+  /// Siri's `files.moveFiles` ("Move Items to Folder"), applied when the app next runs.
+  /// Moves existing files or folders.
+  ///
+  /// `entities` is the id of a `files.file` item.
+  Future<void> moveFiles({required List<String> entities, required String destinationFolder});
+
+  /// Siri's `files.createFolder` ("Create Folder").
+  /// Creates a new folder.
+  ///
+  /// `target` is the id of a `files.file` item.
+  ///
+  /// Return the id of the files.file item(s), published first, for Siri to show.
+  Future<String> createFolder({String? fileName, required String target});
+
+  /// Siri's `files.renameFile` ("Rename Item"), applied when the app next runs.
+  /// Renames an existing file or folder.
+  ///
+  /// `target` is the id of a `files.file` item.
+  Future<void> renameFile({required String target, required String newName});
+  Future<void> delete(String id);
 }
 
 /// Handles Apple's `system` intents turned on with `@SystemIntents` on `SystemHandler`.
@@ -221,6 +277,7 @@ AssistantActionsRegistry assistantActionsRegistry({
   required MemoryItemAssistantHandler memoryItem,
   required JournalItemAssistantHandler journalItem,
   required CountdownAssistantHandler countdown,
+  required DocItemAssistantHandler docItem,
   required SystemAssistantHandler system,
   required CameraAssistantHandler camera,
 }) => AssistantActionsRegistry(
@@ -271,6 +328,9 @@ AssistantActionsRegistry assistantActionsRegistry({
       final result = await a0.nextTask();
       return AssistantValue.encodeResult(result.value?.id, dialog: result.dialog);
     },
+    'archiveDoneTasks': (args) async {
+      return await a0.archiveDoneTasks();
+    },
     'stopRecording': (args) async {
       await a0.stopRecording();
       return null;
@@ -291,9 +351,51 @@ AssistantActionsRegistry assistantActionsRegistry({
       );
       return null;
     },
+    'Countdown.pauseTimer.undo': (args) async {
+      await countdown.undoPauseTimer(
+        timer: AssistantValue.string(args['timer']) ?? (throw ArgumentError.notNull('timer')),
+      );
+      return null;
+    },
     'Countdown.resumeTimer': (args) async {
       await countdown.resumeTimer(
         timer: AssistantValue.string(args['timer']) ?? (throw ArgumentError.notNull('timer')),
+      );
+      return null;
+    },
+    'Countdown.resumeTimer.undo': (args) async {
+      await countdown.undoResumeTimer(
+        timer: AssistantValue.string(args['timer']) ?? (throw ArgumentError.notNull('timer')),
+      );
+      return null;
+    },
+    'DocItem.openFile': (args) async {
+      await docItem.openFile(
+        target: AssistantValue.string(args['target']) ?? (throw ArgumentError.notNull('target')),
+      );
+      return null;
+    },
+    'DocItem.moveFiles': (args) async {
+      await docItem.moveFiles(
+        entities:
+            AssistantValue.list(args['entities'], (v) => AssistantValue.string(v)) ??
+            (throw ArgumentError.notNull('entities')),
+        destinationFolder:
+            AssistantValue.string(args['destinationFolder']) ??
+            (throw ArgumentError.notNull('destinationFolder')),
+      );
+      return null;
+    },
+    'DocItem.createFolder': (args) async {
+      return await docItem.createFolder(
+        fileName: AssistantValue.string(args['fileName']),
+        target: AssistantValue.string(args['target']) ?? (throw ArgumentError.notNull('target')),
+      );
+    },
+    'DocItem.renameFile': (args) async {
+      await docItem.renameFile(
+        target: AssistantValue.string(args['target']) ?? (throw ArgumentError.notNull('target')),
+        newName: AssistantValue.string(args['newName']) ?? (throw ArgumentError.notNull('newName')),
       );
       return null;
     },
@@ -393,6 +495,12 @@ AssistantActionsRegistry assistantActionsRegistry({
         'state': AssistantValue.encodeEnum(e.state),
       },
     ),
+    a1.DocItem: EntityCodec<a1.DocItem>(
+      'DocItem',
+      id: (e) => e.path,
+      title: (e) => 'File',
+      fields: (e) => {'created': AssistantValue.encodeDate(e.created)},
+    ),
   },
   collections: {
     'TaskItem': (change) async {
@@ -431,6 +539,14 @@ AssistantActionsRegistry assistantActionsRegistry({
       switch (change.kind) {
         case 'create':
           await countdown.create(change.id, values);
+        case 'delete':
+          await countdown.delete(change.id);
+      }
+    },
+    'DocItem': (change) async {
+      switch (change.kind) {
+        case 'delete':
+          await docItem.delete(change.id);
       }
     },
   },

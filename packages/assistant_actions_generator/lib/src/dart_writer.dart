@@ -8,6 +8,8 @@ part 'dart_writer_actions.dart';
 
 part 'dart_writer_background.dart';
 
+part 'dart_writer_undo.dart';
+
 /// Writes `lib/assistant_actions.g.dart`: the registry `AssistantActions.start`
 /// takes, plus a typed handler interface per schema entity.
 String writeDart(AppModel app) {
@@ -102,7 +104,7 @@ String writeDart(AppModel app) {
         ..writeln('  /// Siri removed `${f.name}` (for example, took a due date off a reminder).')
         ..writeln("  bool get ${f.name}Cleared => cleared.contains('${f.name}');");
     }
-    final takesValues = s.kinds.any((k) => k == IntentKind.create || k == IntentKind.update || k == IntentKind.append);
+    final takesValues = s.handlerKinds.any((k) => k == IntentKind.create || k == IntentKind.update || k == IntentKind.append);
     if (takesValues) {
       out
         ..writeln()
@@ -120,7 +122,7 @@ String writeDart(AppModel app) {
       ..writeln('/// Applies the changes Siri makes to `${s.className}` items through')
       ..writeln('/// ${s.intents.map((e) => '`${e.$1.id}`').join(', ')}.')
       ..writeln('abstract interface class ${s.className}AssistantHandler {');
-    for (final kind in s.kinds) {
+    for (final kind in s.handlerKinds) {
       switch (kind) {
         case IntentKind.create:
           out
@@ -143,9 +145,9 @@ String writeDart(AppModel app) {
           }
         case IntentKind.call:
           for (final (intent, k) in s.intents) {
-            if (k == IntentKind.call) {
-              _callMethod(out, intent, s.schema, app.openEnumNames, reply: s.interactions.repliesTo(intent));
-            }
+            if (k != IntentKind.call) continue;
+            _callMethod(out, intent, s.schema, app.openEnumNames, reply: s.interactions.repliesTo(intent));
+            if (s.undoable && intent.canUndo) _undoMethodDeclaration(out, intent, s.schema, app.openEnumNames);
           }
       }
     }
@@ -173,6 +175,7 @@ String writeDart(AppModel app) {
         continue;
       }
       _callMethod(out, intent, null, app.openEnumNames, reply: d.interactions.repliesTo(intent));
+      if (d.undoable && intent.canUndo) _undoMethodDeclaration(out, intent, null, app.openEnumNames);
     }
     out.writeln('}');
   }
@@ -217,6 +220,9 @@ String writeDart(AppModel app) {
       if (kind == IntentKind.call) {
         _callEntry(out, callActionId(s, intent), camel(s.className), intent, s.schema, app.openEnumNames,
             reply: s.interactions.repliesTo(intent));
+        if (s.undoable && intent.canUndo) {
+          _undoEntry(out, callActionId(s, intent), camel(s.className), intent, s.schema, app.openEnumNames);
+        }
       }
     }
   }
@@ -238,6 +244,7 @@ String writeDart(AppModel app) {
       }
       _callEntry(out, callActionId(null, intent), d.parameter, intent, null, app.openEnumNames,
           reply: d.interactions.repliesTo(intent));
+      if (d.undoable && intent.canUndo) _undoEntry(out, callActionId(null, intent), d.parameter, intent, null, app.openEnumNames);
     }
   }
   out
@@ -279,13 +286,13 @@ String writeDart(AppModel app) {
   for (final s in app.schemaEntities) {
     final handler = camel(s.className);
     // Only create, update and delete arrive as changes.
-    if (!s.kinds.any((k) => k != IntentKind.record && k != IntentKind.call)) continue;
-    final takesValues = s.kinds.any((k) => k == IntentKind.create || k == IntentKind.update || k == IntentKind.append);
+    if (!s.handlerKinds.any((k) => k != IntentKind.record && k != IntentKind.call)) continue;
+    final takesValues = s.handlerKinds.any((k) => k == IntentKind.create || k == IntentKind.update || k == IntentKind.append);
     out.writeln("    '${s.collection}': (change) async {");
     if (takesValues) out.writeln('      final values = ${s.className}Values._from(change.fields, change.cleared);');
     out
       .writeln('      switch (change.kind) {');
-    for (final kind in s.kinds) {
+    for (final kind in s.handlerKinds) {
       final call = switch (kind) {
         IntentKind.create => '$handler.create(change.id, values)',
         IntentKind.update || IntentKind.append => '$handler.update(change.id, values)',

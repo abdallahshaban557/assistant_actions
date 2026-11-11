@@ -85,6 +85,7 @@ class AssistantAction {
     this.searchKeywords = const [],
     this.isDiscoverable = true,
     this.opensApp = false,
+    this.longRunning = false,
   });
 
   final String title;
@@ -130,6 +131,12 @@ class AssistantAction {
 
   /// Siri phrases that run the action with no setup by the user.
   final AppShortcut? shortcut;
+
+  /// For [Runs.withFlutter]: the intent is a `LongRunningIntent` (iOS 27 /
+  /// macOS 27), which the system keeps running in the background beyond the
+  /// usual time limit. Every live action reports progress and hears about
+  /// cancellation through `AssistantCall.current`.
+  final bool longRunning;
 }
 
 /// A value an [AssistantAction] returns to Shortcuts, plus what Siri says.

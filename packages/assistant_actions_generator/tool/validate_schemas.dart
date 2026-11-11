@@ -1,7 +1,12 @@
 // Checks every App Schema the bundled catalogs offer against Apple's own
 // tools, end to end:
 //
-//   dart run tool/validate_schemas.dart [--keep] [--no-background] [--report=FILE] [domain...]
+//   dart run tool/validate_schemas.dart [--keep] [--no-background] [--report=FILE] [--deployment=26.0] [domain...]
+//
+// Every adopted class is also `@AssistantUndoable()` and
+// `@AssistantLongRunning()`, so those conformances are checked everywhere.
+// `--deployment` builds for a newer deployment target (26.0 checks the path
+// without `ForegroundContinuableIntent`).
 //
 // 1. Writes a throwaway Flutter app whose models adopt every schema entity
 //    the generator can adopt (each mappable member mapped, every intent
@@ -41,6 +46,9 @@ Future<void> main(List<String> args) async {
   final keep = args.contains('--keep');
   _background = !args.contains('--no-background');
   final report = args.where((a) => a.startsWith('--report=')).map((a) => a.substring(9)).firstOrNull;
+  // `--deployment=26.0` generates and compiles for iOS 26 / macOS 26 (no
+  // ForegroundContinuableIntent) instead of iOS 17 / macOS 14.
+  final deployment = args.where((a) => a.startsWith('--deployment=')).map((a) => a.substring(13)).firstOrNull;
   final only = args.where((a) => !a.startsWith('--')).toSet();
   final catalogs = <String, DomainCatalog>{
     for (final f in Directory(p.join(_runtime, 'lib', 'src', 'catalog')).listSync().whereType<File>())
@@ -54,14 +62,14 @@ Future<void> main(List<String> args) async {
   stdout.writeln('App: ${app.path}');
   var failed = false;
   try {
-    _writeApp(app.path, plan);
+    _writeApp(app.path, plan, deployment: deployment);
     await _step('flutter pub get', 'flutter', ['pub', 'get'], app.path);
     await _step('build_runner', 'dart', ['run', 'build_runner', 'build', '--delete-conflicting-outputs'], app.path);
     failed |= !await _step('flutter analyze', 'flutter', ['analyze', '--no-fatal-infos'], app.path, fatal: false);
     final swift = p.join(app.path, 'packages', 'assistant_actions_app', 'darwin', 'assistant_actions_app', 'Sources',
         'assistant_actions_app', 'AssistantActions.g.swift');
     for (final platform in ['macos', 'ios']) {
-      failed |= !await _processSwift(swift, platform, p.join(app.path, 'swift_$platform'));
+      failed |= !await _processSwift(swift, platform, p.join(app.path, 'swift_$platform'), deployment: deployment);
     }
   } finally {
     if (!keep && !failed) await app.delete(recursive: true);
@@ -200,7 +208,6 @@ class _Plan {
       intents.values.fold(0, (n, l) => n + l.length) + domainIntents.values.fold(0, (n, l) => n + l.length);
 
   String? _whyNot(DomainCatalog catalog, EntitySchema e) {
-    if (e.protocols.contains('file')) return 'file entity (FileEntity ids)';
     for (final m in e.properties) {
       if (dartTypeFor(m.type) != null) continue;
       if (_hasDefault(catalog, m.type)) continue;
@@ -231,7 +238,18 @@ class _Plan {
   }
 }
 
-void _writeApp(String root, _Plan plan) {
+void _writeApp(String root, _Plan plan, {String? deployment}) {
+  if (deployment != null) {
+    File(p.join(root, 'build.yaml')).writeAsStringSync('''
+targets:
+  \$default:
+    builders:
+      assistant_actions_generator:assistant_actions:
+        options:
+          ios_deployment_target: "$deployment"
+          macos_deployment_target: "$deployment"
+''');
+  }
   File(p.join(root, 'pubspec.yaml')).writeAsStringSync('''
 name: schema_validation
 publish_to: none
@@ -273,6 +291,10 @@ dev_dependencies:
       final options = _interactions([for (final i in domainIntents) (i, IntentKind.call)]);
       models
         ..writeln()
+        // Every intent undoable and every live one long-running, so those
+        // conformances are validated on every schema too.
+        ..writeln('@AssistantUndoable()')
+        ..writeln('@AssistantLongRunning()')
         ..writeln('@${domainAnnotation(d)}(${[for (final i in domainIntents) '${i.name}: true', ...options].join(', ')})')
         ..writeln('class ${pascal(d)}Handler {}');
     }
@@ -292,6 +314,8 @@ dev_dependencies:
       ];
       models
         ..writeln()
+        ..writeln('@AssistantUndoable()')
+        ..writeln('@AssistantLongRunning()')
         ..writeln('@${names.annotation}(${args.join(', ')})')
         ..writeln('class ${_className(e)} {')
         ..writeln('  ${_className(e)}(this.id);')
@@ -376,7 +400,7 @@ String _fixed(DomainCatalog catalog, EntitySchema c) {
 
 /// Compiles [swift] with the runtime's Swift for [platform] and runs Apple's
 /// metadata processor on it. Returns whether both succeeded without errors.
-Future<bool> _processSwift(String swift, String platform, String out) async {
+Future<bool> _processSwift(String swift, String platform, String out, {String? deployment}) async {
   final dir = Directory(out)..createSync(recursive: true);
   final sources = p.join(_runtime, 'darwin', 'assistant_actions', 'Sources', 'assistant_actions');
   final generated = p.join(dir.path, 'AssistantActions.g.swift');
@@ -388,14 +412,16 @@ Future<bool> _processSwift(String swift, String platform, String out) async {
     stub,
     for (final f in ['AssistantValues', 'AssistantInbox', 'AssistantSnapshot', 'AssistantQuery', 'AssistantSpotlight',
       'AssistantMatch', 'AssistantComparison', 'AssistantRichValues', 'AssistantHostCalls', 'AssistantReply',
-      'AssistantDialog', 'AssistantInteraction', 'AssistantCardView'])
+      'AssistantDialog', 'AssistantInteraction', 'AssistantCardView', 'AssistantLiveCall', 'AssistantLiveIntents',
+      'AssistantFileIDs', 'AssistantUndo'])
       p.join(sources, '$f.swift'),
   ];
   final ios = platform == 'ios';
   final sdk = (await Process.run('xcrun', ['--sdk', ios ? 'iphonesimulator' : 'macosx', '--show-sdk-path'])).stdout
       .toString()
       .trim();
-  final target = ios ? 'arm64-apple-ios17.0-simulator' : 'arm64-apple-macos14.0';
+  final version = deployment ?? (ios ? '17.0' : '14.0');
+  final target = ios ? 'arm64-apple-ios$version-simulator' : 'arm64-apple-macos$version';
   final protocols = p.join(dir.path, 'protocols.json');
   File(protocols).writeAsStringSync(jsonEncode(_constProtocols));
   final object = p.join(dir.path, 'App.o');
@@ -415,7 +441,7 @@ Future<bool> _processSwift(String swift, String platform, String out) async {
   File(p.join(dir.path, 'empty.list')).writeAsStringSync('');
   final result = await Process.run(p.join(toolchain, 'usr', 'bin', 'appintentsmetadataprocessor'), [
     '--toolchain-dir', toolchain, '--module-name', 'App', '--sdk-root', sdk, '--xcode-version', 'validate',
-    '--platform-family', ios ? 'iOS' : 'macOS', '--deployment-target', ios ? '17.0' : '14.0',
+    '--platform-family', ios ? 'iOS' : 'macOS', '--deployment-target', version,
     '--bundle-identifier', 'dev.assistantactions.validation', '--output', dir.path, '--target-triple', target,
     '--binary-file', object, '--source-file-list', p.join(dir.path, 'sources.list'),
     '--metadata-file-list', p.join(dir.path, 'empty.list'),

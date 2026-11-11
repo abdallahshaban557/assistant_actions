@@ -69,6 +69,9 @@
           "updatable": false,
           "indexingKey": "title"
         }
+      ],
+      "protocols": [
+        "syncable"
       ]
     },
     "event": {
@@ -230,6 +233,9 @@
           },
           "updatable": false
         }
+      ],
+      "protocols": [
+        "syncable"
       ]
     }
   },

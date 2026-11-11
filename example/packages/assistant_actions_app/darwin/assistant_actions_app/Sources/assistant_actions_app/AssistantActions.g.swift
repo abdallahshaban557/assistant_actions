@@ -6,6 +6,7 @@ import CoreSpotlight
 import Foundation
 import GeoToolbox
 import SwiftUI
+import UniformTypeIdentifiers
 import assistant_actions
 
 #if os(iOS)
@@ -202,10 +203,17 @@ public struct ShowRecipeCardAction: AppIntent, ForegroundContinuableIntent {
         }
       }
     #endif
-    let reply = AssistantReply(json: try await AssistantBridge.shared.perform("showRecipeCard", args: args))
+    let reply = AssistantReply(json: try await callDart("showRecipeCard", args: args))
     return .result(dialog: IntentDialog(stringLiteral: reply.dialog ?? "Done."), view: AssistantCardView(reply.card))
   }
 }
+
+extension ShowRecipeCardAction: ProgressReportingIntent {}
+
+#if compiler(>=6.4)
+@available(iOS 26.4, macOS 26.4, *)
+extension ShowRecipeCardAction: CancellableIntent {}
+#endif
 
 /// `pickRecipe` in Dart (runs with Flutter).
 public struct PickRecipeAction: AppIntent, ForegroundContinuableIntent {
@@ -238,12 +246,19 @@ public struct PickRecipeAction: AppIntent, ForegroundContinuableIntent {
         }
       }
     #endif
-    let reply = AssistantReply(json: try await AssistantBridge.shared.perform("pickRecipe", args: args))
+    let reply = AssistantReply(json: try await callDart("pickRecipe", args: args))
     let candidates = try await RecipeEntityQuery().entities(for: reply.ids)
     guard let value = try await assistantChoose(among: candidates, prompt: reply.prompt) else { throw AssistantActionError.failed("pickRecipe returned nothing Siri can use") }
     return .result(value: value, dialog: IntentDialog(stringLiteral: reply.dialog ?? "Done."), view: AssistantCardView(reply.card))
   }
 }
+
+extension PickRecipeAction: ProgressReportingIntent {}
+
+#if compiler(>=6.4)
+@available(iOS 26.4, macOS 26.4, *)
+extension PickRecipeAction: CancellableIntent {}
+#endif
 
 /// `countOpenTasks` in Dart (runs with Flutter).
 public struct CountOpenTasksAction: AppIntent, ForegroundContinuableIntent {
@@ -270,10 +285,17 @@ public struct CountOpenTasksAction: AppIntent, ForegroundContinuableIntent {
         }
       }
     #endif
-    let reply = try await AssistantBridge.shared.perform("countOpenTasks", args: args)
+    let reply = try await callDart("countOpenTasks", args: args)
     return .result(dialog: IntentDialog(stringLiteral: reply ?? "Done."))
   }
 }
+
+extension CountOpenTasksAction: ProgressReportingIntent {}
+
+#if compiler(>=6.4)
+@available(iOS 26.4, macOS 26.4, *)
+extension CountOpenTasksAction: CancellableIntent {}
+#endif
 
 /// `planMeal` in Dart (deferred).
 public struct PlanMealAction: AppIntent {
@@ -331,13 +353,20 @@ public struct QuickestRecipeAction: AppIntent, ForegroundContinuableIntent {
         }
       }
     #endif
-    let reply = try await AssistantBridge.shared.perform("quickestRecipe", args: args)
+    let reply = try await callDart("quickestRecipe", args: args)
     let result = AssistantValues.result(reply)
     let ids = AssistantValues.string(result.value).map { [$0] } ?? []
     let value = try await RecipeEntityQuery().entities(for: ids).first
     return .result(value: value, dialog: IntentDialog(stringLiteral: result.dialog ?? "Done."))
   }
 }
+
+extension QuickestRecipeAction: ProgressReportingIntent {}
+
+#if compiler(>=6.4)
+@available(iOS 26.4, macOS 26.4, *)
+extension QuickestRecipeAction: CancellableIntent {}
+#endif
 
 /// `shoppingList` in Dart (runs with Flutter).
 public struct ShoppingListAction: AppIntent, ForegroundContinuableIntent {
@@ -364,12 +393,19 @@ public struct ShoppingListAction: AppIntent, ForegroundContinuableIntent {
         }
       }
     #endif
-    let reply = try await AssistantBridge.shared.perform("shoppingList", args: args)
+    let reply = try await callDart("shoppingList", args: args)
     let result = AssistantValues.result(reply)
     let value = (AssistantValues.items(result.value) ?? []).compactMap { AssistantValues.string($0) }
     return .result(value: value, dialog: IntentDialog(stringLiteral: result.dialog ?? "Here is your list."))
   }
 }
+
+extension ShoppingListAction: ProgressReportingIntent {}
+
+#if compiler(>=6.4)
+@available(iOS 26.4, macOS 26.4, *)
+extension ShoppingListAction: CancellableIntent {}
+#endif
 
 /// `nextTask` in Dart (runs with Flutter).
 @available(iOS 27.0, macOS 27.0, *)
@@ -392,13 +428,66 @@ public struct NextTaskAction: AppIntent {
         try await continueInForeground()
       }
     #endif
-    let reply = try await AssistantBridge.shared.perform("nextTask", args: args)
+    let reply = try await callDart("nextTask", args: args)
     let result = AssistantValues.result(reply)
     let ids = AssistantValues.string(result.value).map { [$0] } ?? []
     let value = try await TaskItemEntityQuery().entities(for: ids).first
     return .result(value: value, dialog: IntentDialog(stringLiteral: result.dialog ?? "Done."))
   }
 }
+
+#if os(macOS)
+@available(iOS 27.0, macOS 27.0, *)
+extension NextTaskAction: ForegroundContinuableIntent {}
+#endif
+
+@available(iOS 27.0, macOS 27.0, *)
+extension NextTaskAction: ProgressReportingIntent {}
+
+#if compiler(>=6.4)
+@available(iOS 27.0, macOS 27.0, *)
+extension NextTaskAction: CancellableIntent {}
+#endif
+
+/// `archiveDoneTasks` in Dart (runs with Flutter).
+public struct ArchiveDoneTasksAction: AppIntent, ForegroundContinuableIntent {
+  public static let title: LocalizedStringResource = "Archive Done Tasks"
+
+  #if os(iOS)
+  @available(iOS 26.0, *)
+  public static var supportedModes: IntentModes { [.background, .foreground(.dynamic)] }
+  #endif
+
+  public init() {}
+
+  @MainActor
+  public func perform() async throws -> some IntentResult & ProvidesDialog {
+    let args: [String: Any] = [:]
+    #if os(iOS)
+      // Dart answers in the background (on a headless engine if the app has none);
+      // the app comes forward only if that fails.
+      if !(await AssistantBackground.shared.prepare()), UIApplication.shared.applicationState != .active {
+        if #available(iOS 26.0, *) {
+          try await continueInForeground()
+        } else {
+          try await requestToContinueInForeground()
+        }
+      }
+    #endif
+    let reply = try await callDart("archiveDoneTasks", args: args)
+    return .result(dialog: IntentDialog(stringLiteral: reply ?? "Done."))
+  }
+}
+
+extension ArchiveDoneTasksAction: ProgressReportingIntent {}
+
+#if compiler(>=6.4)
+@available(iOS 26.4, macOS 26.4, *)
+extension ArchiveDoneTasksAction: CancellableIntent {}
+
+@available(iOS 27.0, macOS 27.0, *)
+extension ArchiveDoneTasksAction: LongRunningIntent {}
+#endif
 
 /// `stopRecording` in Dart (deferred).
 public struct StopRecordingAction: AppIntent {
@@ -411,7 +500,7 @@ public struct StopRecordingAction: AppIntent {
   public func perform() async throws -> some IntentResult & ProvidesDialog {
     let args: [String: Any] = [:]
     if await AssistantBackground.shared.prepare() {
-      _ = try await AssistantBridge.shared.perform("stopRecording", args: args)
+      _ = try await callDart("stopRecording", args: args)
     } else {
       AssistantInbox.call("stopRecording", args: args)
     }
@@ -422,6 +511,13 @@ public struct StopRecordingAction: AppIntent {
 #if os(iOS)
   /// Runs in the app's process and may start or update Live Activities.
   extension StopRecordingAction: LiveActivityIntent {}
+#endif
+
+extension StopRecordingAction: ProgressReportingIntent {}
+
+#if compiler(>=6.4)
+@available(iOS 26.4, macOS 26.4, *)
+extension StopRecordingAction: CancellableIntent {}
 #endif
 
 /// `applyFocus` in Dart: the app's Focus filter, run live when Dart is running and
@@ -1152,6 +1248,107 @@ struct CountdownEntityQuery: EntityStringQuery, EnumerableEntityQuery, EntityPro
   }
 }
 
+/// `DocItem` in Dart, as `files.file`.
+@available(iOS 18.0, macOS 15.0, *)
+@AppEntity(schema: .files.file)
+struct DocItemEntity {
+  static let defaultQuery = DocItemEntityQuery()
+  static let supportedContentTypes: [UTType] = [.item]
+
+  let id: FileEntityIdentifier
+  /// The id Dart gave the item: the file's path.
+  let dartID: String
+  @Property(title: "Creation Date")
+  var creationDate: Date?
+  var fileModificationDate: Date?
+
+  var displayRepresentation: DisplayRepresentation { DisplayRepresentation(title: "\((dartID as NSString).lastPathComponent)") }
+
+  init(record: AssistantRecord) { self.init(record: record, resolve: true) }
+
+  /// [resolve] looks referenced items up in the snapshot. They get
+  /// `resolve: false`, so references only go one level deep and cycles end.
+  init(record: AssistantRecord, resolve: Bool) {
+    id = AssistantFileIDs.identifier(record.id)
+    dartID = record.id
+    creationDate = AssistantValues.date(record.fields["created"])
+    fileModificationDate = nil
+  }
+
+  /// The item with [id], from the snapshot when [resolve], else just its id.
+  static func reference(_ id: String, resolve: Bool) -> DocItemEntity {
+    let record = resolve ? AssistantSnapshot.records("DocItem").first { $0.id == id } : nil
+    return DocItemEntity(record: record ?? AssistantRecord(id: id, title: "", fields: [:]), resolve: false)
+  }
+}
+
+@available(iOS 18.0, macOS 15.0, *)
+struct DocItemEntityQuery: EntityStringQuery, EnumerableEntityQuery, EntityPropertyQuery {
+  /// Words that only name the type, schema or app, so they never narrow a search.
+  static let typeWords: Set<String> = ["actions", "assistant", "assistantactionsexample", "doc", "docitem", "example", "file", "files", "item"]
+
+  private func all() -> [DocItemEntity] { AssistantSnapshot.records("DocItem").map(DocItemEntity.init(record:)) }
+
+  func entities(for identifiers: [FileEntityIdentifier]) async throws -> [DocItemEntity] {
+    await AssistantFileIDs.records(AssistantSnapshot.records("DocItem"), for: identifiers).map(DocItemEntity.init(record:))
+  }
+
+  /// The items with these Dart ids (paths).
+  func entities(dartIDs: [String]) -> [DocItemEntity] {
+    let wanted = Set(dartIDs)
+    return all().filter { wanted.contains($0.dartID) }
+  }
+
+  func entities(matching string: String) async throws -> [DocItemEntity] {
+    AssistantMatch.records(AssistantSnapshot.records("DocItem"), matching: string, ignoring: Self.typeWords)
+      .map(DocItemEntity.init(record:))
+  }
+
+  func suggestedEntities() async throws -> [DocItemEntity] { Array(all().prefix(20)) }
+
+  /// Everything published, plus Siri's pending changes, for general requests
+  /// like "do I have any files".
+  func allEntities() async throws -> [DocItemEntity] { all() }
+
+  typealias ComparatorMappingType = AssistantPredicate<DocItemEntity>
+
+  /// EntityPropertyQuery and EnumerableEntityQuery both provide a default.
+  static var findIntentDescription: IntentDescription? { nil }
+
+  static let properties = QueryProperties {
+    Property(\DocItemEntity.$creationDate) {
+      EqualToComparator { value in AssistantPredicate({ $0.creationDate }, .equal, value) }
+      NotEqualToComparator { value in AssistantPredicate({ $0.creationDate }, .notEqual, value) }
+      LessThanComparator { value in AssistantPredicate({ $0.creationDate }, .less, value) }
+      LessThanOrEqualToComparator { value in AssistantPredicate({ $0.creationDate }, .lessOrEqual, value) }
+      GreaterThanComparator { value in AssistantPredicate({ $0.creationDate }, .greater, value) }
+      GreaterThanOrEqualToComparator { value in AssistantPredicate({ $0.creationDate }, .greaterOrEqual, value) }
+      IsBetweenComparator { low, high in AssistantPredicate({ $0.creationDate }, .between, low, high) }
+    }
+  }
+
+  static let sortingOptions = SortingOptions {
+    SortableBy(\DocItemEntity.$creationDate)
+  }
+
+  func entities(
+    matching comparators: [AssistantPredicate<DocItemEntity>], mode: ComparatorMode,
+    sortedBy: [EntityQuerySort<DocItemEntity>], limit: Int?
+  ) async throws -> [DocItemEntity] {
+    let sorts = sortedBy.compactMap { sort in
+      Self.sortKey(sort.by).map { (key: $0, ascending: sort.order == .ascending) }
+    }
+    return AssistantPredicate.apply(comparators, all: mode == .and, to: all(), sortedBy: sorts, limit: limit)
+  }
+
+  private static func sortKey(_ path: PartialKeyPath<DocItemEntity>) -> ((DocItemEntity) -> AssistantKey?)? {
+    switch path {
+    case \DocItemEntity.$creationDate: return { $0.creationDate?.assistantKey }
+    default: return nil
+    }
+  }
+}
+
 /// `reminders.createReminder` → creates `TaskItem` items through the inbox.
 @available(iOS 27.0, macOS 27.0, *)
 @AppIntent(schema: .reminders.createReminder)
@@ -1176,10 +1373,14 @@ public struct TaskItemCreateReminderIntent {
     fields["due"] = AssistantValues.encode(dueDate)
     let id = AssistantInbox.create("TaskItem", fields: fields)
     await AssistantBackground.shared.applyInbox()
+    AssistantUndo.register(undoManager, "Create Reminder", AssistantUndo.create("TaskItem", id: id)) { Task { await AssistantBackground.shared.applyInbox() } }
     let value = TaskItemEntity(record: AssistantRecord(id: id, title: "", fields: fields))
     return .result(value: value, dialog: IntentDialog(stringLiteral: "Added \(self.title) to your tasks."))
   }
 }
+
+@available(iOS 27.0, macOS 27.0, *)
+extension TaskItemCreateReminderIntent: UndoableIntent {}
 
 /// `reminders.deleteReminders` → deletes `TaskItem` items through the inbox.
 @available(iOS 27.0, macOS 27.0, *)
@@ -1190,13 +1391,18 @@ struct TaskItemDeleteRemindersIntent {
   @MainActor
   func perform() async throws -> some IntentResult & ProvidesDialog {
     try await assistantConfirm("Delete \(AssistantDialog.items(self.entities.map { item in item.title }))?", destructive: true)
+    let removed = AssistantUndo.records("TaskItem", ids: entities.map(\.id))
     for item in entities {
       AssistantInbox.delete("TaskItem", id: item.id)
     }
     await AssistantBackground.shared.applyInbox()
+    AssistantUndo.register(undoManager, "Delete Reminders", AssistantUndo.delete("TaskItem", records: removed)) { Task { await AssistantBackground.shared.applyInbox() } }
     return .result(dialog: IntentDialog(stringLiteral: "Deleted \(AssistantDialog.list(self.entities.map { item in item.title }))."))
   }
 }
+
+@available(iOS 27.0, macOS 27.0, *)
+extension TaskItemDeleteRemindersIntent: UndoableIntent {}
 
 /// `reminders.updateReminder` → updates `TaskItem` items through the inbox.
 @available(iOS 27.0, macOS 27.0, *)
@@ -1226,8 +1432,10 @@ struct TaskItemUpdateReminderIntent {
     @unknown default: break
     }
     if isCompleted != nil { fields["done"] = AssistantValues.encode(isCompleted) }
+    let before = AssistantUndo.records("TaskItem", ids: [target.id]).first
     AssistantInbox.update("TaskItem", id: target.id, fields: fields, cleared: cleared)
     await AssistantBackground.shared.applyInbox()
+    AssistantUndo.register(undoManager, "Update Reminder", AssistantUndo.update("TaskItem", id: target.id, before: before, fields: fields, cleared: cleared)) { Task { await AssistantBackground.shared.applyInbox() } }
     let updated = target
     if let value = fields["title"] {
       updated.title = AssistantValues.string(value) ?? ""
@@ -1243,6 +1451,9 @@ struct TaskItemUpdateReminderIntent {
     return .result(value: updated, dialog: IntentDialog(stringLiteral: "Updated \(updated.title)."))
   }
 }
+
+@available(iOS 27.0, macOS 27.0, *)
+extension TaskItemUpdateReminderIntent: UndoableIntent {}
 
 /// `notes.createNote` → creates `MemoryItem` items through the inbox.
 @available(iOS 27.0, macOS 27.0, *)
@@ -1361,10 +1572,18 @@ struct JournalItemCreateAudioEntryIntent: ForegroundContinuableIntent {
     #elseif os(macOS)
       NSApplication.shared.activate()
     #endif
-    _ = try await AssistantBridge.shared.perform("JournalItem.startAudioEntry", args: [:])
+    _ = try await callDart("JournalItem.startAudioEntry", args: [:])
     return .result()
   }
 }
+
+@available(iOS 26.0, macOS 26.0, *)
+extension JournalItemCreateAudioEntryIntent: ProgressReportingIntent {}
+
+#if compiler(>=6.4)
+@available(iOS 26.4, macOS 26.4, *)
+extension JournalItemCreateAudioEntryIntent: CancellableIntent {}
+#endif
 
 /// `journal.updateEntry` → updates `JournalItem` items through the inbox.
 @available(iOS 26.0, macOS 26.0, *)
@@ -1463,10 +1682,14 @@ struct CountdownCreateTimerIntent {
     fields["label"] = AssistantValues.encode(label)
     let id = AssistantInbox.create("Countdown", fields: fields)
     await AssistantBackground.shared.applyInbox()
+    AssistantUndo.register(undoManager, "Start Timer", AssistantUndo.create("Countdown", id: id)) { Task { await AssistantBackground.shared.applyInbox() } }
     let value = CountdownEntity(record: AssistantRecord(id: id, title: "", fields: fields))
     return .result(value: value, dialog: IntentDialog(stringLiteral: "Started a \(AssistantDialog.text(self.duration)) timer."))
   }
 }
+
+@available(iOS 27.0, macOS 27.0, *)
+extension CountdownCreateTimerIntent: UndoableIntent {}
 
 /// `clock.pauseTimer` → queues a call to `pauseTimer` on `CountdownAssistantHandler`, applied when the app next runs.
 @available(iOS 27.0, macOS 27.0, *)
@@ -1482,9 +1705,13 @@ struct CountdownPauseTimerIntent {
     try await assistantConfirm("Pause \((self.timer.label ?? ""))?")
     AssistantInbox.call("Countdown.pauseTimer", args: args)
     await AssistantBackground.shared.applyInbox()
+    AssistantUndo.register(undoManager, "Pause Timer", AssistantUndo.call("Countdown.pauseTimer", args: args)) { Task { await AssistantBackground.shared.applyInbox() } }
     return .result(dialog: IntentDialog(stringLiteral: "Paused."))
   }
 }
+
+@available(iOS 27.0, macOS 27.0, *)
+extension CountdownPauseTimerIntent: UndoableIntent {}
 
 /// `clock.resumeTimer` → queues a call to `resumeTimer` on `CountdownAssistantHandler`, applied when the app next runs.
 @available(iOS 27.0, macOS 27.0, *)
@@ -1498,6 +1725,141 @@ struct CountdownResumeTimerIntent {
       "timer": timer.id,
     ]
     AssistantInbox.call("Countdown.resumeTimer", args: args)
+    await AssistantBackground.shared.applyInbox()
+    AssistantUndo.register(undoManager, "Resume Timer", AssistantUndo.call("Countdown.resumeTimer", args: args)) { Task { await AssistantBackground.shared.applyInbox() } }
+    return .result()
+  }
+}
+
+@available(iOS 27.0, macOS 27.0, *)
+extension CountdownResumeTimerIntent: UndoableIntent {}
+
+/// `files.openFile` → calls `openFile` on `DocItemAssistantHandler`.
+@available(iOS 18.0, macOS 15.0, *)
+@AppIntent(schema: .files.openFile)
+struct DocItemOpenFileIntent: ForegroundContinuableIntent {
+  var target: DocItemEntity
+
+  @MainActor
+  func perform() async throws -> some IntentResult {
+    let args: [String: Any] = [
+      "target": target.dartID,
+    ]
+    #if os(iOS)
+      if UIApplication.shared.applicationState != .active {
+        try await requestToContinueInForeground()
+      }
+    #elseif os(macOS)
+      NSApplication.shared.activate()
+    #endif
+    _ = try await callDart("DocItem.openFile", args: args)
+    return .result()
+  }
+}
+
+@available(iOS 18.0, macOS 15.0, *)
+extension DocItemOpenFileIntent: ProgressReportingIntent {}
+
+#if compiler(>=6.4)
+@available(iOS 26.4, macOS 26.4, *)
+extension DocItemOpenFileIntent: CancellableIntent {}
+#endif
+
+/// `files.moveFiles` → queues a call to `moveFiles` on `DocItemAssistantHandler`, applied when the app next runs.
+@available(iOS 18.0, macOS 15.0, *)
+@AppIntent(schema: .files.moveFiles)
+struct DocItemMoveFilesIntent {
+  var entities: [DocItemEntity]
+  var destinationFolder: DocItemEntity
+
+  @MainActor
+  func perform() async throws -> some IntentResult {
+    let args: [String: Any] = [
+      "entities": entities.map(\.dartID),
+      "destinationFolder": destinationFolder.dartID,
+    ]
+    AssistantInbox.call("DocItem.moveFiles", args: args)
+    await AssistantBackground.shared.applyInbox()
+    return .result()
+  }
+}
+
+/// `files.createFolder` → calls `createFolder` on `DocItemAssistantHandler`.
+@available(iOS 18.0, macOS 15.0, *)
+@AppIntent(schema: .files.createFolder)
+struct DocItemCreateFolderIntent: ForegroundContinuableIntent {
+  #if os(iOS)
+  @available(iOS 26.0, *)
+  static var supportedModes: IntentModes { [.background, .foreground(.dynamic)] }
+  #endif
+
+  var fileName: String?
+  var target: DocItemEntity
+
+  @MainActor
+  func perform() async throws -> some ReturnsValue<DocItemEntity> {
+    let args: [String: Any] = [
+      "fileName": AssistantValues.encode(fileName),
+      "target": target.dartID,
+    ]
+    #if os(iOS)
+      // Dart answers in the background (on a headless engine if the app has none);
+      // the app comes forward only if that fails.
+      if !(await AssistantBackground.shared.prepare()), UIApplication.shared.applicationState != .active {
+        if #available(iOS 26.0, *) {
+          try await continueInForeground()
+        } else {
+          try await requestToContinueInForeground()
+        }
+      }
+    #endif
+    let reply = try await callDart("DocItem.createFolder", args: args)
+    guard let id = reply, let value = DocItemEntityQuery().entities(dartIDs: [id]).first else {
+      throw AssistantActionError.failed("createFolder returned no files.file item")
+    }
+    return .result(value: value)
+  }
+}
+
+@available(iOS 18.0, macOS 15.0, *)
+extension DocItemCreateFolderIntent: ProgressReportingIntent {}
+
+#if compiler(>=6.4)
+@available(iOS 26.4, macOS 26.4, *)
+extension DocItemCreateFolderIntent: CancellableIntent {}
+#endif
+
+/// `files.renameFile` → queues a call to `renameFile` on `DocItemAssistantHandler`, applied when the app next runs.
+@available(iOS 18.0, macOS 15.0, *)
+@AppIntent(schema: .files.renameFile)
+struct DocItemRenameFileIntent {
+  var target: DocItemEntity
+  var newName: String
+
+  @MainActor
+  func perform() async throws -> some IntentResult {
+    let args: [String: Any] = [
+      "target": target.dartID,
+      "newName": AssistantValues.encode(newName),
+    ]
+    AssistantInbox.call("DocItem.renameFile", args: args)
+    await AssistantBackground.shared.applyInbox()
+    return .result()
+  }
+}
+
+/// `files.deleteFiles` → deletes `DocItem` items through the inbox.
+@available(iOS 18.0, macOS 15.0, *)
+@AppIntent(schema: .files.deleteFiles)
+struct DocItemDeleteFilesIntent {
+  var entities: [DocItemEntity]
+
+  @MainActor
+  func perform() async throws -> some IntentResult {
+    try await assistantConfirm("Delete \(AssistantDialog.items(self.entities.map { item in "File" }))?", destructive: true)
+    for item in entities {
+      AssistantInbox.delete("DocItem", id: item.dartID)
+    }
     await AssistantBackground.shared.applyInbox()
     return .result()
   }
@@ -1617,10 +1979,18 @@ struct SystemSearchInAppIntent {
     let args: [String: Any] = [
       "criteria": criteria.term,
     ]
-    _ = try await AssistantBridge.shared.perform("system.searchInApp", args: args)
+    _ = try await callDart("system.searchInApp", args: args)
     return .result()
   }
 }
+
+@available(iOS 27.0, macOS 27.0, *)
+extension SystemSearchInAppIntent: ProgressReportingIntent {}
+
+#if compiler(>=6.4)
+@available(iOS 27.0, macOS 27.0, *)
+extension SystemSearchInAppIntent: CancellableIntent {}
+#endif
 
 /// `camera.startCapture` → calls `startCapture` on `CameraAssistantHandler`.
 @available(iOS 18.0, macOS 15.0, *)
@@ -1645,10 +2015,18 @@ public struct CameraStartCaptureIntent: ForegroundContinuableIntent {
     #elseif os(macOS)
       NSApplication.shared.activate()
     #endif
-    let reply = AssistantReply(json: try await AssistantBridge.shared.perform("camera.startCapture", args: args))
+    let reply = AssistantReply(json: try await callDart("camera.startCapture", args: args))
     return .result(dialog: IntentDialog(stringLiteral: reply.dialog ?? "Done."), view: AssistantCardView(reply.card))
   }
 }
+
+@available(iOS 18.0, macOS 15.0, *)
+extension CameraStartCaptureIntent: ProgressReportingIntent {}
+
+#if compiler(>=6.4)
+@available(iOS 26.4, macOS 26.4, *)
+extension CameraStartCaptureIntent: CancellableIntent {}
+#endif
 
 /// `camera.stopCapture` → queues a call to `stopCapture` on `CameraAssistantHandler`, applied when the app next runs.
 @available(iOS 18.0, macOS 15.0, *)
@@ -1719,6 +2097,16 @@ extension CountdownEntity: IndexedEntity {
   }
 }
 
+@available(iOS 18.0, macOS 15.0, *)
+extension DocItemEntity: IndexedEntity {
+  var attributeSet: CSSearchableItemAttributeSet {
+    let attributes = defaultAttributeSet
+    attributes.contentCreationDate = creationDate
+    attributes.contentModificationDate = fileModificationDate
+    return attributes
+  }
+}
+
 /// Found by name by `AssistantSpotlight` in the runtime; apps register nothing.
 @objc(AssistantActionsAppSpotlight)
 public final class AssistantActionsAppSpotlight: NSObject, AssistantSpotlightIndexer {
@@ -1753,6 +2141,10 @@ public final class AssistantActionsAppSpotlight: NSObject, AssistantSpotlightInd
           AssistantSnapshot.records("Countdown").map(CountdownEntity.init(record:)),
           removed: removedIDs, clearFirst: clearFirst)
       }
+    case "DocItem":
+      try await Self.updateFiles(
+        AssistantSnapshot.records("DocItem").map(DocItemEntity.init(record:)),
+        removed: removedIDs, clearFirst: clearFirst)
     default:
       break
     }
@@ -1771,7 +2163,116 @@ public final class AssistantActionsAppSpotlight: NSObject, AssistantSpotlightInd
       try await index.indexAppEntities(entities)
     }
   }
+  @available(iOS 18.0, macOS 15.0, *)
+  private static func updateFiles<E: IndexedEntity>(_ entities: [E], removed: [String], clearFirst: Bool) async throws
+  where E.ID == FileEntityIdentifier {
+    let index = CSSearchableIndex.default()
+    if clearFirst {
+      try await index.deleteAppEntities(ofType: E.self)
+    } else if !removed.isEmpty {
+      try await index.deleteAppEntities(identifiedBy: removed.map(AssistantFileIDs.identifier), ofType: E.self)
+    }
+    if !entities.isEmpty {
+      try await index.indexAppEntities(entities)
+    }
+  }
 }
+
+/// Spotlight asks for `RecipeEntity` items to be indexed again, after it loses them.
+#if compiler(>=6.4)
+@available(iOS 27.0, macOS 27.0, *)
+extension RecipeEntityQuery: IndexedEntityQuery {
+  public func reindexEntities(for identifiers: [RecipeEntity.ID], indexDescription: CSSearchableIndexDescription) async throws {
+    try await CSSearchableIndex.default().indexAppEntities(try await entities(for: identifiers))
+  }
+
+  public func reindexAllEntities(indexDescription: CSSearchableIndexDescription) async throws {
+    try await CSSearchableIndex.default().indexAppEntities(try await allEntities())
+  }
+}
+#endif
+
+/// `@AssistantSyncable()`: Siri keeps `TaskItem` ids across devices.
+#if compiler(>=6.4)
+@available(iOS 27.0, macOS 27.0, *)
+extension TaskItemEntity: SyncableEntity {}
+#endif
+
+/// Spotlight asks for `TaskItemEntity` items to be indexed again, after it loses them.
+#if compiler(>=6.4)
+@available(iOS 27.0, macOS 27.0, *)
+extension TaskItemEntityQuery: IndexedEntityQuery {
+  public func reindexEntities(for identifiers: [TaskItemEntity.ID], indexDescription: CSSearchableIndexDescription) async throws {
+    try await CSSearchableIndex.default().indexAppEntities(try await entities(for: identifiers))
+  }
+
+  public func reindexAllEntities(indexDescription: CSSearchableIndexDescription) async throws {
+    try await CSSearchableIndex.default().indexAppEntities(try await allEntities())
+  }
+}
+#endif
+
+/// Like Apple's own `notes.note`: Siri keeps `MemoryItem` ids across devices.
+#if compiler(>=6.4)
+@available(iOS 27.0, macOS 27.0, *)
+extension MemoryItemEntity: SyncableEntity {}
+#endif
+
+/// Spotlight asks for `MemoryItemEntity` items to be indexed again, after it loses them.
+#if compiler(>=6.4)
+@available(iOS 27.0, macOS 27.0, *)
+extension MemoryItemEntityQuery: IndexedEntityQuery {
+  func reindexEntities(for identifiers: [MemoryItemEntity.ID], indexDescription: CSSearchableIndexDescription) async throws {
+    try await CSSearchableIndex.default().indexAppEntities(try await entities(for: identifiers))
+  }
+
+  func reindexAllEntities(indexDescription: CSSearchableIndexDescription) async throws {
+    try await CSSearchableIndex.default().indexAppEntities(try await allEntities())
+  }
+}
+#endif
+
+/// Spotlight asks for `JournalItemEntity` items to be indexed again, after it loses them.
+#if compiler(>=6.4)
+@available(iOS 27.0, macOS 27.0, *)
+extension JournalItemEntityQuery: IndexedEntityQuery {
+  func reindexEntities(for identifiers: [JournalItemEntity.ID], indexDescription: CSSearchableIndexDescription) async throws {
+    try await CSSearchableIndex.default().indexAppEntities(try await entities(for: identifiers))
+  }
+
+  func reindexAllEntities(indexDescription: CSSearchableIndexDescription) async throws {
+    try await CSSearchableIndex.default().indexAppEntities(try await allEntities())
+  }
+}
+#endif
+
+/// Spotlight asks for `CountdownEntity` items to be indexed again, after it loses them.
+#if compiler(>=6.4)
+@available(iOS 27.0, macOS 27.0, *)
+extension CountdownEntityQuery: IndexedEntityQuery {
+  func reindexEntities(for identifiers: [CountdownEntity.ID], indexDescription: CSSearchableIndexDescription) async throws {
+    try await CSSearchableIndex.default().indexAppEntities(try await entities(for: identifiers))
+  }
+
+  func reindexAllEntities(indexDescription: CSSearchableIndexDescription) async throws {
+    try await CSSearchableIndex.default().indexAppEntities(try await allEntities())
+  }
+}
+#endif
+
+/// Spotlight asks for `DocItemEntity` items to be indexed again, after it loses them.
+#if compiler(>=6.4)
+@available(iOS 27.0, macOS 27.0, *)
+extension DocItemEntityQuery: IndexedEntityQuery {
+  func reindexEntities(for identifiers: [DocItemEntity.ID], indexDescription: CSSearchableIndexDescription) async throws {
+    try await CSSearchableIndex.default().indexAppEntities(try await entities(for: identifiers))
+  }
+
+  func reindexAllEntities(indexDescription: CSSearchableIndexDescription) async throws {
+    try await CSSearchableIndex.default().indexAppEntities(try await allEntities())
+  }
+}
+#endif
 
 #if os(iOS)
   /// Where `AssistantBackground` starts Dart on a headless engine: the

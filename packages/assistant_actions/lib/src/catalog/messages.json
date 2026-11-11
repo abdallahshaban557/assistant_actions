@@ -314,6 +314,9 @@
           },
           "updatable": false
         }
+      ],
+      "protocols": [
+        "syncable"
       ]
     },
     "messagePerson": {

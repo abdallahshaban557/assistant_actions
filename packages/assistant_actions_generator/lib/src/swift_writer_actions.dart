@@ -59,15 +59,16 @@ extension _Actions on SwiftWriter {
     // With `@AssistantBackground()`, live actions run Dart in the background
     // on iOS (see swift_writer_background.dart) unless they open the app.
     final background = foreground && _background && !a.opensApp;
-    final from26 = SwiftWriter._norm(floor)['iOS']! >= 26;
+    // How it gets the app forward, per platform (swift_writer_modern.dart).
+    final modes = _modes(opensApp: a.opensApp, background: background, floor: floor);
     _out.writeln('/// `${a.functionName}` in Dart (${foreground ? 'runs with Flutter' : 'deferred'}).');
     if (_above(floor)) _out.writeln(_availability(floor));
     _out
-      ..writeln('public struct ${a.swiftName}: AppIntent${foreground && !(background && from26) ? ', ForegroundContinuableIntent' : ''} {')
+      ..writeln('public struct ${a.swiftName}: AppIntent${foreground ? _continuable(modes, ', ') : ''} {')
       ..writeln('  public static let title: LocalizedStringResource = "${SwiftWriter._escape(a.title)}"')
       ..write(_describe(a.title, a.description, a.searchKeywords, a.isDiscoverable))
       ..writeln();
-    if (background) _out.writeln(_backgroundModes(from26: from26, access: 'public '));
+    if (foreground) _out.write(_modesMember(modes, access: 'public '));
     for (final p in a.params) {
       final options = [
         'title: "${SwiftWriter._escape(p.title)}"',
@@ -93,32 +94,25 @@ extension _Actions on SwiftWriter {
     final dialog = a.dialog == null ? '"Done."' : _spokenDialog(a.dialog!, a);
     if (a.liveActivity) {
       // The reader allows no Shortcuts value here.
-      _out.writeln(_liveActivityPerform(a, dialog));
+      _out.writeln(_liveActivityPerform(a, dialog, modes));
     } else if (!foreground) {
       _out.writeln('''
     AssistantInbox.call("${a.id}", args: args)
     $_inboxChanged
     return .result(dialog: IntentDialog(stringLiteral: $dialog))''');
     } else {
-      if (background) {
-        _out.writeln(_backgroundPrelude(from26: from26));
-      } else if (a.opensApp) {
-        _out.writeln(_foreground(activateOnMac: true));
-      } else {
-        _out.writeln('''
-    #if os(iOS)
-      // iOS doesn't start the Flutter engine without a scene, so answer from the foreground.
-      if UIApplication.shared.applicationState != .active {
-        try await requestToContinueInForeground()
-      }
-    #endif''');
-      }
+      final forward = _foregroundLines(modes,
+          activateOnMac: a.opensApp,
+          comment: background || a.opensApp
+              ? null
+              : "      // iOS doesn't start the Flutter engine without a scene, so answer from the foreground.");
+      if (forward.isNotEmpty) _out.writeln(forward);
       if (reply) {
-        _out.writeln('    let reply = AssistantReply(json: try await AssistantBridge.shared.perform("${a.id}", args: args))');
+        _out.writeln('    let reply = AssistantReply(json: try await callDart("${a.id}", args: args))');
         if (result != null) _out.write(_decodeResult(result, a, source: 'reply.value', reply: true));
         _out.writeln('    return ${_resultOf(value: result == null ? null : 'value', dialog: 'reply.dialog ?? $dialog', snippet: true)}');
       } else {
-        _out.writeln('    let reply = try await AssistantBridge.shared.perform("${a.id}", args: args)');
+        _out.writeln('    let reply = try await callDart("${a.id}", args: args)');
         if (result == null) {
           _out.writeln('    return .result(dialog: IntentDialog(stringLiteral: reply ?? $dialog))');
         } else {
@@ -134,6 +128,11 @@ extension _Actions on SwiftWriter {
       ..writeln('}')
       ..writeln();
     if (a.liveActivity) _liveActivityConformance(a);
+    // Live calls report progress and can be cancelled (swift_writer_modern.dart).
+    if (foreground) _out.write(_continuableExtension(a.swiftName, modes, _above(floor) ? _availability(floor) : ''));
+    if (foreground || a.liveActivity) {
+      _out.writeln(_liveConformances(a.swiftName, _above(floor) ? floor : null, longRunning: a.longRunning));
+    }
   }
 
   /// The Swift type of an action value: `[String]`, `SizeEnum`, ….

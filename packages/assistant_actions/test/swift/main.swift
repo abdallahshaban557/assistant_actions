@@ -342,6 +342,65 @@ Task { @MainActor in
   backgroundDone = true
 }
 while !backgroundDone { RunLoop.main.run(until: Date().addingTimeInterval(0.05)) }
+// Undo: each change queues its inverse.
+let before = AssistantRecord(id: "t1", title: "Call mum", fields: ["title": "Call mum", "due": 100.0])
+let undoUpdate = AssistantUndo.update(
+  "TaskItem", id: "t1", before: before, fields: ["title": "Call dad", "done": true], cleared: ["due"]
+).first!
+check("\(undoUpdate["kind"]!) \((undoUpdate["fields"] as! [String: Any]).keys.sorted()) \(undoUpdate["cleared"]!)",
+  "update [\"due\", \"title\"] [\"done\"]", "undoing an update restores changed fields and clears new ones")
+check((undoUpdate["fields"] as! [String: Any])["title"] as! String, "Call mum", "restores the published value")
+check("\(AssistantUndo.create("TaskItem", id: "n")[0]["kind"]!)", "delete", "undoing a create deletes")
+let undoDelete = AssistantUndo.delete("TaskItem", records: [before])[0]
+check("\(undoDelete["kind"]!) \(undoDelete["id"]!)", "create t1", "undoing a delete creates the item with its id")
+check("\(AssistantUndo.call("Countdown.pauseTimer", args: ["timer": "c1"])[0]["action"]!)",
+  "Countdown.pauseTimer.undo", "undoing a call calls <action>.undo")
+UserDefaults.standard.removeObject(forKey: "assistant_actions.inbox")
+AssistantUndo.apply(#"[{"kind":"create","collection":"Undo","id":"x","fields":{"title":"Back"}}]"#)
+check(AssistantInbox.pending("Undo").first?["id"] as? String ?? "nil", "x", "undo items are queued in the inbox")
+_ = AssistantInbox.drain()
+
+// Live calls: Dart reports progress into the intent's Progress.
+MainActor.assumeIsolated {
+  let progress = Progress(totalUnitCount: 1)
+  let call = AssistantLiveCall(progress: progress)
+  var sent: [String: Any] = [:]
+  let semaphore = DispatchSemaphore(value: 0)
+  Task { @MainActor in
+    _ = try? await call.run("export", args: ["n": 1]) { action, args in
+      sent = args
+      _ = try? AssistantHostCalls.invoke("call.progress", argsJson: #"{"call":"\#(call.id)","completed":3,"total":4}"#)
+      return action
+    }
+    semaphore.signal()
+  }
+  while semaphore.wait(timeout: .now()) == .timedOut { RunLoop.main.run(until: Date().addingTimeInterval(0.01)) }
+  check("\(progress.completedUnitCount)/\(progress.totalUnitCount)", "3/4", "Dart's progress reaches the intent")
+  check(sent[AssistantLiveCall.argument] as? String ?? "nil", call.id, "the call id goes to Dart")
+  check((try? AssistantHostCalls.invoke("call.progress", argsJson: #"{"call":"\#(call.id)"}"#)) ?? "nil", "false",
+    "finished calls take no progress")
+}
+
+// File entities: Dart paths ↔ FileEntityIdentifier.
+if #available(macOS 15.0, *) {
+  let dir = FileManager.default.temporaryDirectory.appendingPathComponent("aa-files-\(UUID().uuidString)")
+  try! FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+  let file = dir.appendingPathComponent("Plan.txt")
+  try! "plan".write(to: file, atomically: true, encoding: .utf8)
+  check(AssistantFileIDs.identifier(file.path).isDraft ? "draft" : "file", "file", "existing paths get file identifiers")
+  check(AssistantFileIDs.identifier("note-1").draftIdentifier ?? "nil", "note-1", "other ids become drafts")
+  check(AssistantFileIDs.url("file://\(file.path)")?.path ?? "nil", file.path, "file URLs are paths too")
+  let semaphore = DispatchSemaphore(value: 0)
+  var found: [String] = []
+  let recs = [AssistantRecord(id: file.path, title: "", fields: [:]), AssistantRecord(id: "/other", title: "", fields: [:])]
+  Task {
+    found = await AssistantFileIDs.records(recs, for: [AssistantFileIDs.identifier(file.path), .draft(identifier: "x")]).map(\.id)
+    semaphore.signal()
+  }
+  semaphore.wait()
+  check(found.joined(separator: ","), file.path, "Siri's identifiers find the published items by path")
+  try? FileManager.default.removeItem(at: dir)
+}
 
 if failures > 0 {
   print("\(failures) failed")

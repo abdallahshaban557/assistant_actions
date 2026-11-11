@@ -59,6 +59,9 @@
           "updatable": false,
           "indexingKey": "kind"
         }
+      ],
+      "protocols": [
+        "syncable"
       ]
     },
     "reminder": {

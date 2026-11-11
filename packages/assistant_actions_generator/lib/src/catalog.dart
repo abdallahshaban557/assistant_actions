@@ -120,10 +120,17 @@ class EntitySchema {
   final Map<String, num> availability;
   final List<SchemaMember> properties;
 
-  /// Entity protocols Apple's schema requires: `file` (`FileEntity`, with
-  /// file-based ids), `unique` (`UniqueAppEntity`, one instance) or `url`
-  /// (`URLRepresentableEntity`).
+  /// Entity protocols Apple's schema adopts: `file` (`FileEntity`, with
+  /// file-based ids), `unique` (`UniqueAppEntity`, one instance) or
+  /// `syncable` (`SyncableEntity`: Apple's own items of this schema keep
+  /// stable ids across devices).
   final List<String> protocols;
+
+  /// A `files.file`-like schema whose ids are `FileEntityIdentifier`s.
+  bool get isFile => protocols.contains('file');
+
+  /// Apple's own entities of this schema are `SyncableEntity`.
+  bool get isSyncable => protocols.contains('syncable');
 
   String get domain => id.split('.').first;
   String get name => id.split('.').last;
@@ -252,6 +259,10 @@ class IntentSchema {
 
   String get domain => id.split('.').first;
   String get name => id.split('.').last;
+
+  /// Changes something the user could want undone: not an open intent
+  /// (`OpenIntent`), which only shows an item.
+  bool get canUndo => !protocols.contains('open');
 
   SchemaMember? parameter(String name) => parameters.where((p) => p.name == name).firstOrNull;
 
@@ -415,7 +426,8 @@ class DomainCatalog {
   /// its properties are strings, enums, or other such entities.
   bool isFixable(EntitySchema entity, [Set<String> seen = const {}]) {
     if (seen.contains(entity.id)) return true;
-    if (entity.protocols.isNotEmpty) return false;
+    // Syncable containers are plain entities with string ids.
+    if (entity.isFile || entity.protocols.contains('unique')) return false;
     return entity.properties.every((p) {
       final t = p.type.base;
       if (t.kind == 'entity') {
