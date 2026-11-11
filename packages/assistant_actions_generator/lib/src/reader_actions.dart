@@ -32,6 +32,7 @@ extension _Actions on ModelReader {
             name: name,
             title: title?.read('title').stringValue ?? ModelReader._titleCase(name),
             synonyms: [for (final s in title?.read('synonyms').listValue ?? const []) s.toStringValue()!],
+            systemImage: _systemImage(title, c),
           ));
         }
         if (cases.isEmpty) {
@@ -158,6 +159,8 @@ extension _Actions on ModelReader {
       isDiscoverable: discoverable,
       opensApp: opensApp,
       longRunning: longRunning,
+      unlock: _unlock(annotation),
+      summary: _summary(annotation, params, fn),
     );
   }
 

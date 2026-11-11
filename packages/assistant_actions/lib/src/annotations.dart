@@ -9,13 +9,43 @@ library;
 /// library;
 /// ```
 class AssistantActionsApp {
-  const AssistantActionsApp({required this.name, this.shortcutTileColor});
+  const AssistantActionsApp({required this.name, this.shortcutTileColor, this.requiresUnlock = Unlock.notRequired});
 
   /// The app's name, as used by `{app}` in shortcut phrases.
   final String name;
 
   /// The color of the app's App Shortcut tiles in the Shortcuts app.
   final ShortcutTileColor? shortcutTileColor;
+
+  /// Whether Siri and Shortcuts can run the app's intents on a locked device:
+  /// the default for every action, snapshot answer and schema intent. Set
+  /// [Unlock.required] for an app whose data is private, such as a journal.
+  /// [AssistantAction.requiresUnlock], [AssistantEntity.requiresUnlock] and
+  /// the schema annotations' `requiresUnlock` override it.
+  ///
+  /// Entity queries have no such setting in App Intents: Siri can still find
+  /// published items by title on a locked device (see the README).
+  final Unlock requiresUnlock;
+}
+
+/// Whether an intent can run while the device is locked (App Intents'
+/// `IntentAuthenticationPolicy`).
+///
+/// ```dart
+/// @AssistantActionsApp(name: 'Journal', requiresUnlock: Unlock.required)
+/// ```
+enum Unlock {
+  /// It runs on a locked device too (`.alwaysAllowed`, Apple's default).
+  notRequired,
+
+  /// The user unlocks the device first (`.requiresAuthentication`).
+  required,
+
+  /// The user unlocks the device that runs it
+  /// (`.requiresLocalDeviceAuthentication`), so it can't run for a request
+  /// from another device, such as a HomePod or a paired Apple Watch, while
+  /// the iPhone is locked.
+  onThisDevice,
 }
 
 /// Lets Siri run the app's Dart on iOS without opening the app: put it on a
@@ -86,6 +116,8 @@ class AssistantAction {
     this.isDiscoverable = true,
     this.opensApp = false,
     this.longRunning = false,
+    this.requiresUnlock,
+    this.summary,
   });
 
   final String title;
@@ -137,6 +169,18 @@ class AssistantAction {
   /// usual time limit. Every live action reports progress and hears about
   /// cancellation through `AssistantCall.current`.
   final bool longRunning;
+
+  /// Whether it runs on a locked device; `@AssistantActionsApp`'s
+  /// `requiresUnlock` when null, or the strictest `requiresUnlock` of the
+  /// entities it takes and returns if that is stricter. On a
+  /// [SnapshotAnswer], the answered entity's when null.
+  final Unlock? requiresUnlock;
+
+  /// How Shortcuts shows the action, as a sentence with its parameters in
+  /// place: `'Add {recipe} to {list}'`, where `{name}` is the parameter
+  /// `name`. Parameters the sentence leaves out are listed under it. Without
+  /// it, Shortcuts lists every parameter as a field.
+  final String? summary;
 }
 
 /// A value an [AssistantAction] returns to Shortcuts, plus what Siri says.
@@ -250,19 +294,29 @@ class AssistantEnum {
 /// How Siri shows and hears one case of an [AssistantEnum]. Cases without
 /// it are titled from their name (`extraLarge` → "Extra Large").
 class CaseTitle {
-  const CaseTitle(this.title, {this.synonyms = const []});
+  const CaseTitle(this.title, {this.synonyms = const [], this.systemImage});
 
   final String title;
 
   /// Other words for the case.
   final List<String> synonyms;
+
+  /// An SF Symbol shown with the case in Shortcuts and Siri, such as
+  /// `sunrise`.
+  final String? systemImage;
 }
 
 /// Exposes one of the app's classes as an App Entity, so actions can take it
 /// as a parameter and Siri can search it. Publish the current items with
 /// `AssistantActions.publish`.
 class AssistantEntity {
-  const AssistantEntity({required this.title, this.url, this.visualSearch = false});
+  const AssistantEntity({
+    required this.title,
+    this.url,
+    this.visualSearch = false,
+    this.requiresUnlock,
+    this.systemImage,
+  });
 
   /// The type's name, such as `Recipe`.
   final String title;
@@ -279,6 +333,33 @@ class AssistantEntity {
   /// screenshot shows: the registry's `visualSearch` callback picks them,
   /// from the image's labels and pixels.
   final bool visualSearch;
+
+  /// Whether `system.open` for these items, and snapshot answers about them,
+  /// run on a locked device; `@AssistantActionsApp`'s `requiresUnlock` when
+  /// null. Actions taking or returning these items need at least this too,
+  /// unless they set their own.
+  final Unlock? requiresUnlock;
+
+  /// An SF Symbol Siri, Spotlight and Shortcuts show with every item, such
+  /// as `book`; an item's [EntityImage] takes its place when it has one.
+  final String? systemImage;
+}
+
+/// The field or getter holding an entity's image, which Siri, Spotlight
+/// and Shortcuts show with the item: a `String` (or `Uri`) with an absolute
+/// file path, a `file:` URL or an `https:` URL, nullable.
+///
+/// ```dart
+/// @EntityImage()
+/// final String? coverPath; // a file in the app's container
+/// ```
+///
+/// Files are read in the app's process when Siri asks for an item, so a
+/// file in the app's sandbox works; keep them thumbnail-sized. Remote images
+/// are loaded by the system where it supports it (not by Spotlight). Works
+/// on `@AssistantEntity` and schema entity classes.
+class EntityImage {
+  const EntityImage();
 }
 
 /// The field holding an entity's unique, stable id (a `String`).

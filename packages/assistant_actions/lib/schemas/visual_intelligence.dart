@@ -21,12 +21,16 @@ import '../src/schema.dart';
 /// `dialogs` and `confirm` give, by intent name, what Siri says when one
 /// finishes and what it asks first.
 /// `replies` lets live intents' handlers return an `AssistantReply`.
+/// `summaries` gives the sentence Shortcuts shows each as; `requiresUnlock`
+/// keeps Siri from running them on a locked device.
 class VisualIntelligenceIntents extends SchemaIntents {
   const VisualIntelligenceIntents({
     this.semanticContentSearch = false,
     super.dialogs,
     super.confirm,
     super.replies,
+    super.summaries,
+    super.requiresUnlock,
   }) : super('visualIntelligence');
 
   /// Handle `visualIntelligence.semanticContentSearch` ("Show Visual Search Results"): calls

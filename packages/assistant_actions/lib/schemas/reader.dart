@@ -28,6 +28,11 @@ class ReaderDocumentKind extends SchemaEnumCases {
 /// `dialogs` and `confirm` give, by intent name, what Siri says when one
 /// finishes and what it asks first (deletes ask by default; see `confirmDeletes`).
 /// `replies` lets live intents' handlers return an `AssistantReply`.
+/// `summaries` gives, by intent name, the sentence Shortcuts shows it as.
+///
+/// `requiresUnlock` keeps Siri from running its intents on a locked device;
+/// `systemImage` is an SF Symbol shown with every item (an `@EntityImage()`
+/// field gives each item its own).
 class ReaderPage extends SchemaEntity {
   const ReaderPage({
     this.openPage = false,
@@ -38,7 +43,10 @@ class ReaderPage extends SchemaEntity {
     super.confirm,
     super.confirmDeletes,
     super.replies,
+    super.summaries,
     super.url,
+    super.requiresUnlock,
+    super.systemImage,
     super.visualSearch,
   }) : super('reader.page');
 
@@ -101,6 +109,11 @@ class FixedReaderPage extends SchemaContainer {
 ///
 /// `dialogs` and `confirm` give, by intent name, what Siri says when one
 /// finishes and what it asks first.
+/// `summaries` gives, by intent name, the sentence Shortcuts shows it as.
+///
+/// `requiresUnlock` keeps Siri from running its intents on a locked device;
+/// `systemImage` is an SF Symbol shown with every item (an `@EntityImage()`
+/// field gives each item its own).
 class ReaderDocument extends SchemaEntity {
   const ReaderDocument({
     this.rotateDocuments = false,
@@ -110,7 +123,10 @@ class ReaderDocument extends SchemaEntity {
     this.openDocument = false,
     super.dialogs,
     super.confirm,
+    super.summaries,
     super.url,
+    super.requiresUnlock,
+    super.systemImage,
     super.visualSearch,
   }) : super('reader.document');
 

@@ -232,6 +232,16 @@ void main() {
     expect(entry.place?.name, 'Lake');
   });
 
+  test('a journal entry publishes its first photo as its image, for Siri and Spotlight', () {
+    final codec = registry.codecs[JournalItem]!;
+    final entry = JournalItem(id: 'j3', text: 'Hike', media: const [
+      AssistantFile(path: '/tmp/note.m4a', type: 'com.apple.m4a-audio'),
+      AssistantFile(path: '/tmp/summit.heic', type: 'public.heic'),
+    ]);
+    expect((codec.encode(entry)['fields'] as Map)['cover'], '/tmp/summit.heic');
+    expect((codec.encode(JournalItem(id: 'j4', text: 'No photos'))['fields'] as Map)['cover'], isNull);
+  });
+
   test('undoing a timer pause resumes it; undoing a create deletes it', () async {
     await apply(const InboxChange(kind: 'create', collection: 'Countdown', id: 'c1', fields: {'length': 60.0}));
     await registry.actions['Countdown.pauseTimer']!({'timer': 'c1'});

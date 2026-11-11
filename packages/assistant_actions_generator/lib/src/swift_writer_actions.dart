@@ -26,10 +26,11 @@ extension _Actions on SwiftWriter {
       ..writeln('  public static let caseDisplayRepresentations: [$name: DisplayRepresentation] = [');
     for (final c in e.cases) {
       final title = '"${SwiftWriter._escape(c.title)}"';
-      _out.writeln(c.synonyms.isEmpty
+      final image = c.systemImage == null ? '' : ', image: .init(systemName: "${SwiftWriter._escape(c.systemImage!)}")';
+      _out.writeln(c.synonyms.isEmpty && image.isEmpty
           ? '    .${swiftName(c.name)}: $title,'
-          : '    .${swiftName(c.name)}: DisplayRepresentation(title: $title, '
-              'synonyms: [${c.synonyms.map((s) => '"${SwiftWriter._escape(s)}"').join(', ')}]),');
+          : '    .${swiftName(c.name)}: DisplayRepresentation(title: $title$image'
+              '${c.synonyms.isEmpty ? '' : ', synonyms: [${c.synonyms.map((s) => '"${SwiftWriter._escape(s)}"').join(', ')}]'}),');
     }
     _out
       ..writeln('  ]')
@@ -67,6 +68,8 @@ extension _Actions on SwiftWriter {
       ..writeln('public struct ${a.swiftName}: AppIntent${foreground ? _continuable(modes, ', ') : ''} {')
       ..writeln('  public static let title: LocalizedStringResource = "${SwiftWriter._escape(a.title)}"')
       ..write(_describe(a.title, a.description, a.searchKeywords, a.isDiscoverable))
+      ..write(_unlockMember(_actionUnlock(a), access: 'public '))
+      ..write(_summaryMember(a.summary, [for (final p in a.params) p.name], access: 'public '))
       ..writeln();
     if (foreground) _out.write(_modesMember(modes, access: 'public '));
     for (final p in a.params) {

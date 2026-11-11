@@ -10,8 +10,10 @@ import 'package:assistant_actions/schemas/reminders.dart';
 /// …" is an App Shortcut for `system.open` that learns each recipe the app
 /// publishes. Each recipe has a deep link (`system.open` opens it, and Apple
 /// Intelligence can share it), and Visual Intelligence can show recipes for
-/// what the camera sees.
-@AssistantEntity(title: 'Recipe', url: 'assistantactions://recipes/{id}', visualSearch: true)
+/// what the camera sees. Siri, Spotlight and Shortcuts show each recipe with
+/// a fork and knife.
+@AssistantEntity(
+    title: 'Recipe', url: 'assistantactions://recipes/{id}', visualSearch: true, systemImage: 'fork.knife')
 @IntentShortcut('system.open',
     phrases: ['Open {target} in {app}', 'Show a recipe in {app}'], shortTitle: 'Open Recipe', systemImage: 'book')
 class Recipe {
@@ -46,6 +48,10 @@ class Recipe {
     'updateReminder': 'Updated {result}.',
     'deleteReminders': 'Deleted {entities}.',
   },
+  // How Shortcuts shows "Create Reminder": a sentence instead of a list of
+  // fields. The parameters it leaves out are listed under it.
+  summaries: {'createReminder': 'Add {title} to my tasks, due {dueDate}'},
+  systemImage: 'checklist',
 )
 @IntentShortcut('reminders.createReminder',
     phrases: ['Add a task in {app}', 'New {app} task'], shortTitle: 'New Task', systemImage: 'plus.circle')
@@ -89,12 +95,17 @@ class MemoryItem {
 /// Level 3: a voice journal entry Siri understands as `journal.entry`.
 /// `createAudioEntry` lets "record a journal entry in …" open the app and
 /// call `JournalHandler.startAudioEntry`; the app records the audio.
+/// Journals are private: Siri asks to unlock the device before any journal
+/// intent, or `system.open` on an entry, runs. Each entry shows its first
+/// photo, else a book.
 @JournalEntry(
   createEntry: true,
   createAudioEntry: true,
   updateEntry: true,
   deleteEntry: true,
   visualSearch: true,
+  requiresUnlock: Unlock.required,
+  systemImage: 'book.closed',
 )
 class JournalItem {
   JournalItem({required this.id, required this.text, this.title, this.date, this.media = const [], this.place});
@@ -118,6 +129,16 @@ class JournalItem {
 
   @JournalEntryField.location
   AssistantPlace? place;
+
+  /// The first photo attached, which Siri, Spotlight and Shortcuts show with
+  /// the entry. Attached files are in the app's container, which the
+  /// generated Swift reads in the app's process.
+  @EntityImage()
+  String? get cover => media.where(_isImage).firstOrNull?.path;
+
+  static bool _isImage(AssistantFile f) =>
+      const {'public.jpeg', 'public.png', 'public.heic', 'public.image'}.contains(f.type) ||
+      RegExp(r'\.(jpe?g|png|heic)$', caseSensitive: false).hasMatch(f.path);
 }
 
 /// Level 3: a countdown Siri understands as `clock.timer`. `createTimer`
@@ -159,7 +180,7 @@ enum Meal {
   breakfast,
   lunch,
   dinner,
-  @CaseTitle('Late-night snack', synonyms: ['snack', 'midnight snack'])
+  @CaseTitle('Late-night snack', synonyms: ['snack', 'midnight snack'], systemImage: 'moon.stars')
   snack,
 }
 

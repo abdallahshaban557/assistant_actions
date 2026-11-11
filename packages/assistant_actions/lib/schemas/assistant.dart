@@ -19,12 +19,16 @@ import '../src/schema.dart';
 /// `dialogs` and `confirm` give, by intent name, what Siri says when one
 /// finishes and what it asks first.
 /// `replies` lets live intents' handlers return an `AssistantReply`.
+/// `summaries` gives the sentence Shortcuts shows each as; `requiresUnlock`
+/// keeps Siri from running them on a locked device.
 class AssistantIntents extends SchemaIntents {
   const AssistantIntents({
     this.activate = false,
     super.dialogs,
     super.confirm,
     super.replies,
+    super.summaries,
+    super.requiresUnlock,
   }) : super('assistant');
 
   /// Handle `assistant.activate` ("Activate Assistant"): calls

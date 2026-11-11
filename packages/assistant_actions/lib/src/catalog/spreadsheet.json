@@ -101,7 +101,8 @@
       "result": {
         "kind": "entity",
         "ref": "spreadsheet.document"
-      }
+      },
+      "authenticationPolicy": 2
     },
     "open": {
       "title": "Open Spreadsheet",
@@ -124,7 +125,8 @@
       "opensApp": true,
       "protocols": [
         "open"
-      ]
+      ],
+      "authenticationPolicy": 2
     },
     "update": {
       "title": "Rename Spreadsheet",
@@ -154,7 +156,8 @@
           },
           "description": "New name of spreadsheet."
         }
-      ]
+      ],
+      "authenticationPolicy": 2
     },
     "delete": {
       "title": "Delete Spreadsheets",
@@ -179,7 +182,8 @@
       ],
       "protocols": [
         "delete"
-      ]
+      ],
+      "authenticationPolicy": 2
     },
     "createSheet": {
       "title": "Create Sheet",
@@ -203,7 +207,8 @@
         "kind": "entity",
         "ref": "spreadsheet.sheet"
       },
-      "opensApp": true
+      "opensApp": true,
+      "authenticationPolicy": 2
     },
     "openSheet": {
       "title": "Open Sheet",
@@ -226,7 +231,8 @@
       "opensApp": true,
       "protocols": [
         "open"
-      ]
+      ],
+      "authenticationPolicy": 2
     },
     "updateSheet": {
       "title": "Update Sheet",
@@ -267,7 +273,8 @@
           },
           "description": "New sheet position."
         }
-      ]
+      ],
+      "authenticationPolicy": 2
     },
     "addImageToSheet": {
       "title": "Add Image to Sheet",
@@ -294,7 +301,8 @@
           },
           "description": "Sheet to add the image to."
         }
-      ]
+      ],
+      "authenticationPolicy": 2
     },
     "addVideoToSheet": {
       "title": "Add Video to Sheet",
@@ -321,7 +329,8 @@
           },
           "description": "Sheet to add the video to."
         }
-      ]
+      ],
+      "authenticationPolicy": 2
     },
     "addAudioToSheet": {
       "title": "Add Audio to Sheet",
@@ -348,7 +357,8 @@
           },
           "description": "Sheet to add the audio to."
         }
-      ]
+      ],
+      "authenticationPolicy": 2
     },
     "addTextBoxToSheet": {
       "title": "Add Text to Sheet",
@@ -375,7 +385,8 @@
           },
           "description": "Sheet to add the text to."
         }
-      ]
+      ],
+      "authenticationPolicy": 2
     },
     "addCommentToSheet": {
       "title": "Add Comment to Sheet",
@@ -405,7 +416,8 @@
           },
           "description": "Sheet to add the comment to."
         }
-      ]
+      ],
+      "authenticationPolicy": 2
     },
     "addWebVideoToSheet": {
       "title": "Add Web Video to Sheet",
@@ -432,7 +444,8 @@
           },
           "description": "Sheet to add the web video to."
         }
-      ]
+      ],
+      "authenticationPolicy": 2
     },
     "deleteSheet": {
       "title": "Delete Sheets",
@@ -457,7 +470,8 @@
       ],
       "protocols": [
         "delete"
-      ]
+      ],
+      "authenticationPolicy": 2
     }
   }
 }

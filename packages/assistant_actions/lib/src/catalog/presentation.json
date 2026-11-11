@@ -111,7 +111,8 @@
         "kind": "entity",
         "ref": "presentation.document"
       },
-      "opensApp": true
+      "opensApp": true,
+      "authenticationPolicy": 2
     },
     "open": {
       "title": "Open Presentation",
@@ -134,7 +135,8 @@
       "opensApp": true,
       "protocols": [
         "open"
-      ]
+      ],
+      "authenticationPolicy": 2
     },
     "update": {
       "title": "Rename Presentation",
@@ -164,7 +166,8 @@
           },
           "description": "New name of presentation."
         }
-      ]
+      ],
+      "authenticationPolicy": 2
     },
     "startPlayback": {
       "title": "Play Presentation",
@@ -196,7 +199,8 @@
           "description": "Slide to start presentation from."
         }
       ],
-      "opensApp": true
+      "opensApp": true,
+      "authenticationPolicy": 2
     },
     "stopPlayback": {
       "title": "Stop Presentation",
@@ -215,7 +219,8 @@
           },
           "description": "Presentation to stop."
         }
-      ]
+      ],
+      "authenticationPolicy": 2
     },
     "createSlide": {
       "title": "Create Slide",
@@ -250,7 +255,8 @@
         "kind": "entity",
         "ref": "presentation.slide"
       },
-      "opensApp": true
+      "opensApp": true,
+      "authenticationPolicy": 2
     },
     "openSlide": {
       "title": "Open Slide",
@@ -273,7 +279,8 @@
       "opensApp": true,
       "protocols": [
         "open"
-      ]
+      ],
+      "authenticationPolicy": 2
     },
     "setSlideTitle": {
       "title": "Rename Slide",
@@ -301,7 +308,8 @@
           "description": "New slide name."
         }
       ],
-      "opensApp": true
+      "opensApp": true,
+      "authenticationPolicy": 2
     },
     "addImageToSlide": {
       "title": "Add Image to Slide",
@@ -329,7 +337,8 @@
           "description": "Slide to add the image to."
         }
       ],
-      "opensApp": true
+      "opensApp": true,
+      "authenticationPolicy": 2
     },
     "addVideoToSlide": {
       "title": "Add Video to Slide",
@@ -357,7 +366,8 @@
           "description": "Slide to add the video to."
         }
       ],
-      "opensApp": true
+      "opensApp": true,
+      "authenticationPolicy": 2
     },
     "addAudioToSlide": {
       "title": "Add Audio to Slide",
@@ -385,7 +395,8 @@
           "description": "Slide to add the audio to."
         }
       ],
-      "opensApp": true
+      "opensApp": true,
+      "authenticationPolicy": 2
     },
     "addTextBoxToSlide": {
       "title": "Add Text Box to Slide",
@@ -413,7 +424,8 @@
           "description": "Slide to add the text box to."
         }
       ],
-      "opensApp": true
+      "opensApp": true,
+      "authenticationPolicy": 2
     },
     "addCommentToSlide": {
       "title": "Add Comment to Slide",
@@ -444,7 +456,8 @@
           "description": "Slide to add the comment to."
         }
       ],
-      "opensApp": true
+      "opensApp": true,
+      "authenticationPolicy": 2
     },
     "addWebVideoToSlide": {
       "title": "Add Web Video to Slide",
@@ -472,7 +485,8 @@
           "description": "Slide to add the web video to."
         }
       ],
-      "opensApp": true
+      "opensApp": true,
+      "authenticationPolicy": 2
     },
     "deleteSlide": {
       "title": "Delete Slides",
@@ -497,7 +511,8 @@
       ],
       "protocols": [
         "delete"
-      ]
+      ],
+      "authenticationPolicy": 2
     }
   }
 }

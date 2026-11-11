@@ -12,6 +12,8 @@ import 'store.dart';
   title: 'Add to Shopping List',
   description: 'Adds a recipe’s ingredients to the shopping list.',
   dialog: 'Added {recipe} to your list.',
+  // Shortcuts shows "Add Pancakes to the shopping list", with Servings under it.
+  summary: 'Add {recipe} to the shopping list',
 )
 Future<void> addToShoppingList(
   Recipe recipe, {
@@ -89,6 +91,7 @@ Future<String> countOpenTasks() async {
   title: 'Plan a Meal',
   description: 'Adds a recipe to the meal plan.',
   dialog: 'Planned {recipe} for {meal}.',
+  summary: 'Plan {recipe} for {meal}',
   searchKeywords: ['menu', 'meal plan'],
   shortcut: AppShortcut(
     phrases: ['Cook {recipe} for {meal} in {app}', 'Plan {meal} in {app}'],

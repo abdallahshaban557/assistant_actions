@@ -113,7 +113,8 @@
           },
           "description": "Direction the documents will be rotated in."
         }
-      ]
+      ],
+      "authenticationPolicy": 2
     },
     "resizeDocuments": {
       "title": "Resize Documents",
@@ -157,7 +158,8 @@
           },
           "description": "Height to set for the documents (leave empty to preserve aspect ratio based on the specified width)."
         }
-      ]
+      ],
+      "authenticationPolicy": 2
     },
     "openPage": {
       "title": "Open Page",
@@ -180,7 +182,8 @@
       "opensApp": true,
       "protocols": [
         "open"
-      ]
+      ],
+      "authenticationPolicy": 2
     },
     "enhanceDocuments": {
       "title": "Enhance Documents",
@@ -202,7 +205,8 @@
           },
           "description": "Documents to automatically enhance."
         }
-      ]
+      ],
+      "authenticationPolicy": 2
     },
     "searchDocuments": {
       "title": "Search Documents",
@@ -232,7 +236,8 @@
           },
           "description": "Documents to search in."
         }
-      ]
+      ],
+      "authenticationPolicy": 2
     },
     "openDocument": {
       "title": "Open Documents",
@@ -253,7 +258,8 @@
           },
           "description": "Files to open as documents in the reader."
         }
-      ]
+      ],
+      "authenticationPolicy": 2
     },
     "rotatePages": {
       "title": "Rotate Pages",
@@ -283,7 +289,8 @@
           },
           "description": "Direction the pages will be rotated in."
         }
-      ]
+      ],
+      "authenticationPolicy": 2
     },
     "deletePages": {
       "title": "Delete Pages",
@@ -308,7 +315,8 @@
       ],
       "protocols": [
         "delete"
-      ]
+      ],
+      "authenticationPolicy": 2
     },
     "insertPages": {
       "title": "Insert Page",
@@ -346,7 +354,8 @@
           },
           "description": "Page relative to which the files will be inserted."
         }
-      ]
+      ],
+      "authenticationPolicy": 2
     }
   }
 }

@@ -103,6 +103,27 @@ The validation app also makes every adopted class `@AssistantUndoable()` and
 - **`supportedModes`** instead of the deprecated `ForegroundContinuableIntent`
   when the app's deployment target is iOS 26 / macOS 26 or later.
 
+## Unlock, Shortcuts sentences and images
+
+The validation app also gives every adopted entity and `…Intents` class a
+`requiresUnlock` (alternating `Unlock.required` and `Unlock.onThisDevice`), a
+`systemImage` and an `@EntityImage()` field, and every other turned-on intent
+a `summaries` sentence, so Apple's processor checks these on every schema:
+
+- **`authenticationPolicy`**: Apple's catalog gives each intent schema a
+  least policy (`_authenticationPolicy`, kept in the bundled catalogs as
+  `authenticationPolicy`). An intent that sets a policy must set at least
+  that one: `system.open` / `system.searchInApp`, the `journal.*` intents and
+  many document intents need `.requiresLocalDeviceAuthentication`, so
+  `Unlock.required` becomes that there. Without `requiresUnlock`, intents set
+  no policy (Apple's `.alwaysAllowed`), as before. Entity queries have no
+  policy.
+- **`parameterSummary`**: a `summaries` sentence replaces the schema's own
+  (Apple's processor accepts it on every schema intent); parameters it leaves
+  out go in the summary's trailing list. `system.open` keeps Apple's.
+- **`DisplayRepresentation` images**: on adopted entities only; the fixed
+  containers (a reminder's list) and schema enums keep Apple's text.
+
 Not adopted:
 
 - **`OwnershipProvidingEntity`** (27) says whether an item is shared or

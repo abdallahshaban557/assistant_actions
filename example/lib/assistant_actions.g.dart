@@ -499,6 +499,7 @@ AssistantActionsRegistry assistantActionsRegistry({
         'date': AssistantValue.encodeDate(e.date),
         'media': e.media.map((e) => AssistantValue.encodeFile(e)).toList(),
         'place': AssistantValue.encodePlace(e.place),
+        'cover': e.cover,
       },
     ),
     a1.Countdown: EntityCodec<a1.Countdown>(

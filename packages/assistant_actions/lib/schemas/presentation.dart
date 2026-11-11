@@ -22,6 +22,11 @@ import '../src/schema.dart';
 /// `dialogs` and `confirm` give, by intent name, what Siri says when one
 /// finishes and what it asks first (deletes ask by default; see `confirmDeletes`).
 /// `replies` lets live intents' handlers return an `AssistantReply`.
+/// `summaries` gives, by intent name, the sentence Shortcuts shows it as.
+///
+/// `requiresUnlock` keeps Siri from running its intents on a locked device;
+/// `systemImage` is an SF Symbol shown with every item (an `@EntityImage()`
+/// field gives each item its own).
 class PresentationSlide extends SchemaEntity {
   const PresentationSlide({
     required this.presentation,
@@ -40,7 +45,10 @@ class PresentationSlide extends SchemaEntity {
     super.confirm,
     super.confirmDeletes,
     super.replies,
+    super.summaries,
     super.url,
+    super.requiresUnlock,
+    super.systemImage,
     super.visualSearch,
   }) : super('presentation.slide');
 
@@ -169,8 +177,14 @@ class FixedPresentationSlide extends SchemaContainer {
 ///
 /// Map fields with [PresentationTemplateField] and turn on the schema intents the app
 /// supports. Each one becomes a method on the generated handler.
+///
+/// `requiresUnlock` keeps Siri from running its intents on a locked device;
+/// `systemImage` is an SF Symbol shown with every item (an `@EntityImage()`
+/// field gives each item its own).
 class PresentationTemplate extends SchemaEntity {
-  const PresentationTemplate({super.url, super.visualSearch}) : super('presentation.template');
+  const PresentationTemplate(
+      {super.url, super.requiresUnlock, super.systemImage, super.visualSearch})
+      : super('presentation.template');
 }
 
 /// Marks members of `presentation.template`.
@@ -209,6 +223,11 @@ class FixedPresentationTemplate extends SchemaContainer {
 /// `dialogs` and `confirm` give, by intent name, what Siri says when one
 /// finishes and what it asks first.
 /// `replies` lets live intents' handlers return an `AssistantReply`.
+/// `summaries` gives, by intent name, the sentence Shortcuts shows it as.
+///
+/// `requiresUnlock` keeps Siri from running its intents on a locked device;
+/// `systemImage` is an SF Symbol shown with every item (an `@EntityImage()`
+/// field gives each item its own).
 ///
 /// Syncable (`SyncableEntity`), like Apple's own: keep each `@EntityId()`
 /// stable across launches and devices. Opt out with `@AssistantSyncable(false)`.
@@ -221,7 +240,10 @@ class PresentationDocument extends SchemaEntity {
     super.dialogs,
     super.confirm,
     super.replies,
+    super.summaries,
     super.url,
+    super.requiresUnlock,
+    super.systemImage,
     super.visualSearch,
   }) : super('presentation.document');
 

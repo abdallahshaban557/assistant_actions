@@ -354,6 +354,105 @@ Queued intents (`Runs.deferred`, inbox creates, updates and deletes, and
 queued calls) run after Siri has answered, so they can confirm and use
 `dialogs` but can't reply from Dart; the generator says so.
 
+### Locked devices
+
+By default (Apple's), Siri runs an app's intents from a locked phone. For an
+app with private data, say a journal or a task list, ask for an unlock first
+with `requiresUnlock` (App Intents' `authenticationPolicy`):
+
+```dart
+@AssistantActionsApp(name: 'Journal', requiresUnlock: Unlock.required)
+library;
+
+@AssistantAction(title: 'Weather', requiresUnlock: Unlock.notRequired)   // opts back out
+Future<String> weather() async { ... }
+
+@JournalEntry(createEntry: true, requiresUnlock: Unlock.onThisDevice)
+class JournalItem { ... }
+```
+
+* `Unlock.notRequired` runs on a locked device (`.alwaysAllowed`);
+  `Unlock.required` asks the user to unlock first (`.requiresAuthentication`);
+  `Unlock.onThisDevice` asks for an unlock on the device that runs it
+  (`.requiresLocalDeviceAuthentication`), so a request from a HomePod or a
+  paired Apple Watch can't run it while the phone is locked.
+* `@AssistantActionsApp(requiresUnlock:)` is the default for every intent.
+  `@AssistantEntity`, the schema entity annotations and the `…Intents`
+  annotations override it for the intents about their items: schema intents,
+  `system.open` (or the deep link that replaces it) and snapshot answers.
+  `@AssistantAction(requiresUnlock:)` overrides it for one action; an action
+  that sets nothing needs at least what the entities it takes or returns ask
+  for.
+* Apple's schemas set a minimum for intents that ask for an unlock:
+  `system.open`, `system.searchInApp` and the `journal.*` intents (among
+  others) need `onThisDevice`, so `Unlock.required` becomes `onThisDevice`
+  there. Apple's metadata processor rejects anything less.
+* Focus filters run when the system changes Focus, not at the user's
+  request, so they have no policy.
+
+**What it doesn't cover.** Entity queries have no authentication policy in
+App Intents: on a locked device Siri can still look published items up by
+title, for example to resolve "open my Monday entry" before it asks for the
+unlock, and Spotlight keeps the indexed titles. An intent that requires an
+unlock never runs, speaks a snapshot answer or opens an item until the user
+unlocks, but don't publish anything as an item title that must stay secret
+on the lock screen. Apple offers no setting for queries; leave such items
+unpublished, or give them neutral titles.
+
+### Shortcuts sentences
+
+Shortcuts shows an action as its parameters, one field each. A `summary`
+shows it as a sentence instead, with the values in place:
+
+```dart
+@AssistantAction(title: 'Add to Shopping List', summary: 'Add {recipe} to the shopping list', ...)
+Future<void> addToShoppingList(Recipe recipe, {int? servings}) async { ... }
+```
+
+`{name}` is the parameter `name` (each at most once); parameters the sentence
+leaves out (`servings`) are listed under it, so they stay editable. Schema
+intents already have Apple's sentence ("Add *title* to *list*"); `summaries`
+replaces it, by intent name:
+
+```dart
+@RemindersReminder(createReminder: true, summaries: {'createReminder': 'Add {title} to my tasks, due {dueDate}'}, ...)
+```
+
+The generator checks the names. Conditional sentences (`When` / `Switch`)
+aren't supported.
+
+### Item images
+
+Siri, Spotlight and Shortcuts show items as text unless they have an image.
+`systemImage` gives every item of a type an SF Symbol; mark a field or getter
+`@EntityImage()` to give each item its own:
+
+```dart
+@AssistantEntity(title: 'Recipe', systemImage: 'fork.knife')
+class Recipe {
+  ...
+  @EntityImage()
+  final String? photoPath;     // an absolute path, a file: URL or an https: URL
+}
+
+@AssistantEnum(title: 'Meal')
+enum Meal { @CaseTitle('Breakfast', systemImage: 'sunrise') breakfast, dinner }
+```
+
+The same `systemImage:` and `@EntityImage()` work on schema entity classes.
+The image (a `String` or `Uri`) is published with the item. Items without one
+show the `systemImage`, if any.
+
+* **Local files** are read in the app's process whenever Siri or Shortcuts
+  shows the item, and handed over as image data, so a file in the app's own
+  sandbox (Documents, Application Support, a cache) works even though the
+  system draws it in another process. Spotlight gets the same bytes as the
+  item's thumbnail when the item is indexed. Keep these thumbnail-sized: a
+  large photo is read every time.
+* **Remote URLs** (`https:`) are passed to the system to load
+  (`DisplayRepresentation.Image(url:)`) where it supports it. Spotlight has
+  no thumbnail for them; it shows the app's icon.
+
 ## Beyond Siri: Focus, Live Activities, controls, the Action button
 
 ### Focus filters

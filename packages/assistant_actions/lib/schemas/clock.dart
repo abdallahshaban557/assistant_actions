@@ -44,6 +44,11 @@ enum ClockTimerState {
 /// `dialogs` and `confirm` give, by intent name, what Siri says when one
 /// finishes and what it asks first (deletes ask by default; see `confirmDeletes`).
 /// `replies` lets live intents' handlers return an `AssistantReply`.
+/// `summaries` gives, by intent name, the sentence Shortcuts shows it as.
+///
+/// `requiresUnlock` keeps Siri from running its intents on a locked device;
+/// `systemImage` is an SF Symbol shown with every item (an `@EntityImage()`
+/// field gives each item its own).
 class ClockAlarm extends SchemaEntity {
   const ClockAlarm({
     this.createAlarm = false,
@@ -55,7 +60,10 @@ class ClockAlarm extends SchemaEntity {
     super.confirm,
     super.confirmDeletes,
     super.replies,
+    super.summaries,
     super.url,
+    super.requiresUnlock,
+    super.systemImage,
     super.visualSearch,
   }) : super('clock.alarm');
 
@@ -139,6 +147,11 @@ abstract final class ClockAlarmField {
 /// `dialogs` and `confirm` give, by intent name, what Siri says when one
 /// finishes and what it asks first.
 /// `replies` lets live intents' handlers return an `AssistantReply`.
+/// `summaries` gives, by intent name, the sentence Shortcuts shows it as.
+///
+/// `requiresUnlock` keeps Siri from running its intents on a locked device;
+/// `systemImage` is an SF Symbol shown with every item (an `@EntityImage()`
+/// field gives each item its own).
 class ClockStopwatch extends SchemaEntity {
   const ClockStopwatch({
     this.lapStopwatch = false,
@@ -148,7 +161,10 @@ class ClockStopwatch extends SchemaEntity {
     super.dialogs,
     super.confirm,
     super.replies,
+    super.summaries,
     super.url,
+    super.requiresUnlock,
+    super.systemImage,
     super.visualSearch,
   }) : super('clock.stopwatch');
 
@@ -224,6 +240,11 @@ abstract final class ClockStopwatchField {
 /// `dialogs` and `confirm` give, by intent name, what Siri says when one
 /// finishes and what it asks first.
 /// `replies` lets live intents' handlers return an `AssistantReply`.
+/// `summaries` gives, by intent name, the sentence Shortcuts shows it as.
+///
+/// `requiresUnlock` keeps Siri from running its intents on a locked device;
+/// `systemImage` is an SF Symbol shown with every item (an `@EntityImage()`
+/// field gives each item its own).
 class ClockTimer extends SchemaEntity {
   const ClockTimer({
     this.cancelTimer = false,
@@ -234,7 +255,10 @@ class ClockTimer extends SchemaEntity {
     super.dialogs,
     super.confirm,
     super.replies,
+    super.summaries,
     super.url,
+    super.requiresUnlock,
+    super.systemImage,
     super.visualSearch,
   }) : super('clock.timer');
 

@@ -12,7 +12,8 @@
         "iOS": 26.2
       },
       "parameters": [],
-      "opensApp": true
+      "opensApp": true,
+      "authenticationPolicy": 2
     }
   }
 }

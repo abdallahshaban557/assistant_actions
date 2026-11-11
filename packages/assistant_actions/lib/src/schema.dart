@@ -1,6 +1,8 @@
 /// Base types for the generated schema libraries in `package:assistant_actions/schemas/`.
 library;
 
+import 'annotations.dart' show Unlock;
+
 /// An annotation that adopts one of Apple's App Schema entities, such as
 /// `@RemindersReminder(...)`. Each schema's subclass is generated from Apple's
 /// schema catalog.
@@ -13,6 +15,9 @@ abstract class SchemaEntity {
     this.replies = const {},
     this.url,
     this.visualSearch = false,
+    this.requiresUnlock,
+    this.systemImage,
+    this.summaries = const {},
   });
 
   /// The schema's identifier, such as `reminders.reminder`.
@@ -47,6 +52,22 @@ abstract class SchemaEntity {
   /// Visual Intelligence shows these items for what the camera or a
   /// screenshot shows; see `AssistantEntity.visualSearch`.
   final bool visualSearch;
+
+  /// Whether the turned-on intents, `system.open` and snapshot answers for
+  /// these items run on a locked device; `@AssistantActionsApp`'s
+  /// `requiresUnlock` when null. Some of Apple's schemas need the stricter
+  /// [Unlock.onThisDevice], which the generated intents then use.
+  final Unlock? requiresUnlock;
+
+  /// An SF Symbol shown with every item; see `AssistantEntity.systemImage`.
+  /// Mark a field `@EntityImage()` for each item's own image.
+  final String? systemImage;
+
+  /// How Shortcuts shows turned-on intents, as a sentence, by intent name:
+  /// `{'createReminder': 'Add {title} to {list}'}`. `{name}` is the intent's
+  /// parameter `name`; the others are listed under the sentence. Replaces
+  /// the sentence Apple's schema gives. Checked at build time.
+  final Map<String, String> summaries;
 }
 
 /// A member of schema entity [S] with Dart type [T], used as a field
@@ -91,7 +112,14 @@ abstract class SchemaEnumCases {
 /// no entity, such as `@CameraIntents(startCapture: true)`. Put it on the
 /// class implementing the generated handler (`CameraAssistantHandler`).
 abstract class SchemaIntents {
-  const SchemaIntents(this.domain, {this.dialogs = const {}, this.confirm = const {}, this.replies = const {}});
+  const SchemaIntents(
+    this.domain, {
+    this.dialogs = const {},
+    this.confirm = const {},
+    this.replies = const {},
+    this.requiresUnlock,
+    this.summaries = const {},
+  });
 
   /// The schema domain, such as `camera`.
   final String domain;
@@ -107,4 +135,12 @@ abstract class SchemaIntents {
   /// Live intents whose handler method returns an `AssistantReply`. See
   /// [SchemaEntity.replies].
   final Set<String> replies;
+
+  /// Whether the turned-on intents run on a locked device. See
+  /// [SchemaEntity.requiresUnlock].
+  final Unlock? requiresUnlock;
+
+  /// How Shortcuts shows turned-on intents, by intent name. See
+  /// [SchemaEntity.summaries].
+  final Map<String, String> summaries;
 }

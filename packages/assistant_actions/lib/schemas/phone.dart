@@ -28,9 +28,14 @@ enum PhoneAudioVisualMode {
 /// Map fields with [PhonePhonePersonField] and turn on the schema intents the app
 /// supports. Each one becomes a method on the generated handler.
 ///
+/// `requiresUnlock` keeps Siri from running its intents on a locked device;
+/// `systemImage` is an SF Symbol shown with every item (an `@EntityImage()`
+/// field gives each item its own).
+///
 /// Apple Intelligence can hand an item's `person` to other apps as a `person` (`phone.phonePersonTransferable`), when that member is mapped.
 class PhonePhonePerson extends SchemaEntity {
-  const PhonePhonePerson({super.url, super.visualSearch}) : super('phone.phonePerson');
+  const PhonePhonePerson({super.url, super.requiresUnlock, super.systemImage, super.visualSearch})
+      : super('phone.phonePerson');
 }
 
 /// Marks members of `phone.phonePerson`.

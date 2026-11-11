@@ -22,6 +22,11 @@ import '../src/schema.dart';
 /// `dialogs` and `confirm` give, by intent name, what Siri says when one
 /// finishes and what it asks first (deletes ask by default; see `confirmDeletes`).
 /// `replies` lets live intents' handlers return an `AssistantReply`.
+/// `summaries` gives, by intent name, the sentence Shortcuts shows it as.
+///
+/// `requiresUnlock` keeps Siri from running its intents on a locked device;
+/// `systemImage` is an SF Symbol shown with every item (an `@EntityImage()`
+/// field gives each item its own).
 class SpreadsheetSheet extends SchemaEntity {
   const SpreadsheetSheet({
     required this.spreadsheet,
@@ -39,7 +44,10 @@ class SpreadsheetSheet extends SchemaEntity {
     super.confirm,
     super.confirmDeletes,
     super.replies,
+    super.summaries,
     super.url,
+    super.requiresUnlock,
+    super.systemImage,
     super.visualSearch,
   }) : super('spreadsheet.sheet');
 
@@ -148,6 +156,11 @@ abstract final class SpreadsheetSheetField {
 /// `dialogs` and `confirm` give, by intent name, what Siri says when one
 /// finishes and what it asks first (deletes ask by default; see `confirmDeletes`).
 /// `replies` lets live intents' handlers return an `AssistantReply`.
+/// `summaries` gives, by intent name, the sentence Shortcuts shows it as.
+///
+/// `requiresUnlock` keeps Siri from running its intents on a locked device;
+/// `systemImage` is an SF Symbol shown with every item (an `@EntityImage()`
+/// field gives each item its own).
 class SpreadsheetDocument extends SchemaEntity {
   const SpreadsheetDocument({
     this.create = false,
@@ -158,7 +171,10 @@ class SpreadsheetDocument extends SchemaEntity {
     super.confirm,
     super.confirmDeletes,
     super.replies,
+    super.summaries,
     super.url,
+    super.requiresUnlock,
+    super.systemImage,
     super.visualSearch,
   }) : super('spreadsheet.document');
 
@@ -211,8 +227,14 @@ class FixedSpreadsheetDocument extends SchemaContainer {
 ///
 /// Map fields with [SpreadsheetTemplateField] and turn on the schema intents the app
 /// supports. Each one becomes a method on the generated handler.
+///
+/// `requiresUnlock` keeps Siri from running its intents on a locked device;
+/// `systemImage` is an SF Symbol shown with every item (an `@EntityImage()`
+/// field gives each item its own).
 class SpreadsheetTemplate extends SchemaEntity {
-  const SpreadsheetTemplate({super.url, super.visualSearch}) : super('spreadsheet.template');
+  const SpreadsheetTemplate(
+      {super.url, super.requiresUnlock, super.systemImage, super.visualSearch})
+      : super('spreadsheet.template');
 }
 
 /// Marks members of `spreadsheet.template`.

@@ -191,7 +191,8 @@
           "description": "URL to add."
         }
       ],
-      "opensApp": true
+      "opensApp": true,
+      "authenticationPolicy": 2
     },
     "createBoard": {
       "title": "Create Board",
@@ -216,7 +217,8 @@
       "result": {
         "kind": "entity",
         "ref": "whiteboard.board"
-      }
+      },
+      "authenticationPolicy": 2
     },
     "openBoard": {
       "title": "Open Board",
@@ -239,7 +241,8 @@
       "opensApp": true,
       "protocols": [
         "open"
-      ]
+      ],
+      "authenticationPolicy": 2
     },
     "updateBoard": {
       "title": "Rename Board",
@@ -269,7 +272,8 @@
           },
           "description": "New name for the board."
         }
-      ]
+      ],
+      "authenticationPolicy": 2
     },
     "deleteBoard": {
       "title": "Delete Boards",
@@ -294,7 +298,8 @@
       ],
       "protocols": [
         "delete"
-      ]
+      ],
+      "authenticationPolicy": 2
     },
     "updateItem": {
       "title": "Update Board’s Item",
@@ -336,7 +341,8 @@
           },
           "description": "Label to update to."
         }
-      ]
+      ],
+      "authenticationPolicy": 2
     },
     "deleteItem": {
       "title": "Delete Canvas’ Items",
@@ -361,7 +367,8 @@
       ],
       "protocols": [
         "delete"
-      ]
+      ],
+      "authenticationPolicy": 2
     }
   }
 }

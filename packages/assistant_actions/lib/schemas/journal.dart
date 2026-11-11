@@ -25,6 +25,11 @@ import '../src/values.dart';
 /// `dialogs` and `confirm` give, by intent name, what Siri says when one
 /// finishes and what it asks first (deletes ask by default; see `confirmDeletes`).
 /// `replies` lets live intents' handlers return an `AssistantReply`.
+/// `summaries` gives, by intent name, the sentence Shortcuts shows it as.
+///
+/// `requiresUnlock` keeps Siri from running its intents on a locked device;
+/// `systemImage` is an SF Symbol shown with every item (an `@EntityImage()`
+/// field gives each item its own).
 ///
 /// Apple Intelligence can hand an item's `location` to other apps as a `placeDescriptor` (`journal.entryTransferable`), when that member is mapped.
 class JournalEntry extends SchemaEntity {
@@ -37,7 +42,10 @@ class JournalEntry extends SchemaEntity {
     super.confirm,
     super.confirmDeletes,
     super.replies,
+    super.summaries,
     super.url,
+    super.requiresUnlock,
+    super.systemImage,
     super.visualSearch,
   }) : super('journal.entry');
 

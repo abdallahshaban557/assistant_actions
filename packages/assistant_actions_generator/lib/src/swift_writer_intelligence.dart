@@ -197,7 +197,7 @@ extension $name: URLRepresentableEntity {
 ${_availability(SwiftWriter._max(floor, _urlFloor))}
 @AppIntent(schema: .system.open)
 struct Open${className}Intent: URLRepresentableIntent {
-  var target: $swift
+${_unlockMember(_entityUnlock(className).forSchema(_systemOpen))}  var target: $swift
 }
 ''');
   }

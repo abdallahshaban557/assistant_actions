@@ -275,7 +275,8 @@
       "result": {
         "kind": "entity",
         "ref": "photos.album"
-      }
+      },
+      "authenticationPolicy": 2
     },
     "openAlbum": {
       "title": "Open Album",
@@ -298,7 +299,8 @@
       "opensApp": true,
       "protocols": [
         "open"
-      ]
+      ],
+      "authenticationPolicy": 2
     },
     "updateAlbum": {
       "title": "Rename Album",
@@ -325,7 +327,8 @@
           },
           "description": "Name of the album to update to."
         }
-      ]
+      ],
+      "authenticationPolicy": 2
     },
     "deleteAlbum": {
       "title": "Delete Albums",
@@ -350,7 +353,8 @@
       ],
       "protocols": [
         "delete"
-      ]
+      ],
+      "authenticationPolicy": 2
     },
     "createAssets": {
       "title": "Create Photos",
@@ -378,7 +382,8 @@
           "kind": "entity",
           "ref": "photos.asset"
         }
-      }
+      },
+      "authenticationPolicy": 2
     },
     "postToSharedAlbum": {
       "title": "Post To Shared Album",
@@ -437,7 +442,8 @@
           },
           "description": "Comment to be posted."
         }
-      ]
+      ],
+      "authenticationPolicy": 2
     },
     "addAssetsToAlbum": {
       "title": "Add Photos to Album",
@@ -468,7 +474,8 @@
           },
           "description": "Album to add photos to."
         }
-      ]
+      ],
+      "authenticationPolicy": 2
     },
     "removeAssetsFromAlbum": {
       "title": "Remove Photos from Album",
@@ -499,7 +506,8 @@
           },
           "description": "Album to remove photos from."
         }
-      ]
+      ],
+      "authenticationPolicy": 2
     },
     "setWarmth": {
       "title": "Set Warmth",
@@ -526,7 +534,8 @@
           },
           "description": "Value for warmth change."
         }
-      ]
+      ],
+      "authenticationPolicy": 2
     },
     "cleanupPhoto": {
       "title": "Cleanup Photo",
@@ -545,7 +554,8 @@
           },
           "description": "Photo to cleanup."
         }
-      ]
+      ],
+      "authenticationPolicy": 2
     },
     "toggleSuggestedEdits": {
       "title": "Enhance Photo",
@@ -572,7 +582,8 @@
           },
           "description": "Value for toggling enhancement."
         }
-      ]
+      ],
+      "authenticationPolicy": 2
     },
     "setFilter": {
       "title": "Apply Filter",
@@ -600,7 +611,8 @@
           },
           "description": "Photo to apply filter to."
         }
-      ]
+      ],
+      "authenticationPolicy": 2
     },
     "crop": {
       "title": "Crop Photo",
@@ -619,7 +631,8 @@
           },
           "description": "Photo to be cropped."
         }
-      ]
+      ],
+      "authenticationPolicy": 2
     },
     "updateAsset": {
       "title": "Update Photo",
@@ -674,7 +687,8 @@
           },
           "description": "Whether to mark the photo as favorite."
         }
-      ]
+      ],
+      "authenticationPolicy": 2
     },
     "duplicateAssets": {
       "title": "Duplicate Photos",
@@ -703,7 +717,8 @@
           "kind": "entity",
           "ref": "photos.asset"
         }
-      }
+      },
+      "authenticationPolicy": 2
     },
     "deleteAssets": {
       "title": "Delete Photos",
@@ -728,7 +743,8 @@
       ],
       "protocols": [
         "delete"
-      ]
+      ],
+      "authenticationPolicy": 2
     },
     "copyEdits": {
       "title": "Copy Edits",
@@ -747,7 +763,8 @@
           },
           "description": "Photo to copy edits from."
         }
-      ]
+      ],
+      "authenticationPolicy": 2
     },
     "pasteEdits": {
       "title": "Paste Edits",
@@ -769,7 +786,8 @@
           },
           "description": "Photos to paste edits to."
         }
-      ]
+      ],
+      "authenticationPolicy": 2
     },
     "setDepth": {
       "title": "Set Depth",
@@ -796,7 +814,8 @@
           },
           "description": "Depth value to set."
         }
-      ]
+      ],
+      "authenticationPolicy": 2
     },
     "setExposure": {
       "title": "Set Exposure",
@@ -823,7 +842,8 @@
           },
           "description": "Value for exposure change."
         }
-      ]
+      ],
+      "authenticationPolicy": 2
     },
     "setSaturation": {
       "title": "Set Saturation",
@@ -850,7 +870,8 @@
           },
           "description": "Value for saturation change."
         }
-      ]
+      ],
+      "authenticationPolicy": 2
     },
     "setRotation": {
       "title": "Rotate Photo",
@@ -878,7 +899,8 @@
           },
           "description": "Direction to rotate photo."
         }
-      ]
+      ],
+      "authenticationPolicy": 2
     },
     "toggleDepth": {
       "title": "Toggle Depth Effect",
@@ -905,7 +927,8 @@
           },
           "description": "Photo to change depth for."
         }
-      ]
+      ],
+      "authenticationPolicy": 2
     },
     "updateRecognizedPerson": {
       "title": "Update Person",
@@ -946,7 +969,8 @@
           },
           "description": "Name of the person to rename to."
         }
-      ]
+      ],
+      "authenticationPolicy": 2
     },
     "straighten": {
       "title": "Straighten Photo",
@@ -965,7 +989,8 @@
           },
           "description": "Photo to be straightened."
         }
-      ]
+      ],
+      "authenticationPolicy": 2
     },
     "editAsset": {
       "title": "Edit Photo",
@@ -985,7 +1010,8 @@
           "description": "Photo to edit."
         }
       ],
-      "opensApp": true
+      "opensApp": true,
+      "authenticationPolicy": 2
     }
   },
   "skipped": {

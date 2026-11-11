@@ -97,6 +97,7 @@ Future<void> main(List<String> args) async {
                 result: row['_result'] == null ? null : context.type(_json(row['_result']) as Map),
                 opensApp: row['_openApp'] == 1,
                 protocols: _protocols(row['_systemProtocols']),
+                authenticationPolicy: (row['_authenticationPolicy'] as num?)?.toInt() ?? 0,
               ),
         },
         unions: unions,

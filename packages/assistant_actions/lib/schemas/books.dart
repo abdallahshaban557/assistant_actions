@@ -84,6 +84,11 @@ class BooksPageNavigationSetting extends SchemaEnumCases {
 /// `dialogs` and `confirm` give, by intent name, what Siri says when one
 /// finishes and what it asks first.
 /// `replies` lets live intents' handlers return an `AssistantReply`.
+/// `summaries` gives, by intent name, the sentence Shortcuts shows it as.
+///
+/// `requiresUnlock` keeps Siri from running its intents on a locked device;
+/// `systemImage` is an SF Symbol shown with every item (an `@EntityImage()`
+/// field gives each item its own).
 class BooksBook extends SchemaEntity {
   const BooksBook({
     this.openBook = false,
@@ -91,7 +96,10 @@ class BooksBook extends SchemaEntity {
     super.dialogs,
     super.confirm,
     super.replies,
+    super.summaries,
     super.url,
+    super.requiresUnlock,
+    super.systemImage,
     super.visualSearch,
   }) : super('books.book');
 
@@ -173,8 +181,13 @@ class FixedBooksBook extends SchemaContainer {
 ///
 /// Map fields with [BooksAudiobookField] and turn on the schema intents the app
 /// supports. Each one becomes a method on the generated handler.
+///
+/// `requiresUnlock` keeps Siri from running its intents on a locked device;
+/// `systemImage` is an SF Symbol shown with every item (an `@EntityImage()`
+/// field gives each item its own).
 class BooksAudiobook extends SchemaEntity {
-  const BooksAudiobook({super.url, super.visualSearch}) : super('books.audiobook');
+  const BooksAudiobook({super.url, super.requiresUnlock, super.systemImage, super.visualSearch})
+      : super('books.audiobook');
 }
 
 /// Marks members of `books.audiobook`.
@@ -245,6 +258,11 @@ class FixedBooksAudiobook extends SchemaContainer {
 /// `dialogs` and `confirm` give, by intent name, what Siri says when one
 /// finishes and what it asks first.
 /// `replies` lets live intents' handlers return an `AssistantReply`.
+/// `summaries` gives, by intent name, the sentence Shortcuts shows it as.
+///
+/// `requiresUnlock` keeps Siri from running its intents on a locked device;
+/// `systemImage` is an SF Symbol shown with every item (an `@EntityImage()`
+/// field gives each item its own).
 class BooksSettings extends SchemaEntity {
   const BooksSettings({
     this.updateFontSize = false,
@@ -255,7 +273,10 @@ class BooksSettings extends SchemaEntity {
     super.dialogs,
     super.confirm,
     super.replies,
+    super.summaries,
     super.url,
+    super.requiresUnlock,
+    super.systemImage,
     super.visualSearch,
   }) : super('books.settings');
 

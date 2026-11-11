@@ -65,8 +65,14 @@ class MapsAmenity extends SchemaEnumCases {
 ///
 /// Map fields with [MapsCurrentLocationField] and turn on the schema intents the app
 /// supports. Each one becomes a method on the generated handler.
+///
+/// `requiresUnlock` keeps Siri from running its intents on a locked device;
+/// `systemImage` is an SF Symbol shown with every item (an `@EntityImage()`
+/// field gives each item its own).
 class MapsCurrentLocation extends SchemaEntity {
-  const MapsCurrentLocation({super.url, super.visualSearch}) : super('maps.currentLocation');
+  const MapsCurrentLocation(
+      {super.url, super.requiresUnlock, super.systemImage, super.visualSearch})
+      : super('maps.currentLocation');
 }
 
 /// Marks members of `maps.currentLocation`.
@@ -96,6 +102,11 @@ class FixedMapsCurrentLocation extends SchemaContainer {
 /// `dialogs` and `confirm` give, by intent name, what Siri says when one
 /// finishes and what it asks first.
 /// `replies` lets live intents' handlers return an `AssistantReply`.
+/// `summaries` gives, by intent name, the sentence Shortcuts shows it as.
+///
+/// `requiresUnlock` keeps Siri from running its intents on a locked device;
+/// `systemImage` is an SF Symbol shown with every item (an `@EntityImage()`
+/// field gives each item its own).
 class MapsNavigationSession extends SchemaEntity {
   const MapsNavigationSession({
     this.startNavigation = false,
@@ -104,7 +115,10 @@ class MapsNavigationSession extends SchemaEntity {
     super.dialogs,
     super.confirm,
     super.replies,
+    super.summaries,
     super.url,
+    super.requiresUnlock,
+    super.systemImage,
     super.visualSearch,
   }) : super('maps.navigationSession');
 
@@ -171,12 +185,18 @@ abstract final class MapsNavigationSessionField {
 /// Map fields with [MapsPlaceField] and turn on the schema intents the app
 /// supports. Each one becomes a method on the generated handler.
 ///
+/// `requiresUnlock` keeps Siri from running its intents on a locked device;
+/// `systemImage` is an SF Symbol shown with every item (an `@EntityImage()`
+/// field gives each item its own).
+///
 /// Apple Intelligence can hand an item's `place` to other apps as a `placeDescriptor` (`maps.placeTransferable`), when that member is mapped.
 class MapsPlace extends SchemaEntity {
   const MapsPlace({
     this.operatingHours,
     this.placeIntentValueQuery = false,
     super.url,
+    super.requiresUnlock,
+    super.systemImage,
     super.visualSearch,
   }) : super('maps.place');
 
@@ -256,8 +276,13 @@ abstract final class MapsPlaceField {
 ///
 /// Map fields with [MapsOperatingHoursField] and turn on the schema intents the app
 /// supports. Each one becomes a method on the generated handler.
+///
+/// `requiresUnlock` keeps Siri from running its intents on a locked device;
+/// `systemImage` is an SF Symbol shown with every item (an `@EntityImage()`
+/// field gives each item its own).
 class MapsOperatingHours extends SchemaEntity {
-  const MapsOperatingHours({super.url, super.visualSearch}) : super('maps.operatingHours');
+  const MapsOperatingHours({super.url, super.requiresUnlock, super.systemImage, super.visualSearch})
+      : super('maps.operatingHours');
 }
 
 /// Marks members of `maps.operatingHours`.
@@ -339,8 +364,14 @@ class FixedMapsOperatingHours extends SchemaContainer {
 ///
 /// Map fields with [MapsOperatingTimeRangeField] and turn on the schema intents the app
 /// supports. Each one becomes a method on the generated handler.
+///
+/// `requiresUnlock` keeps Siri from running its intents on a locked device;
+/// `systemImage` is an SF Symbol shown with every item (an `@EntityImage()`
+/// field gives each item its own).
 class MapsOperatingTimeRange extends SchemaEntity {
-  const MapsOperatingTimeRange({super.url, super.visualSearch}) : super('maps.operatingTimeRange');
+  const MapsOperatingTimeRange(
+      {super.url, super.requiresUnlock, super.systemImage, super.visualSearch})
+      : super('maps.operatingTimeRange');
 }
 
 /// Marks members of `maps.operatingTimeRange`.
@@ -371,8 +402,13 @@ abstract final class MapsOperatingTimeRangeField {
 ///
 /// Map fields with [MapsRatingField] and turn on the schema intents the app
 /// supports. Each one becomes a method on the generated handler.
+///
+/// `requiresUnlock` keeps Siri from running its intents on a locked device;
+/// `systemImage` is an SF Symbol shown with every item (an `@EntityImage()`
+/// field gives each item its own).
 class MapsRating extends SchemaEntity {
-  const MapsRating({super.url, super.visualSearch}) : super('maps.rating');
+  const MapsRating({super.url, super.requiresUnlock, super.systemImage, super.visualSearch})
+      : super('maps.rating');
 }
 
 /// Marks members of `maps.rating`.
@@ -413,6 +449,8 @@ abstract final class MapsRatingField {
 ///
 /// `dialogs` and `confirm` give, by intent name, what Siri says when one
 /// finishes and what it asks first.
+/// `summaries` gives the sentence Shortcuts shows each as; `requiresUnlock`
+/// keeps Siri from running them on a locked device.
 class MapsIntents extends SchemaIntents {
   const MapsIntents({
     this.shareETA = false,
@@ -420,6 +458,8 @@ class MapsIntents extends SchemaIntents {
     this.reportIncident = false,
     super.dialogs,
     super.confirm,
+    super.summaries,
+    super.requiresUnlock,
   }) : super('maps');
 
   /// Handle `maps.shareETA` ("Share ETA"): calls

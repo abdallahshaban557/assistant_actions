@@ -102,6 +102,17 @@ void main() {
     });
   });
 
+  test('intents run on a locked device unless an annotation says otherwise', () {
+    expect(const AssistantActionsApp(name: 'App').requiresUnlock, Unlock.notRequired);
+    expect(const AssistantAction(title: 'Go').requiresUnlock, isNull, reason: 'null inherits');
+    expect(const AssistantEntity(title: 'Item').requiresUnlock, isNull);
+    expect(const AssistantAction(title: 'Go', summary: 'Go {there}').summary, 'Go {there}');
+    expect(const AssistantEntity(title: 'Item', systemImage: 'book').systemImage, 'book');
+    expect(const CaseTitle('Snack', systemImage: 'moon').systemImage, 'moon');
+    // Apple's order, least restrictive first: the generator relies on it.
+    expect(Unlock.values, [Unlock.notRequired, Unlock.required, Unlock.onThisDevice]);
+  });
+
   test('AssistantValue decodes what Swift sends', () {
     expect(AssistantValue.date(1.5), DateTime.fromMillisecondsSinceEpoch(1500));
     expect(AssistantValue.integer(3.0), 3);

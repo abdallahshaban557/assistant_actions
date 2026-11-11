@@ -91,8 +91,13 @@ enum AudioQueueInsertionLocation {
 ///
 /// Map fields with [AudioAlbumField] and turn on the schema intents the app
 /// supports. Each one becomes a method on the generated handler.
+///
+/// `requiresUnlock` keeps Siri from running its intents on a locked device;
+/// `systemImage` is an SF Symbol shown with every item (an `@EntityImage()`
+/// field gives each item its own).
 class AudioAlbum extends SchemaEntity {
-  const AudioAlbum({super.url, super.visualSearch}) : super('audio.album');
+  const AudioAlbum({super.url, super.requiresUnlock, super.systemImage, super.visualSearch})
+      : super('audio.album');
 }
 
 /// Marks members of `audio.album`.
@@ -148,8 +153,13 @@ class FixedAudioAlbum extends SchemaContainer {
 ///
 /// Map fields with [AudioAlgorithmicRadioStationField] and turn on the schema intents the app
 /// supports. Each one becomes a method on the generated handler.
+///
+/// `requiresUnlock` keeps Siri from running its intents on a locked device;
+/// `systemImage` is an SF Symbol shown with every item (an `@EntityImage()`
+/// field gives each item its own).
 class AudioAlgorithmicRadioStation extends SchemaEntity {
-  const AudioAlgorithmicRadioStation({super.url, super.visualSearch})
+  const AudioAlgorithmicRadioStation(
+      {super.url, super.requiresUnlock, super.systemImage, super.visualSearch})
       : super('audio.algorithmicRadioStation');
 }
 
@@ -191,8 +201,13 @@ class FixedAudioAlgorithmicRadioStation extends SchemaContainer {
 ///
 /// Map fields with [AudioAmbientSoundField] and turn on the schema intents the app
 /// supports. Each one becomes a method on the generated handler.
+///
+/// `requiresUnlock` keeps Siri from running its intents on a locked device;
+/// `systemImage` is an SF Symbol shown with every item (an `@EntityImage()`
+/// field gives each item its own).
 class AudioAmbientSound extends SchemaEntity {
-  const AudioAmbientSound({super.url, super.visualSearch}) : super('audio.ambientSound');
+  const AudioAmbientSound({super.url, super.requiresUnlock, super.systemImage, super.visualSearch})
+      : super('audio.ambientSound');
 }
 
 /// Marks members of `audio.ambientSound`.
@@ -226,8 +241,13 @@ class FixedAudioAmbientSound extends SchemaContainer {
 ///
 /// Map fields with [AudioArtistField] and turn on the schema intents the app
 /// supports. Each one becomes a method on the generated handler.
+///
+/// `requiresUnlock` keeps Siri from running its intents on a locked device;
+/// `systemImage` is an SF Symbol shown with every item (an `@EntityImage()`
+/// field gives each item its own).
 class AudioArtist extends SchemaEntity {
-  const AudioArtist({super.url, super.visualSearch}) : super('audio.artist');
+  const AudioArtist({super.url, super.requiresUnlock, super.systemImage, super.visualSearch})
+      : super('audio.artist');
 }
 
 /// Marks members of `audio.artist`.
@@ -261,8 +281,13 @@ class FixedAudioArtist extends SchemaContainer {
 ///
 /// Map fields with [AudioAudiobookField] and turn on the schema intents the app
 /// supports. Each one becomes a method on the generated handler.
+///
+/// `requiresUnlock` keeps Siri from running its intents on a locked device;
+/// `systemImage` is an SF Symbol shown with every item (an `@EntityImage()`
+/// field gives each item its own).
 class AudioAudiobook extends SchemaEntity {
-  const AudioAudiobook({super.url, super.visualSearch}) : super('audio.audiobook');
+  const AudioAudiobook({super.url, super.requiresUnlock, super.systemImage, super.visualSearch})
+      : super('audio.audiobook');
 }
 
 /// Marks members of `audio.audiobook`.
@@ -346,8 +371,13 @@ class FixedAudioAudiobook extends SchemaContainer {
 ///
 /// Map fields with [AudioClassicalMusicRecordingField] and turn on the schema intents the app
 /// supports. Each one becomes a method on the generated handler.
+///
+/// `requiresUnlock` keeps Siri from running its intents on a locked device;
+/// `systemImage` is an SF Symbol shown with every item (an `@EntityImage()`
+/// field gives each item its own).
 class AudioClassicalMusicRecording extends SchemaEntity {
-  const AudioClassicalMusicRecording({super.url, super.visualSearch})
+  const AudioClassicalMusicRecording(
+      {super.url, super.requiresUnlock, super.systemImage, super.visualSearch})
       : super('audio.classicalMusicRecording');
 }
 
@@ -424,8 +454,14 @@ class FixedAudioClassicalMusicRecording extends SchemaContainer {
 ///
 /// Map fields with [AudioLiveRadioStationField] and turn on the schema intents the app
 /// supports. Each one becomes a method on the generated handler.
+///
+/// `requiresUnlock` keeps Siri from running its intents on a locked device;
+/// `systemImage` is an SF Symbol shown with every item (an `@EntityImage()`
+/// field gives each item its own).
 class AudioLiveRadioStation extends SchemaEntity {
-  const AudioLiveRadioStation({super.url, super.visualSearch}) : super('audio.liveRadioStation');
+  const AudioLiveRadioStation(
+      {super.url, super.requiresUnlock, super.systemImage, super.visualSearch})
+      : super('audio.liveRadioStation');
 }
 
 /// Marks members of `audio.liveRadioStation`.
@@ -468,10 +504,16 @@ class FixedAudioLiveRadioStation extends SchemaContainer {
 ///
 /// Map fields with [AudioNewsBriefField] and turn on the schema intents the app
 /// supports. Each one becomes a method on the generated handler.
+///
+/// `requiresUnlock` keeps Siri from running its intents on a locked device;
+/// `systemImage` is an SF Symbol shown with every item (an `@EntityImage()`
+/// field gives each item its own).
 class AudioNewsBrief extends SchemaEntity {
   const AudioNewsBrief({
     this.provider,
     super.url,
+    super.requiresUnlock,
+    super.systemImage,
     super.visualSearch,
   }) : super('audio.newsBrief');
 
@@ -533,8 +575,13 @@ class FixedAudioNewsBrief extends SchemaContainer {
 ///
 /// Map fields with [AudioNewsProviderField] and turn on the schema intents the app
 /// supports. Each one becomes a method on the generated handler.
+///
+/// `requiresUnlock` keeps Siri from running its intents on a locked device;
+/// `systemImage` is an SF Symbol shown with every item (an `@EntityImage()`
+/// field gives each item its own).
 class AudioNewsProvider extends SchemaEntity {
-  const AudioNewsProvider({super.url, super.visualSearch}) : super('audio.newsProvider');
+  const AudioNewsProvider({super.url, super.requiresUnlock, super.systemImage, super.visualSearch})
+      : super('audio.newsProvider');
 }
 
 /// Marks members of `audio.newsProvider`.
@@ -571,6 +618,11 @@ class FixedAudioNewsProvider extends SchemaContainer {
 ///
 /// `dialogs` and `confirm` give, by intent name, what Siri says when one
 /// finishes and what it asks first.
+/// `summaries` gives, by intent name, the sentence Shortcuts shows it as.
+///
+/// `requiresUnlock` keeps Siri from running its intents on a locked device;
+/// `systemImage` is an SF Symbol shown with every item (an `@EntityImage()`
+/// field gives each item its own).
 ///
 /// Syncable (`SyncableEntity`), like Apple's own: keep each `@EntityId()`
 /// stable across launches and devices. Opt out with `@AssistantSyncable(false)`.
@@ -579,7 +631,10 @@ class AudioPlaylist extends SchemaEntity {
     this.addToPlaylist = false,
     super.dialogs,
     super.confirm,
+    super.summaries,
     super.url,
+    super.requiresUnlock,
+    super.systemImage,
     super.visualSearch,
   }) : super('audio.playlist');
 
@@ -640,8 +695,14 @@ class FixedAudioPlaylist extends SchemaContainer {
 ///
 /// Map fields with [AudioPodcastCollectionField] and turn on the schema intents the app
 /// supports. Each one becomes a method on the generated handler.
+///
+/// `requiresUnlock` keeps Siri from running its intents on a locked device;
+/// `systemImage` is an SF Symbol shown with every item (an `@EntityImage()`
+/// field gives each item its own).
 class AudioPodcastCollection extends SchemaEntity {
-  const AudioPodcastCollection({super.url, super.visualSearch}) : super('audio.podcastCollection');
+  const AudioPodcastCollection(
+      {super.url, super.requiresUnlock, super.systemImage, super.visualSearch})
+      : super('audio.podcastCollection');
 }
 
 /// Marks members of `audio.podcastCollection`.
@@ -676,10 +737,16 @@ class FixedAudioPodcastCollection extends SchemaContainer {
 ///
 /// Map fields with [AudioPodcastEpisodeField] and turn on the schema intents the app
 /// supports. Each one becomes a method on the generated handler.
+///
+/// `requiresUnlock` keeps Siri from running its intents on a locked device;
+/// `systemImage` is an SF Symbol shown with every item (an `@EntityImage()`
+/// field gives each item its own).
 class AudioPodcastEpisode extends SchemaEntity {
   const AudioPodcastEpisode({
     this.show,
     super.url,
+    super.requiresUnlock,
+    super.systemImage,
     super.visualSearch,
   }) : super('audio.podcastEpisode');
 
@@ -749,8 +816,13 @@ class FixedAudioPodcastEpisode extends SchemaContainer {
 ///
 /// Map fields with [AudioPodcastShowField] and turn on the schema intents the app
 /// supports. Each one becomes a method on the generated handler.
+///
+/// `requiresUnlock` keeps Siri from running its intents on a locked device;
+/// `systemImage` is an SF Symbol shown with every item (an `@EntityImage()`
+/// field gives each item its own).
 class AudioPodcastShow extends SchemaEntity {
-  const AudioPodcastShow({super.url, super.visualSearch}) : super('audio.podcastShow');
+  const AudioPodcastShow({super.url, super.requiresUnlock, super.systemImage, super.visualSearch})
+      : super('audio.podcastShow');
 }
 
 /// Marks members of `audio.podcastShow`.
@@ -792,8 +864,13 @@ class FixedAudioPodcastShow extends SchemaContainer {
 ///
 /// Map fields with [AudioRadioShowField] and turn on the schema intents the app
 /// supports. Each one becomes a method on the generated handler.
+///
+/// `requiresUnlock` keeps Siri from running its intents on a locked device;
+/// `systemImage` is an SF Symbol shown with every item (an `@EntityImage()`
+/// field gives each item its own).
 class AudioRadioShow extends SchemaEntity {
-  const AudioRadioShow({super.url, super.visualSearch}) : super('audio.radioShow');
+  const AudioRadioShow({super.url, super.requiresUnlock, super.systemImage, super.visualSearch})
+      : super('audio.radioShow');
 }
 
 /// Marks members of `audio.radioShow`.
@@ -827,10 +904,16 @@ class FixedAudioRadioShow extends SchemaContainer {
 ///
 /// Map fields with [AudioRadioShowEpisodeField] and turn on the schema intents the app
 /// supports. Each one becomes a method on the generated handler.
+///
+/// `requiresUnlock` keeps Siri from running its intents on a locked device;
+/// `systemImage` is an SF Symbol shown with every item (an `@EntityImage()`
+/// field gives each item its own).
 class AudioRadioShowEpisode extends SchemaEntity {
   const AudioRadioShowEpisode({
     this.show,
     super.url,
+    super.requiresUnlock,
+    super.systemImage,
     super.visualSearch,
   }) : super('audio.radioShowEpisode');
 
@@ -894,10 +977,16 @@ class FixedAudioRadioShowEpisode extends SchemaContainer {
 ///
 /// Map fields with [AudioSongField] and turn on the schema intents the app
 /// supports. Each one becomes a method on the generated handler.
+///
+/// `requiresUnlock` keeps Siri from running its intents on a locked device;
+/// `systemImage` is an SF Symbol shown with every item (an `@EntityImage()`
+/// field gives each item its own).
 class AudioSong extends SchemaEntity {
   const AudioSong({
     this.album,
     super.url,
+    super.requiresUnlock,
+    super.systemImage,
     super.visualSearch,
   }) : super('audio.song');
 
@@ -988,8 +1077,14 @@ class FixedAudioSong extends SchemaContainer {
 ///
 /// Map fields with [AudioSongCollectionField] and turn on the schema intents the app
 /// supports. Each one becomes a method on the generated handler.
+///
+/// `requiresUnlock` keeps Siri from running its intents on a locked device;
+/// `systemImage` is an SF Symbol shown with every item (an `@EntityImage()`
+/// field gives each item its own).
 class AudioSongCollection extends SchemaEntity {
-  const AudioSongCollection({super.url, super.visualSearch}) : super('audio.songCollection');
+  const AudioSongCollection(
+      {super.url, super.requiresUnlock, super.systemImage, super.visualSearch})
+      : super('audio.songCollection');
 }
 
 /// Marks members of `audio.songCollection`.
@@ -1028,6 +1123,11 @@ class FixedAudioSongCollection extends SchemaContainer {
 /// `dialogs` and `confirm` give, by intent name, what Siri says when one
 /// finishes and what it asks first.
 /// `replies` lets live intents' handlers return an `AssistantReply`.
+/// `summaries` gives, by intent name, the sentence Shortcuts shows it as.
+///
+/// `requiresUnlock` keeps Siri from running its intents on a locked device;
+/// `systemImage` is an SF Symbol shown with every item (an `@EntityImage()`
+/// field gives each item its own).
 class AudioWarmupAudioQueueResult extends SchemaEntity {
   const AudioWarmupAudioQueueResult({
     this.playAudio = false,
@@ -1035,7 +1135,10 @@ class AudioWarmupAudioQueueResult extends SchemaEntity {
     super.dialogs,
     super.confirm,
     super.replies,
+    super.summaries,
     super.url,
+    super.requiresUnlock,
+    super.systemImage,
     super.visualSearch,
   }) : super('audio.warmupAudioQueueResult');
 
@@ -1079,6 +1182,8 @@ class FixedAudioWarmupAudioQueueResult extends SchemaContainer {
 /// `dialogs` and `confirm` give, by intent name, what Siri says when one
 /// finishes and what it asks first.
 /// `replies` lets live intents' handlers return an `AssistantReply`.
+/// `summaries` gives the sentence Shortcuts shows each as; `requiresUnlock`
+/// keeps Siri from running them on a locked device.
 class AudioIntents extends SchemaIntents {
   const AudioIntents({
     this.addToLibrary = false,
@@ -1088,6 +1193,8 @@ class AudioIntents extends SchemaIntents {
     super.dialogs,
     super.confirm,
     super.replies,
+    super.summaries,
+    super.requiresUnlock,
   }) : super('audio');
 
   /// Handle `audio.addToLibrary` ("Add Audio Item to Library"): calls

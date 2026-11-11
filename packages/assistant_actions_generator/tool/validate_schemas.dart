@@ -12,7 +12,10 @@
 //    the generator can adopt (each mappable member mapped, every intent and
 //    importing query turned on, a deep link on every other entity, Visual
 //    Intelligence search on a few) and every domain's `…Intents`, plus a
-//    plain entity and action (deep link, donations, predictions).
+//    plain entity and action (deep link, donations, predictions). Every
+//    entity and domain requires an unlock (alternating `Unlock.required`
+//    and `Unlock.onThisDevice`), has an SF Symbol and an `@EntityImage()`,
+//    and every other intent has a Shortcuts summary.
 // 2. Runs the real builder on it (`build_runner`), then `flutter analyze` on
 //    the generated Dart.
 // 3. Compiles the generated Swift with the runtime's Swift (a stub stands in
@@ -310,7 +313,11 @@ dev_dependencies:
     final catalog = plan.catalogs[d]!;
     final domainIntents = plan.domainIntents[d]!;
     if (domainIntents.isNotEmpty) {
-      final options = _interactions([for (final i in domainIntents) (i, IntentKind.call)]);
+      final options = [
+        ..._interactions([for (final i in domainIntents) (i, IntentKind.call)]),
+        ..._summaries([for (final i in domainIntents) (i, IntentKind.call)]),
+        'requiresUnlock: Unlock.required',
+      ];
       models
         ..writeln()
         // Every intent undoable and every live one long-running, so those
@@ -333,8 +340,15 @@ dev_dependencies:
           for (final (intent, kind) in catalog.intentsFor(e))
             if (plan.intents[e.id]!.contains(intent)) (intent, kind),
         ]),
+        ..._summaries([
+          for (final (intent, kind) in catalog.intentsFor(e))
+            if (plan.intents[e.id]!.contains(intent)) (intent, kind),
+        ]),
         for (final q in catalog.queriesFor(e))
           if (q.imports) '${q.name}: true',
+        // Alternating, so both policies meet every schema's minimum.
+        'requiresUnlock: ${linked.isEven ? 'Unlock.required' : 'Unlock.onThisDevice'}',
+        "systemImage: 'star'",
         if (linked++ % 2 == 0) "url: 'validation://${e.domain}/${e.name}/{id}'",
         if (visual.contains(e.id)) 'visualSearch: true',
       ];
@@ -346,7 +360,9 @@ dev_dependencies:
         ..writeln('class ${_className(e)} {')
         ..writeln('  ${_className(e)}(this.id);')
         ..writeln('  @EntityId()')
-        ..writeln('  final String id;');
+        ..writeln('  final String id;')
+        ..writeln('  @EntityImage()')
+        ..writeln('  String? validationImage;');
       for (final m in e.properties) {
         final type = dartTypeFor(m.type, openEnums);
         if (type == null) continue;
@@ -367,7 +383,12 @@ dev_dependencies:
   models.writeln('''
 
 /// A plain entity: deep link, Visual Intelligence, Transferable.
-@AssistantEntity(title: 'Validation Note', url: 'validation://notes/{id}', visualSearch: true)
+@AssistantEntity(
+    title: 'Validation Note',
+    url: 'validation://notes/{id}',
+    visualSearch: true,
+    requiresUnlock: Unlock.required,
+    systemImage: 'note.text')
 class ValidationNote {
   ValidationNote(this.id, this.title);
   @EntityId()
@@ -375,6 +396,8 @@ class ValidationNote {
   @DisplayTitle()
   final String title;
   int? rank;
+  @EntityImage()
+  Uri? picture;
 }''');
   File(p.join(lib.path, 'models.dart')).writeAsStringSync(models.toString());
   File(p.join(lib.path, 'assistant_actions.dart')).writeAsStringSync('''
@@ -390,7 +413,8 @@ ${_background ? '''
 AssistantActionsRegistry backgroundRegistry() => const AssistantActionsRegistry();
 ''' : ''}
 /// A plain action, for donations and predictions.
-@AssistantAction(title: 'Pin Note', dialog: 'Pinned {note}.')
+@AssistantAction(title: 'Pin Note', dialog: 'Pinned {note}.', summary: 'Pin {note} {times} times',
+    requiresUnlock: Unlock.onThisDevice)
 Future<void> pinNote(ValidationNote note, {int? times, DateTime? until}) async {}
 ''');
 }
@@ -424,6 +448,20 @@ List<String> _interactions(List<(IntentSchema, IntentKind)> intents) {
     ],
     if (replies.isNotEmpty) 'replies: {${replies.join(', ')}}',
   ];
+}
+
+/// A `summaries:` argument giving every other one of [intents] (the ones
+/// [_interactions] leaves out) a Shortcuts sentence naming its first
+/// parameter, so the rest are listed under it.
+List<String> _summaries(List<(IntentSchema, IntentKind)> intents) {
+  final chosen = [
+    for (final (i, (intent, _)) in intents.indexed)
+      if (i.isOdd && intent.id != 'system.open') intent,
+  ];
+  if (chosen.isEmpty) return const [];
+  String sentence(IntentSchema intent) =>
+      intent.parameters.isEmpty ? 'Run now' : 'Run with {${intent.parameters.first.name}}';
+  return ['summaries: {${[for (final i in chosen) "'${i.name}': '${sentence(i)}'"].join(', ')}}'];
 }
 
 /// A const fixed instance of container [c], with placeholder strings.

@@ -354,7 +354,8 @@
       ],
       "protocols": [
         "delete"
-      ]
+      ],
+      "authenticationPolicy": 1
     },
     "dismissAlarm": {
       "title": "Dismiss Alarm",
@@ -594,7 +595,8 @@
       "result": {
         "kind": "entity",
         "ref": "clock.alarm"
-      }
+      },
+      "authenticationPolicy": 1
     },
     "updateTimer": {
       "title": "Update Timer",

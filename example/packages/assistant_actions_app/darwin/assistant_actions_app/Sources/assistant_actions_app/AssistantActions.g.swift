@@ -31,7 +31,7 @@ public enum MealEnum: String, AppEnum {
     .breakfast: "Breakfast",
     .lunch: "Lunch",
     .dinner: "Dinner",
-    .snack: DisplayRepresentation(title: "Late-night snack", synonyms: ["snack", "midnight snack"]),
+    .snack: DisplayRepresentation(title: "Late-night snack", image: .init(systemName: "moon.stars"), synonyms: ["snack", "midnight snack"]),
   ]
 }
 
@@ -48,8 +48,7 @@ public struct RecipeEntity: AppEntity {
   public var minutes: Int?
 
   public var displayRepresentation: DisplayRepresentation {
-    if let subtitle { return DisplayRepresentation(title: "\(title)", subtitle: "\(subtitle)") }
-    return DisplayRepresentation(title: "\(title)")
+    DisplayRepresentation(title: "\(title)", subtitle: subtitle.map { "\($0)" }, image: .init(systemName: "fork.knife"))
   }
 
   init(record: AssistantRecord) {
@@ -135,6 +134,11 @@ public struct RecipeEntityQuery: EntityStringQuery, EnumerableEntityQuery, Entit
 public struct AddToShoppingListAction: AppIntent {
   public static let title: LocalizedStringResource = "Add to Shopping List"
   public static let description = IntentDescription("Adds a recipe’s ingredients to the shopping list.")
+  public static var parameterSummary: some ParameterSummary {
+    Summary("Add \(\.$recipe) to the shopping list") {
+      \.$servings
+    }
+  }
 
   @Parameter(title: "Recipe")
   public var recipe: RecipeEntity
@@ -305,6 +309,9 @@ extension CountOpenTasksAction: CancellableIntent {}
 public struct PlanMealAction: AppIntent {
   public static let title: LocalizedStringResource = "Plan a Meal"
   public static let description = IntentDescription("Adds a recipe to the meal plan.", searchKeywords: ["menu", "meal plan"])
+  public static var parameterSummary: some ParameterSummary {
+    Summary("Plan \(\.$recipe) for \(\.$meal)")
+  }
 
   @Parameter(title: "Recipe")
   public var recipe: RecipeEntity
@@ -704,7 +711,7 @@ public struct TaskItemEntity {
   public var list: RemindersListEntity
   public var locationTrigger: RemindersLocationTriggerEntity?
 
-  public var displayRepresentation: DisplayRepresentation { DisplayRepresentation(title: "\(title)") }
+  public var displayRepresentation: DisplayRepresentation { DisplayRepresentation(title: "\(title)", image: .init(systemName: "checklist")) }
 
   public init(record: AssistantRecord) { self.init(record: record, resolve: true) }
 
@@ -1059,6 +1066,7 @@ struct JournalItemEntity {
   static let defaultQuery = JournalItemEntityQuery()
 
   let id: String
+  let assistantImage: String?
   @Property(title: "Title")
   var title: String?
   @Property(title: "Message")
@@ -1068,7 +1076,7 @@ struct JournalItemEntity {
   var entryDate: Date?
   var location: PlaceDescriptor?
 
-  var displayRepresentation: DisplayRepresentation { DisplayRepresentation(title: "\((title ?? ""))") }
+  var displayRepresentation: DisplayRepresentation { DisplayRepresentation(title: "\((title ?? ""))", image: assistantDisplayImage(assistantImage, systemName: "book.closed")) }
 
   init(record: AssistantRecord) { self.init(record: record, resolve: true) }
 
@@ -1076,6 +1084,7 @@ struct JournalItemEntity {
   /// `resolve: false`, so references only go one level deep and cycles end.
   init(record: AssistantRecord, resolve: Bool) {
     id = record.id
+    assistantImage = AssistantValues.string(record.fields["cover"])
     title = AssistantValues.string(record.fields["title"])
     message = AssistantValues.attributed(record.fields["text"])
     mediaItems = (AssistantValues.items(record.fields["media"]) ?? []).compactMap { AssistantValues.file($0) }
@@ -1358,6 +1367,20 @@ struct DocItemEntityQuery: EntityStringQuery, EnumerableEntityQuery, EntityPrope
 @AppIntent(schema: .reminders.createReminder)
 public struct TaskItemCreateReminderIntent {
   public init() {}
+  public static var parameterSummary: some ParameterSummary {
+    Summary("Add \(\.$title) to my tasks, due \(\.$dueDate)") {
+      \.$list
+      \.$note
+      \.$isFlagged
+      \.$images
+      \.$tags
+      \.$urls
+      \.$recurrence
+      \.$locationTrigger
+      \.$section
+    }
+  }
+
   public var title: String
   public var list: RemindersListEntity?
   public var note: AttributedString?
@@ -1541,6 +1564,8 @@ struct MemoryItemAppendTextIntent {
 @available(iOS 26.0, macOS 26.0, *)
 @AppIntent(schema: .journal.createEntry)
 struct JournalItemCreateEntryIntent {
+  static let authenticationPolicy: IntentAuthenticationPolicy = .requiresLocalDeviceAuthentication
+
   var message: AttributedString
   var title: String?
   var location: PlaceDescriptor?
@@ -1565,6 +1590,8 @@ struct JournalItemCreateEntryIntent {
 @available(iOS 26.0, macOS 26.0, *)
 @AppIntent(schema: .journal.createAudioEntry)
 struct JournalItemCreateAudioEntryIntent: ForegroundContinuableIntent {
+  static let authenticationPolicy: IntentAuthenticationPolicy = .requiresLocalDeviceAuthentication
+
   @MainActor
   func perform() async throws -> some IntentResult {
     #if os(iOS)
@@ -1593,6 +1620,8 @@ extension JournalItemCreateAudioEntryIntent: CancellableIntent {}
 @available(iOS 26.0, macOS 26.0, *)
 @AppIntent(schema: .journal.updateEntry)
 struct JournalItemUpdateEntryIntent {
+  static let authenticationPolicy: IntentAuthenticationPolicy = .requiresLocalDeviceAuthentication
+
   var target: JournalItemEntity
   var title: String?
   var message: AttributedString?
@@ -1658,6 +1687,8 @@ struct JournalItemUpdateEntryIntent {
 @available(iOS 26.0, macOS 26.0, *)
 @AppIntent(schema: .journal.deleteEntry)
 struct JournalItemDeleteEntryIntent {
+  static let authenticationPolicy: IntentAuthenticationPolicy = .requiresLocalDeviceAuthentication
+
   var entities: [JournalItemEntity]
 
   @MainActor
@@ -1913,6 +1944,7 @@ struct OpenMemoryItemIntent: ForegroundContinuableIntent {
 @available(iOS 27.0, macOS 27.0, *)
 @AppIntent(schema: .system.open)
 struct OpenJournalItemIntent: ForegroundContinuableIntent {
+  static let authenticationPolicy: IntentAuthenticationPolicy = .requiresLocalDeviceAuthentication
   var target: JournalItemEntity
 
   @MainActor
@@ -2103,6 +2135,7 @@ extension JournalItemEntity: IndexedEntity {
     attributes.title = title
     attributes.textContent = message.map { String($0.characters) }
     attributes.contentCreationDate = entryDate
+    attributes.thumbnailData = assistantImageData(assistantImage)
     return attributes
   }
 }
@@ -2195,6 +2228,27 @@ public final class AssistantActionsAppSpotlight: NSObject, AssistantSpotlightInd
       try await index.indexAppEntities(entities)
     }
   }
+}
+
+/// An `@EntityImage()` that is a local file (an absolute path or a `file:`
+/// URL), read here in the app's process, so Siri, Shortcuts and Spotlight,
+/// which draw in other processes, can show a file in the app's sandbox.
+private func assistantImageData(_ value: String?) -> Data? {
+  guard let value, !value.isEmpty else { return nil }
+  guard let url = value.hasPrefix("/") ? URL(fileURLWithPath: value) : URL(string: value), url.isFileURL else {
+    return nil
+  }
+  return try? Data(contentsOf: url)
+}
+
+/// What Siri and Shortcuts show with an item: its `@EntityImage()` (a local
+/// file's bytes, or a remote URL the system loads), else the type's SF Symbol.
+private func assistantDisplayImage(_ value: String?, systemName: String?) -> DisplayRepresentation.Image? {
+  if let data = assistantImageData(value) { return .init(data: data) }
+  if let value, let url = URL(string: value), ["https", "http"].contains(url.scheme?.lowercased() ?? "") {
+    return .init(url: url)
+  }
+  return systemName.map { .init(systemName: $0) }
 }
 
 /// Spotlight asks for `RecipeEntity` items to be indexed again, after it loses them.

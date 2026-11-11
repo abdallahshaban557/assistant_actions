@@ -34,6 +34,11 @@ class WhiteboardColor extends SchemaEnumCases {
 /// `dialogs` and `confirm` give, by intent name, what Siri says when one
 /// finishes and what it asks first (deletes ask by default; see `confirmDeletes`).
 /// `replies` lets live intents' handlers return an `AssistantReply`.
+/// `summaries` gives, by intent name, the sentence Shortcuts shows it as.
+///
+/// `requiresUnlock` keeps Siri from running its intents on a locked device;
+/// `systemImage` is an SF Symbol shown with every item (an `@EntityImage()`
+/// field gives each item its own).
 class WhiteboardBoard extends SchemaEntity {
   const WhiteboardBoard({
     this.createItem = false,
@@ -45,7 +50,10 @@ class WhiteboardBoard extends SchemaEntity {
     super.confirm,
     super.confirmDeletes,
     super.replies,
+    super.summaries,
     super.url,
+    super.requiresUnlock,
+    super.systemImage,
     super.visualSearch,
   }) : super('whiteboard.board');
 
@@ -109,6 +117,11 @@ abstract final class WhiteboardBoardField {
 ///
 /// `dialogs` and `confirm` give, by intent name, what Siri says when one
 /// finishes and what it asks first (deletes ask by default; see `confirmDeletes`).
+/// `summaries` gives, by intent name, the sentence Shortcuts shows it as.
+///
+/// `requiresUnlock` keeps Siri from running its intents on a locked device;
+/// `systemImage` is an SF Symbol shown with every item (an `@EntityImage()`
+/// field gives each item its own).
 class WhiteboardItem extends SchemaEntity {
   const WhiteboardItem({
     this.updateItem = false,
@@ -116,7 +129,10 @@ class WhiteboardItem extends SchemaEntity {
     super.dialogs,
     super.confirm,
     super.confirmDeletes,
+    super.summaries,
     super.url,
+    super.requiresUnlock,
+    super.systemImage,
     super.visualSearch,
   }) : super('whiteboard.item');
 

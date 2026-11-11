@@ -266,9 +266,10 @@ String writeDart(AppModel app) {
       ..writeln('      id: (e) => e.${e.idField},')
       ..writeln('      title: (e) => e.${e.titleGetter},')
       ..writeln(e.subtitleGetter == null ? '' : '      subtitle: (e) => e.${e.subtitleGetter},')
-      ..writeln(e.fields.isEmpty
+      // The `@EntityImage()` crosses with the fields; Swift reads it by name.
+      ..writeln([...e.fields, ?e.image].isEmpty
           ? '      fields: (e) => const {},'
-          : "      fields: (e) => {${e.fields.map((f) => "'${f.name}': ${f.type.encodeDart('e.${f.name}')}").join(', ')}},")
+          : "      fields: (e) => {${[...e.fields, ?e.image].map((f) => "'${f.name}': ${f.type.encodeDart('e.${f.name}')}").join(', ')}},")
       ..writeln('    ),');
   }
   for (final s in app.schemaEntities) {
@@ -282,7 +283,7 @@ String writeDart(AppModel app) {
           ? "      title: (e) => '${s.schema.title}',"
           : "      title: (e) => e.${titleField.name}${titleField.type.nullable ? " ?? ''" : ''},")
       ..writeln('      fields: (e) => {');
-    for (final f in s.fields) {
+    for (final f in [...s.fields, if (s.image case final i? when !s.fields.any((f) => f.name == i.name)) i]) {
       out.writeln("        '${f.name}': ${f.type.encodeDart('e.${f.name}')},");
     }
     out
