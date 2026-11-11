@@ -1,6 +1,5 @@
 // Interactive result cards: from iOS 26 / macOS 26 a Dart reply's card is a
 // SnippetIntent whose buttons run Dart; earlier, a static snippet view.
-import 'package:assistant_actions_generator/src/deployment.dart';
 import 'package:assistant_actions_generator/src/model.dart';
 import 'package:assistant_actions_generator/src/swift_writer.dart';
 import 'package:test/test.dart';
