@@ -8,7 +8,8 @@ import 'package:assistant_actions/schemas/clock.dart' show ClockTimerState;
 
 import 'package:assistant_actions_example/assistant_actions.dart' as a0;
 import 'package:assistant_actions_example/models/models.dart' as a1;
-import 'package:assistant_actions_example/models/models.dart' show CaptureDelay, CaptureMode, Lens;
+import 'package:assistant_actions_example/models/models.dart'
+    show CaptureDelay, CaptureMode, Lens, Meal;
 
 /// Siri's values for a `TaskItem` (`reminders.reminder`).
 ///
@@ -241,16 +242,40 @@ AssistantActionsRegistry assistantActionsRegistry({
       if (_recipe == null) return null;
       return AssistantReply.encode(await a0.showRecipeCard(_recipe));
     },
+    'pickRecipe': (args) async {
+      final _meal = AssistantValue.enumeration(Meal.values, args['meal']) ?? Meal.dinner;
+      final reply = await a0.pickRecipe(meal: _meal);
+      return AssistantReply.encodeValue(reply, reply.value?.id);
+    },
     'countOpenTasks': (args) async {
       return await a0.countOpenTasks();
+    },
+    'planMeal': (args) async {
+      final _recipe = args['recipe'] is String ? await findRecipe(args['recipe'] as String) : null;
+      if (_recipe == null) return null;
+      final _meal = AssistantValue.enumeration(Meal.values, args['meal']) ?? Meal.dinner;
+      await a0.planMeal(_recipe, meal: _meal);
+      return null;
+    },
+    'quickestRecipe': (args) async {
+      final _under = AssistantValue.duration(args['under']);
+      final result = await a0.quickestRecipe(under: _under);
+      return AssistantValue.encodeResult(result.value?.id, dialog: result.dialog);
+    },
+    'shoppingList': (args) async {
+      final result = await a0.shoppingList();
+      return AssistantValue.encodeResult(result);
+    },
+    'nextTask': (args) async {
+      final result = await a0.nextTask();
+      return AssistantValue.encodeResult(result.value?.id, dialog: result.dialog);
     },
     'stopRecording': (args) async {
       await a0.stopRecording();
       return null;
     },
     'applyFocus': (args) async {
-      final _hideTasks =
-          AssistantValue.boolean(args['hideTasks']) ?? (throw ArgumentError.notNull('hideTasks'));
+      final _hideTasks = AssistantValue.boolean(args['hideTasks']) ?? false;
       final _note = AssistantValue.string(args['note']);
       await a0.applyFocus(hideTasks: _hideTasks, note: _note);
       return null;

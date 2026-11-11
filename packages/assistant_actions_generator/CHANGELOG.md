@@ -1,3 +1,20 @@
+## 0.0.13
+
+* Generates App Enums, the new action parameter types and their defaults,
+  and `ReturnsValue` results, including with `AssistantReply<T>` (with
+  `ShowsSnippetView` and `requestChoice`). Availability follows places,
+  schema enums and schema entities. Confirmations, dialogs and Focus filter
+  summaries say the new parameter types; Focus filters take them too.
+* App Shortcuts: phrases naming entity and enum parameters, schema intents
+  (`@IntentShortcut`) behind `if #available` / `#if os`, the tile color, and
+  the `AssistantActionsAppShortcuts` class that refreshes entity phrases.
+  Generated types the Runner or public actions reach are made public.
+* Checks at build time: phrase parameters, Apple's limit of 10 App
+  Shortcuts, hidden actions as shortcuts, deferred or Live Activity actions
+  returning values, unsupported parameter and result types, placeholders
+  Siri can't say, and `@IntentShortcut` placement.
+* Needs assistant_actions 0.0.16.
+
 ## 0.0.12
 
 * Generates Focus filters from `@AssistantFocusFilter`, checking that each

@@ -5,8 +5,12 @@ import 'package:assistant_actions/schemas/journal.dart';
 import 'package:assistant_actions/schemas/notes.dart';
 import 'package:assistant_actions/schemas/reminders.dart';
 
-/// Level 2: one of the app's own types, searchable by Siri.
+/// Level 2: one of the app's own types, searchable by Siri. "Open Pancakes in
+/// …" is an App Shortcut for `system.open` that learns each recipe the app
+/// publishes.
 @AssistantEntity(title: 'Recipe')
+@IntentShortcut('system.open',
+    phrases: ['Open {target} in {app}', 'Show a recipe in {app}'], shortTitle: 'Open Recipe', systemImage: 'book')
 class Recipe {
   const Recipe({required this.id, required this.name, required this.minutes});
 
@@ -36,6 +40,8 @@ class Recipe {
     'deleteReminders': 'Deleted {entities}.',
   },
 )
+@IntentShortcut('reminders.createReminder',
+    phrases: ['Add a task in {app}', 'New {app} task'], shortTitle: 'New Task', systemImage: 'plus.circle')
 class TaskItem {
   TaskItem({required this.id, required this.title, this.due, this.done = false});
 
@@ -134,6 +140,17 @@ class Countdown {
 
   @ClockTimerField.state
   ClockTimerState state;
+}
+
+/// One of the app's enums as an App Enum, for `planMeal`'s parameter and its
+/// shortcut phrases.
+@AssistantEnum(title: 'Meal')
+enum Meal {
+  breakfast,
+  lunch,
+  dinner,
+  @CaseTitle('Late-night snack', synonyms: ['snack', 'midnight snack'])
+  snack,
 }
 
 /// `camera.captureMode` and friends have no cases in Apple's schema: the app

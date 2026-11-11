@@ -6,7 +6,8 @@ extension _Surfaces on ModelReader {
   /// whose parameters are the function's. The system creates the filter with
   /// its parameters' defaults (and runs it with them when the Focus turns
   /// off), so each one is nullable or has a constant default Swift can state.
-  ActionModel _focusFilter(TopLevelFunctionElement fn, ConstantReader annotation, List<EntityModel> entities) {
+  Future<ActionModel> _focusFilter(
+      TopLevelFunctionElement fn, ConstantReader annotation, List<EntityModel> entities) async {
     InvalidGenerationSourceError error(String message) =>
         InvalidGenerationSourceError('${fn.displayName}: $message', element: fn);
 
@@ -22,23 +23,14 @@ extension _Surfaces on ModelReader {
     }
     final params = <ParamModel>[];
     for (final p in fn.formalParameters) {
-      final param = _param(fn, p, entities);
-      String? swiftDefault;
+      final param = await _param(fn, p, entities);
+      // `_param` gives defaults App Intents can state as Swift literals.
+      final swiftDefault = param.swiftDefault;
       if (p.hasDefaultValue) {
         final value = p.computeConstantValue();
-        swiftDefault = switch (param.value?.kind) {
-          ValueKind.boolean => value?.toBoolValue()?.toString(),
-          ValueKind.integer => value?.toIntValue()?.toString(),
-          ValueKind.decimal => value?.toDoubleValue()?.toString(),
-          ValueKind.string => switch (value?.toStringValue()) {
-              final text? => ModelReader._swiftLiteral(text),
-              null => null,
-            },
-          _ => null,
-        };
         // `= null` on a nullable parameter says nothing more.
         if (swiftDefault == null && !(param.nullable && (value?.isNull ?? false))) {
-          throw error('the default of ${p.displayName} must be a bool, int, double or String constant; '
+          throw error('the default of ${p.displayName} must be a bool, int, double, String or enum constant; '
               'make it nullable instead.');
         }
       }
@@ -54,14 +46,16 @@ extension _Surfaces on ModelReader {
         value: param.value,
         entity: param.entity,
         entityNullable: param.entityNullable,
+        entityList: param.entityList,
         swiftDefault: swiftDefault,
+        defaultDart: param.defaultDart,
       ));
     }
     final summary = annotation.peek('summary')?.stringValue;
     for (final match in RegExp(r'\{(\w+)\}').allMatches(summary ?? '')) {
-      if (!params.any((p) => p.name == match.group(1))) {
-        throw error('summary uses {${match.group(1)}}, which is not a parameter.');
-      }
+      final p = params.where((p) => p.name == match.group(1)).firstOrNull;
+      if (p == null) throw error('summary uses {${match.group(1)}}, which is not a parameter.');
+      if (!_Actions._speakable(p)) throw error('summary uses {${p.name}}, which Settings can\'t show as text.');
     }
     return ActionModel(
       functionName: fn.displayName,

@@ -204,8 +204,10 @@ class ParamModel {
     this.value,
     this.entity,
     this.entityNullable = false,
+    this.entityList = false,
     this.prompt,
     this.swiftDefault,
+    this.defaultDart,
   });
 
   final String name;
@@ -213,8 +215,9 @@ class ParamModel {
   final bool named;
   final String? prompt;
 
-  /// The Dart default as a Swift literal, for Focus filter parameters
-  /// (`false`, `3`, `"Work"`).
+  /// The Dart default as a Swift literal for `@Parameter(default:)`, when
+  /// App Intents can take it (strings, numbers, bools, enum cases): `false`,
+  /// `3`, `"Work"`, `.dinner`.
   final String? swiftDefault;
 
   /// Set for value parameters.
@@ -224,9 +227,87 @@ class ParamModel {
   final EntityModel? entity;
   final bool entityNullable;
 
+  /// A `List` of [entity] items.
+  final bool entityList;
+
+  /// The Dart default as a Dart expression, used when Swift sends nothing.
+  final String? defaultDart;
+
   bool get nullable => value?.nullable ?? entityNullable;
 
   String get swiftType => value?.swift ?? '${entity!.swiftName}${entityNullable ? '?' : ''}';
+}
+
+/// What an `@AssistantAction` returns to Shortcuts (`ReturnsValue`), beyond
+/// what Siri says.
+class ResultModel {
+  const ResultModel({
+    this.value,
+    this.entity,
+    this.schemaEntity,
+    this.list = false,
+    this.nullable = false,
+    this.wrapped = false,
+  });
+
+  /// Set for values.
+  final ValueType? value;
+
+  /// Set for `@AssistantEntity` items, returned by id.
+  final EntityModel? entity;
+
+  /// Set for schema entity items, returned by id.
+  final SchemaEntityModel? schemaEntity;
+
+  /// A `List` of [entity] or [schemaEntity] items.
+  final bool list;
+  final bool nullable;
+
+  /// The function returns an `ActionResult<T>`, which may carry a dialog.
+  final bool wrapped;
+
+  bool get isEntity => entity != null || schemaEntity != null;
+
+  /// The Dart field holding an entity's id.
+  String get idField => entity?.idField ?? schemaEntity!.idField;
+}
+
+/// `@AssistantEnum` on one of the app's enums: an App Enum actions take.
+class AppEnumModel {
+  const AppEnumModel({required this.className, required this.library, required this.title, required this.cases});
+
+  final String className;
+  final Uri library;
+  final String title;
+  final List<AppEnumCase> cases;
+
+  String get swiftName => '${className}Enum';
+}
+
+class AppEnumCase {
+  const AppEnumCase({required this.name, required this.title, this.synonyms = const []});
+
+  /// The Dart case name, which is also the Swift raw value.
+  final String name;
+  final String title;
+  final List<String> synonyms;
+}
+
+/// `@IntentShortcut(...)`: an App Shortcut for a schema intent the app
+/// turned on.
+class IntentShortcutModel {
+  const IntentShortcutModel({required this.className, required this.intent, required this.shortcut, this.owner, this.openClass});
+
+  /// The annotated class.
+  final String className;
+  final IntentSchema intent;
+  final ShortcutModel shortcut;
+
+  /// The adopting entity, for an entity's intent; null for a domain's.
+  final SchemaEntityModel? owner;
+
+  /// For `system.open`: the entity class it opens.
+  final String? openClass;
 }
 
 enum RunsModel { deferred, withFlutter }
@@ -255,6 +336,9 @@ class ActionModel {
     this.shortcut,
     this.liveActivity = false,
     this.focusFilter,
+    this.result,
+    this.searchKeywords = const [],
+    this.isDiscoverable = true,
   });
 
   final String functionName;
@@ -284,6 +368,12 @@ class ActionModel {
   /// The function returns `String`/`String?` (possibly in a `Future`), which
   /// becomes what Siri says.
   final bool returnsString;
+
+  /// What the function returns to Shortcuts, if anything.
+  final ResultModel? result;
+
+  final List<String> searchKeywords;
+  final bool isDiscoverable;
 
   String get id => functionName;
   String get swiftName => '${pascal(functionName)}${focusFilter == null ? 'Action' : 'FocusFilter'}';
@@ -316,12 +406,16 @@ class SnapshotActionModel {
     this.descending = false,
     this.description,
     this.shortcut,
+    this.searchKeywords = const [],
+    this.isDiscoverable = true,
   });
 
   final String name;
   final String title;
   final String? description;
   final ShortcutModel? shortcut;
+  final List<String> searchKeywords;
+  final bool isDiscoverable;
 
   /// The entity's collection (its class name).
   final String collection;
@@ -479,7 +573,19 @@ class AppModel {
     this.schemaDomains = const [],
     this.catalogs = const {},
     this.openEnums = const {},
+    this.appEnums = const {},
+    this.intentShortcuts = const [],
+    this.shortcutTileColor,
   });
+
+  /// The app's `@AssistantEnum` enums, by class name.
+  final Map<String, AppEnumModel> appEnums;
+
+  /// App Shortcuts for schema intents.
+  final List<IntentShortcutModel> intentShortcuts;
+
+  /// A `ShortcutTileColor` case name.
+  final String? shortcutTileColor;
 
   /// The app's enums for schema enums whose cases it defines, by schema id.
   final Map<String, OpenEnumModel> openEnums;

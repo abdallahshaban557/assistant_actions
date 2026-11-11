@@ -9,7 +9,14 @@ The `build_runner` generator for
   a typed handler interface per schema entity;
 - `packages/assistant_actions_app/.../AssistantActions.g.swift` — the App
   Intents, entities, queries and schema containers;
-- `apple/AssistantShortcuts.g.swift` — the App Shortcuts, for the Runner targets.
+- `apple/AssistantShortcuts.g.swift` — the App Shortcuts (for plain actions,
+  snapshot answers and `@IntentShortcut` schema intents), for the Runner
+  targets. Generated types the Runner refers to are made `public`.
+
+It checks what Apple's metadata step would reject at build time instead:
+phrases without `{app}` or naming parameters that aren't entities or enums,
+more than 10 App Shortcuts, hidden actions as shortcuts, unsupported parameter
+and result types, and shortcuts for intents a class doesn't turn on.
 
 ```bash
 flutter pub add assistant_actions dev:build_runner dev:assistant_actions_generator

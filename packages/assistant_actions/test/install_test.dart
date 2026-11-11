@@ -26,6 +26,20 @@ List<String> _runnerPhases(String pbx) {
 }
 
 void main() {
+  group('raiseDeploymentTarget', () {
+    test('raises the Runner to iOS 17.4, which App Shortcuts need for #available', () {
+      final pbx = install.raiseDeploymentTarget(_fixture, 'ios');
+      expect(pbx, isNot(contains('IPHONEOS_DEPLOYMENT_TARGET = 15.0;')));
+      expect(RegExp('IPHONEOS_DEPLOYMENT_TARGET = 17.4;').allMatches(pbx).length, greaterThanOrEqualTo(3));
+      expect(install.raiseDeploymentTarget(pbx, 'ios'), pbx, reason: 'idempotent');
+    });
+
+    test('never lowers a target, and raises macOS to 14.4', () {
+      expect(install.raiseDeploymentTarget('IPHONEOS_DEPLOYMENT_TARGET = 18.0;', 'ios'), 'IPHONEOS_DEPLOYMENT_TARGET = 18.0;');
+      expect(install.raiseDeploymentTarget('MACOSX_DEPLOYMENT_TARGET = 14.0;', 'macos'), 'MACOSX_DEPLOYMENT_TARGET = 14.4;');
+    });
+  });
+
   group('addWidgetTarget', () {
     late String pbx;
     setUp(() => pbx = install.addWidgetTarget(_fixture, _ids()).pbx!);

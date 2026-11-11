@@ -14,6 +14,22 @@ import assistant_actions
   import AppKit
 #endif
 
+/// `Meal` in Dart.
+public enum MealEnum: String, AppEnum {
+  case breakfast
+  case lunch
+  case dinner
+  case snack
+
+  public static let typeDisplayRepresentation: TypeDisplayRepresentation = "Meal"
+  public static let caseDisplayRepresentations: [MealEnum: DisplayRepresentation] = [
+    .breakfast: "Breakfast",
+    .lunch: "Lunch",
+    .dinner: "Dinner",
+    .snack: DisplayRepresentation(title: "Late-night snack", synonyms: ["snack", "midnight snack"]),
+  ]
+}
+
 /// `Recipe`, published from Dart with `AssistantActions.publish`.
 public struct RecipeEntity: AppEntity {
   public static let typeDisplayRepresentation: TypeDisplayRepresentation = "Recipe"
@@ -181,6 +197,34 @@ public struct ShowRecipeCardAction: AppIntent, ForegroundContinuableIntent {
   }
 }
 
+/// `pickRecipe` in Dart (runs with Flutter).
+public struct PickRecipeAction: AppIntent, ForegroundContinuableIntent {
+  public static let title: LocalizedStringResource = "Pick a Recipe"
+
+  @Parameter(title: "Meal", default: .dinner)
+  public var meal: MealEnum
+
+  public init() {}
+
+  @MainActor
+  public func perform() async throws -> some IntentResult & ReturnsValue<RecipeEntity> & ProvidesDialog & ShowsSnippetView {
+    let args: [String: Any] = [
+      "meal": AssistantValues.encode(meal),
+    ]
+    try await assistantConfirm("Pick a recipe for \(String(localized: meal.localizedStringResource))?")
+    #if os(iOS)
+      // iOS doesn't start the Flutter engine without a scene, so answer from the foreground.
+      if UIApplication.shared.applicationState != .active {
+        try await requestToContinueInForeground()
+      }
+    #endif
+    let reply = AssistantReply(json: try await AssistantBridge.shared.perform("pickRecipe", args: args))
+    let candidates = try await RecipeEntityQuery().entities(for: reply.ids)
+    guard let value = try await assistantChoose(among: candidates, prompt: reply.prompt) else { throw AssistantActionError.failed("pickRecipe returned nothing Siri can use") }
+    return .result(value: value, dialog: IntentDialog(stringLiteral: reply.dialog ?? "Done."), view: AssistantCardView(reply.card))
+  }
+}
+
 /// `countOpenTasks` in Dart (runs with Flutter).
 public struct CountOpenTasksAction: AppIntent, ForegroundContinuableIntent {
   public static let title: LocalizedStringResource = "Count Open Tasks"
@@ -198,6 +242,106 @@ public struct CountOpenTasksAction: AppIntent, ForegroundContinuableIntent {
     #endif
     let reply = try await AssistantBridge.shared.perform("countOpenTasks", args: args)
     return .result(dialog: IntentDialog(stringLiteral: reply ?? "Done."))
+  }
+}
+
+/// `planMeal` in Dart (deferred).
+public struct PlanMealAction: AppIntent {
+  public static let title: LocalizedStringResource = "Plan a Meal"
+  public static let description = IntentDescription("Adds a recipe to the meal plan.", searchKeywords: ["menu", "meal plan"])
+
+  @Parameter(title: "Recipe")
+  public var recipe: RecipeEntity
+
+  @Parameter(title: "Meal", default: .dinner)
+  public var meal: MealEnum
+
+  public init() {}
+
+  @MainActor
+  public func perform() async throws -> some IntentResult & ProvidesDialog {
+    let args: [String: Any] = [
+      "recipe": recipe.id,
+      "meal": AssistantValues.encode(meal),
+    ]
+    AssistantInbox.call("planMeal", args: args)
+    AssistantBridge.shared.inboxChanged()
+    return .result(dialog: IntentDialog(stringLiteral: "Planned \(recipe.title) for \(String(localized: meal.localizedStringResource))."))
+  }
+}
+
+/// `quickestRecipe` in Dart (runs with Flutter).
+public struct QuickestRecipeAction: AppIntent, ForegroundContinuableIntent {
+  public static let title: LocalizedStringResource = "Quickest Recipe"
+  public static let description = IntentDescription("Finds the quickest recipe, for use in a shortcut.")
+
+  @Parameter(title: "Under")
+  public var under: Measurement<UnitDuration>?
+
+  public init() {}
+
+  @MainActor
+  public func perform() async throws -> some IntentResult & ReturnsValue<RecipeEntity?> & ProvidesDialog {
+    let args: [String: Any] = [
+      "under": AssistantValues.encode(under),
+    ]
+    #if os(iOS)
+      // iOS doesn't start the Flutter engine without a scene, so answer from the foreground.
+      if UIApplication.shared.applicationState != .active {
+        try await requestToContinueInForeground()
+      }
+    #endif
+    let reply = try await AssistantBridge.shared.perform("quickestRecipe", args: args)
+    let result = AssistantValues.result(reply)
+    let ids = AssistantValues.string(result.value).map { [$0] } ?? []
+    let value = try await RecipeEntityQuery().entities(for: ids).first
+    return .result(value: value, dialog: IntentDialog(stringLiteral: result.dialog ?? "Done."))
+  }
+}
+
+/// `shoppingList` in Dart (runs with Flutter).
+public struct ShoppingListAction: AppIntent, ForegroundContinuableIntent {
+  public static let title: LocalizedStringResource = "Shopping List"
+
+  public init() {}
+
+  @MainActor
+  public func perform() async throws -> some IntentResult & ReturnsValue<[String]> & ProvidesDialog {
+    let args: [String: Any] = [:]
+    #if os(iOS)
+      // iOS doesn't start the Flutter engine without a scene, so answer from the foreground.
+      if UIApplication.shared.applicationState != .active {
+        try await requestToContinueInForeground()
+      }
+    #endif
+    let reply = try await AssistantBridge.shared.perform("shoppingList", args: args)
+    let result = AssistantValues.result(reply)
+    let value = (AssistantValues.items(result.value) ?? []).compactMap { AssistantValues.string($0) }
+    return .result(value: value, dialog: IntentDialog(stringLiteral: result.dialog ?? "Here is your list."))
+  }
+}
+
+/// `nextTask` in Dart (runs with Flutter).
+@available(iOS 27.0, macOS 27.0, *)
+public struct NextTaskAction: AppIntent, ForegroundContinuableIntent {
+  public static let title: LocalizedStringResource = "Next Task"
+
+  public init() {}
+
+  @MainActor
+  public func perform() async throws -> some IntentResult & ReturnsValue<TaskItemEntity?> & ProvidesDialog {
+    let args: [String: Any] = [:]
+    #if os(iOS)
+      // iOS doesn't start the Flutter engine without a scene, so answer from the foreground.
+      if UIApplication.shared.applicationState != .active {
+        try await requestToContinueInForeground()
+      }
+    #endif
+    let reply = try await AssistantBridge.shared.perform("nextTask", args: args)
+    let result = AssistantValues.result(reply)
+    let ids = AssistantValues.string(result.value).map { [$0] } ?? []
+    let value = try await TaskItemEntityQuery().entities(for: ids).first
+    return .result(value: value, dialog: IntentDialog(stringLiteral: result.dialog ?? "Done."))
   }
 }
 
@@ -310,21 +454,21 @@ public struct QuickRecipesAction: AppIntent {
 
 @available(iOS 27.0, macOS 27.0, *)
 @AppEnum(schema: .reminders.listType)
-enum RemindersListTypeEnum: String {
+public enum RemindersListTypeEnum: String {
   case standard
 
-  static let caseDisplayRepresentations: [RemindersListTypeEnum: DisplayRepresentation] = [
+  public static let caseDisplayRepresentations: [RemindersListTypeEnum: DisplayRepresentation] = [
     .standard: "Standard",
   ]
 }
 
 @available(iOS 27.0, macOS 27.0, *)
 @AppEnum(schema: .reminders.locationTriggerEvent)
-enum RemindersLocationTriggerEventEnum: String {
+public enum RemindersLocationTriggerEventEnum: String {
   case arrive
   case depart
 
-  static let caseDisplayRepresentations: [RemindersLocationTriggerEventEnum: DisplayRepresentation] = [
+  public static let caseDisplayRepresentations: [RemindersLocationTriggerEventEnum: DisplayRepresentation] = [
     .arrive: "Arrive",
     .depart: "Depart",
   ]
@@ -348,11 +492,11 @@ enum ClockTimerStateEnum: String {
 
 @available(iOS 18.0, macOS 15.0, *)
 @AppEnum(schema: .camera.captureMode)
-enum CameraCaptureModeEnum: String {
+public enum CameraCaptureModeEnum: String {
   case photo
   case video
 
-  static let caseDisplayRepresentations: [CameraCaptureModeEnum: DisplayRepresentation] = [
+  public static let caseDisplayRepresentations: [CameraCaptureModeEnum: DisplayRepresentation] = [
     .photo: "Photo",
     .video: "Video",
   ]
@@ -360,11 +504,11 @@ enum CameraCaptureModeEnum: String {
 
 @available(iOS 18.0, macOS 15.0, *)
 @AppEnum(schema: .camera.captureDevice)
-enum CameraCaptureDeviceEnum: String {
+public enum CameraCaptureDeviceEnum: String {
   case front
   case back
 
-  static let caseDisplayRepresentations: [CameraCaptureDeviceEnum: DisplayRepresentation] = [
+  public static let caseDisplayRepresentations: [CameraCaptureDeviceEnum: DisplayRepresentation] = [
     .front: "Front",
     .back: "Back",
   ]
@@ -372,11 +516,11 @@ enum CameraCaptureDeviceEnum: String {
 
 @available(iOS 18.0, macOS 15.0, *)
 @AppEnum(schema: .camera.captureDuration)
-enum CameraCaptureDurationEnum: String {
+public enum CameraCaptureDurationEnum: String {
   case threeSeconds
   case tenSeconds
 
-  static let caseDisplayRepresentations: [CameraCaptureDurationEnum: DisplayRepresentation] = [
+  public static let caseDisplayRepresentations: [CameraCaptureDurationEnum: DisplayRepresentation] = [
     .threeSeconds: "Three Seconds",
     .tenSeconds: "Ten Seconds",
   ]
@@ -385,33 +529,33 @@ enum CameraCaptureDurationEnum: String {
 /// `TaskItem` in Dart, as `reminders.reminder`.
 @available(iOS 27.0, macOS 27.0, *)
 @AppEntity(schema: .reminders.reminder)
-struct TaskItemEntity {
-  static let defaultQuery = TaskItemEntityQuery()
+public struct TaskItemEntity {
+  public static let defaultQuery = TaskItemEntityQuery()
 
-  let id: String
+  public let id: String
   @Property(title: "Title")
-  var title: String
-  var note: AttributedString?
-  var tags: Set<String>
-  var urls: [URL]
+  public var title: String
+  public var note: AttributedString?
+  public var tags: Set<String>
+  public var urls: [URL]
   @Property(title: "Due Date")
-  var dueDate: DateComponents?
-  var recurrence: Calendar.RecurrenceRule?
+  public var dueDate: DateComponents?
+  public var recurrence: Calendar.RecurrenceRule?
   @Property(title: "Is Completed")
-  var isCompleted: Bool
-  var isFlagged: Bool?
-  var creationDate: Date?
-  var completionDate: Date?
-  var list: RemindersListEntity
-  var locationTrigger: RemindersLocationTriggerEntity?
+  public var isCompleted: Bool
+  public var isFlagged: Bool?
+  public var creationDate: Date?
+  public var completionDate: Date?
+  public var list: RemindersListEntity
+  public var locationTrigger: RemindersLocationTriggerEntity?
 
-  var displayRepresentation: DisplayRepresentation { DisplayRepresentation(title: "\(title)") }
+  public var displayRepresentation: DisplayRepresentation { DisplayRepresentation(title: "\(title)") }
 
-  init(record: AssistantRecord) { self.init(record: record, resolve: true) }
+  public init(record: AssistantRecord) { self.init(record: record, resolve: true) }
 
   /// [resolve] looks referenced items up in the snapshot. They get
   /// `resolve: false`, so references only go one level deep and cycles end.
-  init(record: AssistantRecord, resolve: Bool) {
+  public init(record: AssistantRecord, resolve: Bool) {
     id = record.id
     title = AssistantValues.string(record.fields["title"]) ?? ""
     note = nil
@@ -428,41 +572,42 @@ struct TaskItemEntity {
   }
 
   /// The item with [id], from the snapshot when [resolve], else just its id.
-  static func reference(_ id: String, resolve: Bool) -> TaskItemEntity {
+  public static func reference(_ id: String, resolve: Bool) -> TaskItemEntity {
     let record = resolve ? AssistantSnapshot.records("TaskItem").first { $0.id == id } : nil
     return TaskItemEntity(record: record ?? AssistantRecord(id: id, title: "", fields: [:]), resolve: false)
   }
 }
 
 @available(iOS 27.0, macOS 27.0, *)
-struct TaskItemEntityQuery: EntityStringQuery, EnumerableEntityQuery, EntityPropertyQuery {
+public struct TaskItemEntityQuery: EntityStringQuery, EnumerableEntityQuery, EntityPropertyQuery {
+  public init() {}
   /// Words that only name the type, schema or app, so they never narrow a search.
-  static let typeWords: Set<String> = ["actions", "assistant", "assistantactionsexample", "example", "item", "reminder", "reminders", "task", "taskitem"]
+  public static let typeWords: Set<String> = ["actions", "assistant", "assistantactionsexample", "example", "item", "reminder", "reminders", "task", "taskitem"]
 
   private func all() -> [TaskItemEntity] { AssistantSnapshot.records("TaskItem").map(TaskItemEntity.init(record:)) }
 
-  func entities(for identifiers: [String]) async throws -> [TaskItemEntity] {
+  public func entities(for identifiers: [String]) async throws -> [TaskItemEntity] {
     let wanted = Set(identifiers)
     return all().filter { wanted.contains($0.id) }
   }
 
-  func entities(matching string: String) async throws -> [TaskItemEntity] {
+  public func entities(matching string: String) async throws -> [TaskItemEntity] {
     AssistantMatch.records(AssistantSnapshot.records("TaskItem"), matching: string, ignoring: Self.typeWords)
       .map(TaskItemEntity.init(record:))
   }
 
-  func suggestedEntities() async throws -> [TaskItemEntity] { Array(all().prefix(20)) }
+  public func suggestedEntities() async throws -> [TaskItemEntity] { Array(all().prefix(20)) }
 
   /// Everything published, plus Siri's pending changes, for general requests
   /// like "do I have any reminders".
-  func allEntities() async throws -> [TaskItemEntity] { all() }
+  public func allEntities() async throws -> [TaskItemEntity] { all() }
 
-  typealias ComparatorMappingType = AssistantPredicate<TaskItemEntity>
+  public typealias ComparatorMappingType = AssistantPredicate<TaskItemEntity>
 
   /// EntityPropertyQuery and EnumerableEntityQuery both provide a default.
-  static var findIntentDescription: IntentDescription? { nil }
+  public static var findIntentDescription: IntentDescription? { nil }
 
-  static let properties = QueryProperties {
+  public static let properties = QueryProperties {
     Property(\TaskItemEntity.$title) {
       ContainsComparator { value in AssistantPredicate({ $0.title }, .contains, value) }
     }
@@ -480,12 +625,12 @@ struct TaskItemEntityQuery: EntityStringQuery, EnumerableEntityQuery, EntityProp
     }
   }
 
-  static let sortingOptions = SortingOptions {
+  public static let sortingOptions = SortingOptions {
     SortableBy(\TaskItemEntity.$title)
     SortableBy(\TaskItemEntity.$dueDate)
   }
 
-  func entities(
+  public func entities(
     matching comparators: [AssistantPredicate<TaskItemEntity>], mode: ComparatorMode,
     sortedBy: [EntityQuerySort<TaskItemEntity>], limit: Int?
   ) async throws -> [TaskItemEntity] {
@@ -507,17 +652,17 @@ struct TaskItemEntityQuery: EntityStringQuery, EnumerableEntityQuery, EntityProp
 /// `reminders.list`, required by the adopted schemas. One fixed instance.
 @available(iOS 27.0, macOS 27.0, *)
 @AppEntity(schema: .reminders.list)
-struct RemindersListEntity {
-  static let defaultQuery = RemindersListEntityQuery()
-  static let fixed = RemindersListEntity(id: "tasks", name: "Tasks")
+public struct RemindersListEntity {
+  public static let defaultQuery = RemindersListEntityQuery()
+  public static let fixed = RemindersListEntity(id: "tasks", name: "Tasks")
 
-  let id: String
-  var name: String
-  var type: RemindersListTypeEnum
+  public let id: String
+  public var name: String
+  public var type: RemindersListTypeEnum
 
-  var displayRepresentation: DisplayRepresentation { DisplayRepresentation(title: "\(name)") }
+  public var displayRepresentation: DisplayRepresentation { DisplayRepresentation(title: "\(name)") }
 
-  init(id: String, name: String) {
+  public init(id: String, name: String) {
     self.id = id
     self.name = name
     self.type = .standard
@@ -525,62 +670,65 @@ struct RemindersListEntity {
 }
 
 @available(iOS 27.0, macOS 27.0, *)
-struct RemindersListEntityQuery: EntityStringQuery {
-  func entities(for identifiers: [String]) async throws -> [RemindersListEntity] {
+public struct RemindersListEntityQuery: EntityStringQuery {
+  public init() {}
+  public func entities(for identifiers: [String]) async throws -> [RemindersListEntity] {
     [.fixed].filter { identifiers.contains($0.id) }
   }
 
-  func entities(matching string: String) async throws -> [RemindersListEntity] { [.fixed] }
+  public func entities(matching string: String) async throws -> [RemindersListEntity] { [.fixed] }
 
-  func suggestedEntities() async throws -> [RemindersListEntity] { [.fixed] }
+  public func suggestedEntities() async throws -> [RemindersListEntity] { [.fixed] }
 }
 
 /// `reminders.locationTrigger`, required by the adopted schemas. No instances.
 @available(iOS 27.0, macOS 27.0, *)
 @AppEntity(schema: .reminders.locationTrigger)
-struct RemindersLocationTriggerEntity {
-  static let defaultQuery = RemindersLocationTriggerEntityQuery()
+public struct RemindersLocationTriggerEntity {
+  public static let defaultQuery = RemindersLocationTriggerEntityQuery()
 
-  let id: String
-  var place: PlaceDescriptor
-  var event: RemindersLocationTriggerEventEnum
+  public let id: String
+  public var place: PlaceDescriptor
+  public var event: RemindersLocationTriggerEventEnum
 
-  var displayRepresentation: DisplayRepresentation { DisplayRepresentation(title: "\("Location Trigger")") }
+  public var displayRepresentation: DisplayRepresentation { DisplayRepresentation(title: "\("Location Trigger")") }
 }
 
 @available(iOS 27.0, macOS 27.0, *)
-struct RemindersLocationTriggerEntityQuery: EntityStringQuery {
-  func entities(for identifiers: [String]) async throws -> [RemindersLocationTriggerEntity] {
+public struct RemindersLocationTriggerEntityQuery: EntityStringQuery {
+  public init() {}
+  public func entities(for identifiers: [String]) async throws -> [RemindersLocationTriggerEntity] {
     [].filter { identifiers.contains($0.id) }
   }
 
-  func entities(matching string: String) async throws -> [RemindersLocationTriggerEntity] { [] }
+  public func entities(matching string: String) async throws -> [RemindersLocationTriggerEntity] { [] }
 
-  func suggestedEntities() async throws -> [RemindersLocationTriggerEntity] { [] }
+  public func suggestedEntities() async throws -> [RemindersLocationTriggerEntity] { [] }
 }
 
 /// `reminders.section`, required by the adopted schemas. No instances.
 @available(iOS 27.0, macOS 27.0, *)
 @AppEntity(schema: .reminders.section)
-struct RemindersSectionEntity {
-  static let defaultQuery = RemindersSectionEntityQuery()
+public struct RemindersSectionEntity {
+  public static let defaultQuery = RemindersSectionEntityQuery()
 
-  let id: String
-  var name: String
-  var list: RemindersListEntity
+  public let id: String
+  public var name: String
+  public var list: RemindersListEntity
 
-  var displayRepresentation: DisplayRepresentation { DisplayRepresentation(title: "\(name)") }
+  public var displayRepresentation: DisplayRepresentation { DisplayRepresentation(title: "\(name)") }
 }
 
 @available(iOS 27.0, macOS 27.0, *)
-struct RemindersSectionEntityQuery: EntityStringQuery {
-  func entities(for identifiers: [String]) async throws -> [RemindersSectionEntity] {
+public struct RemindersSectionEntityQuery: EntityStringQuery {
+  public init() {}
+  public func entities(for identifiers: [String]) async throws -> [RemindersSectionEntity] {
     [].filter { identifiers.contains($0.id) }
   }
 
-  func entities(matching string: String) async throws -> [RemindersSectionEntity] { [] }
+  public func entities(matching string: String) async throws -> [RemindersSectionEntity] { [] }
 
-  func suggestedEntities() async throws -> [RemindersSectionEntity] { [] }
+  public func suggestedEntities() async throws -> [RemindersSectionEntity] { [] }
 }
 
 /// `MemoryItem` in Dart, as `notes.note`.
@@ -952,21 +1100,22 @@ struct CountdownEntityQuery: EntityStringQuery, EnumerableEntityQuery, EntityPro
 /// `reminders.createReminder` → creates `TaskItem` items through the inbox.
 @available(iOS 27.0, macOS 27.0, *)
 @AppIntent(schema: .reminders.createReminder)
-struct TaskItemCreateReminderIntent {
-  var title: String
-  var list: RemindersListEntity?
-  var note: AttributedString?
-  var isFlagged: Bool?
-  var images: [IntentFile]
-  var tags: Set<String>
-  var urls: [URL]
-  var dueDate: DateComponents?
-  var recurrence: Calendar.RecurrenceRule?
-  var locationTrigger: RemindersLocationTriggerEntity?
-  var section: RemindersSectionEntity?
+public struct TaskItemCreateReminderIntent {
+  public init() {}
+  public var title: String
+  public var list: RemindersListEntity?
+  public var note: AttributedString?
+  public var isFlagged: Bool?
+  public var images: [IntentFile]
+  public var tags: Set<String>
+  public var urls: [URL]
+  public var dueDate: DateComponents?
+  public var recurrence: Calendar.RecurrenceRule?
+  public var locationTrigger: RemindersLocationTriggerEntity?
+  public var section: RemindersSectionEntity?
 
   @MainActor
-  func perform() async throws -> some ReturnsValue<TaskItemEntity> & ProvidesDialog {
+  public func perform() async throws -> some ReturnsValue<TaskItemEntity> & ProvidesDialog {
     var fields: [String: Any] = [:]
     fields["title"] = AssistantValues.encode(title)
     fields["due"] = AssistantValues.encode(dueDate)
@@ -1382,11 +1531,12 @@ struct OpenCountdownIntent: ForegroundContinuableIntent {
 /// `system.open` for `Recipe` → calls `openRecipe(id)` on `SystemAssistantHandler`.
 @available(iOS 27.0, macOS 27.0, *)
 @AppIntent(schema: .system.open)
-struct OpenRecipeIntent: ForegroundContinuableIntent {
-  var target: RecipeEntity
+public struct OpenRecipeIntent: ForegroundContinuableIntent {
+  public init() {}
+  public var target: RecipeEntity
 
   @MainActor
-  func perform() async throws -> some IntentResult {
+  public func perform() async throws -> some IntentResult {
     #if os(iOS)
       if UIApplication.shared.applicationState != .active {
         try await requestToContinueInForeground()
@@ -1420,13 +1570,14 @@ struct SystemSearchInAppIntent {
 /// `camera.startCapture` → calls `startCapture` on `CameraAssistantHandler`.
 @available(iOS 18.0, macOS 15.0, *)
 @AppIntent(schema: .camera.startCapture)
-struct CameraStartCaptureIntent: ForegroundContinuableIntent {
-  var captureMode: CameraCaptureModeEnum
-  var device: CameraCaptureDeviceEnum?
-  var timerDuration: CameraCaptureDurationEnum?
+public struct CameraStartCaptureIntent: ForegroundContinuableIntent {
+  public init() {}
+  public var captureMode: CameraCaptureModeEnum
+  public var device: CameraCaptureDeviceEnum?
+  public var timerDuration: CameraCaptureDurationEnum?
 
   @MainActor
-  func perform() async throws -> some IntentResult & ProvidesDialog & ShowsSnippetView {
+  public func perform() async throws -> some IntentResult & ProvidesDialog & ShowsSnippetView {
     let args: [String: Any] = [
       "captureMode": AssistantValues.encode(captureMode),
       "device": AssistantValues.encode(device),
@@ -1470,7 +1621,7 @@ extension RecipeEntity: IndexedEntity {
 
 @available(iOS 27.0, macOS 27.0, *)
 extension TaskItemEntity: IndexedEntity {
-  var attributeSet: CSSearchableItemAttributeSet {
+  public var attributeSet: CSSearchableItemAttributeSet {
     let attributes = defaultAttributeSet
     attributes.title = title
     attributes.textContent = note.map { String($0.characters) }

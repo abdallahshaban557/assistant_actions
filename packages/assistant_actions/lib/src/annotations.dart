@@ -9,10 +9,13 @@ library;
 /// library;
 /// ```
 class AssistantActionsApp {
-  const AssistantActionsApp({required this.name});
+  const AssistantActionsApp({required this.name, this.shortcutTileColor});
 
   /// The app's name, as used by `{app}` in shortcut phrases.
   final String name;
+
+  /// The color of the app's App Shortcut tiles in the Shortcuts app.
+  final ShortcutTileColor? shortcutTileColor;
 }
 
 /// Where an action's Dart function runs.
@@ -43,6 +46,8 @@ class AssistantAction {
     this.confirm,
     this.shortcut,
     this.liveActivity = false,
+    this.searchKeywords = const [],
+    this.isDiscoverable = true,
   });
 
   final String title;
@@ -53,6 +58,7 @@ class AssistantAction {
   /// `'Remove {recipe} from your list?'`. `{name}` is the parameter `name`.
   /// If the user says no, nothing runs or is queued.
   final String? confirm;
+
   /// The action starts, updates or ends an `AssistantLiveActivity`, so the
   /// intent is a `LiveActivityIntent` on iOS: the system runs it in the app's
   /// process and lets it start Live Activities from the background. When Dart
@@ -62,16 +68,50 @@ class AssistantAction {
   /// the app forward first. No effect on macOS, which has no Live Activities.
   final bool liveActivity;
 
+  /// More words Shortcuts and Spotlight find the action by.
+  final List<String> searchKeywords;
+
+  /// Whether the action shows in Shortcuts and Spotlight. Hidden actions can't
+  /// be App Shortcuts.
+  final bool isDiscoverable;
+
   /// What Siri says when the action finishes. `{name}` is replaced with the
   /// parameter `name`. Required for [Runs.deferred]; for [Runs.withFlutter]
   /// it's used when the function returns nothing.
   ///
-  /// A [Runs.withFlutter] function can also return a `String` to say, or an
-  /// `AssistantReply` to say something and show a result card.
+  /// A [Runs.withFlutter] function can also return a `String` to say, an
+  /// `AssistantReply` to say something and show a result card, or a value
+  /// for Shortcuts (see [ActionResult]); `AssistantReply<T>` returns a value
+  /// [T] too.
   final String? dialog;
 
   /// Siri phrases that run the action with no setup by the user.
   final AppShortcut? shortcut;
+}
+
+/// A value an [AssistantAction] returns to Shortcuts, plus what Siri says.
+///
+/// Return it (or the value alone) from a `Runs.withFlutter` action so a
+/// shortcut can use the result in its next step:
+///
+/// ```dart
+/// @AssistantAction(title: 'Count Open Tasks', runs: Runs.withFlutter)
+/// Future<ActionResult<int>> countOpenTasks() async =>
+///     ActionResult(open.length, dialog: 'You have ${open.length} open tasks.');
+/// ```
+///
+/// [T] is a `String`, `int`, `double`, `bool`, `DateTime`, `Uri`, `Duration`,
+/// an `@AssistantEnum` or schema enum, `AssistantPerson`, `AssistantFile`, an
+/// `@AssistantEntity` or schema entity class (published first, so Siri finds
+/// it by id), or a `List` of one of these. A plain `Future<String>` is still
+/// only what Siri says.
+class ActionResult<T> {
+  const ActionResult(this.value, {this.dialog});
+
+  final T value;
+
+  /// What Siri says; the action's `dialog` when null.
+  final String? dialog;
 }
 
 /// Describes an [AssistantAction] parameter.
@@ -89,12 +129,83 @@ class Param {
 class AppShortcut {
   const AppShortcut({required this.phrases, required this.shortTitle, required this.systemImage});
 
-  /// Each phrase must contain `{app}`, the app's name.
+  /// Each phrase must contain `{app}`, the app's name. `{name}` stands for
+  /// parameter `name` when it is an entity or enum, so "Cook {recipe} in
+  /// {app}" works for each published recipe and each enum case.
   final List<String> phrases;
   final String shortTitle;
 
   /// An SF Symbol name, such as `checklist`.
   final String systemImage;
+}
+
+/// An App Shortcut for one of Apple's App Schema intents the app turned on,
+/// such as `camera.startCapture`. Put it on the class whose annotation turns
+/// the intent on (the entity class, or the `@…Intents` class); `system.open`
+/// goes on the entity class it opens.
+///
+/// ```dart
+/// @IntentShortcut('camera.startCapture',
+///     phrases: ['Take a {captureMode} with {app}'], shortTitle: 'Camera', systemImage: 'camera')
+/// @CameraIntents(startCapture: true)
+/// class CameraHandler implements CameraAssistantHandler { ... }
+/// ```
+///
+/// Schema intents need iOS 18 or later, so the Runner's deployment target
+/// must be iOS 17.4 / macOS 14.4 or later for App Shortcuts to check the OS.
+class IntentShortcut extends AppShortcut {
+  const IntentShortcut(this.intent, {required super.phrases, required super.shortTitle, required super.systemImage});
+
+  /// The schema intent's id, such as `camera.startCapture`.
+  final String intent;
+}
+
+/// The colors of an app's App Shortcut tiles (`ShortcutTileColor`).
+enum ShortcutTileColor {
+  red,
+  orange,
+  tangerine,
+  yellow,
+  lime,
+  teal,
+  lightBlue,
+  blue,
+  navy,
+  grape,
+  purple,
+  pink,
+  grayBlue,
+  grayGreen,
+  grayBrown,
+}
+
+/// Exposes one of the app's enums as an App Enum, so actions can take it as
+/// a parameter (and shortcut phrases can name its cases).
+///
+/// ```dart
+/// @AssistantEnum(title: 'Size')
+/// enum Size {
+///   small,
+///   @CaseTitle('Extra large', synonyms: ['XL'])
+///   extraLarge,
+/// }
+/// ```
+class AssistantEnum {
+  const AssistantEnum({required this.title});
+
+  /// The type's name, such as `Size`.
+  final String title;
+}
+
+/// How Siri shows and hears one case of an [AssistantEnum]. Cases without
+/// it are titled from their name (`extraLarge` → "Extra Large").
+class CaseTitle {
+  const CaseTitle(this.title, {this.synonyms = const []});
+
+  final String title;
+
+  /// Other words for the case.
+  final List<String> synonyms;
 }
 
 /// Exposes one of the app's classes as an App Entity, so actions can take it

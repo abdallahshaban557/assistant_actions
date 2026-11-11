@@ -176,6 +176,45 @@ void main() {
     expect(store.onScreen, 'search "lake"');
   });
 
+  test('an App Enum parameter decodes by case name, and falls back to its default', () async {
+    store.plan.clear();
+    await registry.actions['planMeal']!({'recipe': 'pancakes', 'meal': 'breakfast'});
+    expect(store.plan, {Meal.breakfast: 'Pancakes'});
+    await registry.actions['planMeal']!({'recipe': 'risotto'});
+    expect(store.plan[Meal.dinner], 'Mushroom Risotto');
+  });
+
+  test('actions return values for Shortcuts: entities by id, with a dialog', () async {
+    final reply = await AssistantActions.perform('quickestRecipe', '{"under":1800}');
+    expect(jsonDecode(reply!), {'value': 'pancakes', 'dialog': 'Pancakes it is.'});
+    final none = await AssistantActions.perform('quickestRecipe', '{"under":60}');
+    expect(jsonDecode(none!), {'value': null, 'dialog': 'Nothing is that quick.'});
+  });
+
+  test('an AssistantReply<Recipe> returns the recipe by id with its card, or ids to choose from', () async {
+    expect(jsonDecode((await AssistantActions.perform('pickRecipe', '{"meal":"breakfast"}'))!), {
+      'value': 'pancakes',
+      'dialog': 'Pancakes for breakfast.',
+      'card': {'title': 'Pancakes', 'subtitle': '20 min', 'systemImage': 'fork.knife'},
+    });
+    expect(jsonDecode((await AssistantActions.perform('pickRecipe', '{}'))!), {
+      'choices': ['pancakes', 'risotto'],
+      'prompt': 'Which recipe?',
+    });
+  });
+
+  test('lists and schema entities return too', () async {
+    store.shopping
+      ..clear()
+      ..addAll(['Eggs', 'Flour']);
+    expect(jsonDecode((await AssistantActions.perform('shoppingList', '{}'))!), {
+      'value': ['Eggs', 'Flour'],
+    });
+    store.tasks.add(TaskItem(id: 't9', title: 'Call mum', due: DateTime(2026, 11, 3)));
+    expect(jsonDecode((await AssistantActions.perform('nextTask', '{}'))!),
+        {'value': 't9', 'dialog': 'Next up: Call mum.'});
+  });
+
   test('Siri attaches files and a place to a journal entry', () async {
     await apply(const InboxChange(kind: 'create', collection: 'JournalItem', id: 'j2', fields: {
       'text': 'Voice note',

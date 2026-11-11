@@ -1,7 +1,7 @@
 name: assistant_actions_example
 description: Example app for assistant_actions.
 publish_to: none
-version: 1.0.0+5
+version: 1.0.0+6
 
 environment:
   sdk: ^3.9.0

@@ -28,6 +28,25 @@ public enum AssistantValues {
 
   public static func encode<T>(_ value: T?) -> Any { value ?? NSNull() }
 
+  /// Seconds, for action parameters (`Measurement<UnitDuration>` works back to
+  /// iOS 17, unlike `Duration`).
+  public static func encode(_ measurement: Measurement<UnitDuration>?) -> Any {
+    measurement.map { $0.converted(to: .seconds).value } ?? NSNull()
+  }
+
+  /// A duration from seconds, as an action parameter or result.
+  public static func measurement(_ value: Any?) -> Measurement<UnitDuration>? {
+    double(value).map { Measurement(value: $0, unit: .seconds) }
+  }
+
+  /// What a Dart action returned for Shortcuts (`AssistantValue.encodeResult`):
+  /// the encoded value and, if any, what Siri says.
+  public static func result(_ reply: String?) -> (value: Any?, dialog: String?) {
+    let map = json(reply) as? [String: Any]
+    let value = map?["value"]
+    return (value is NSNull ? nil : value, map?["dialog"] as? String)
+  }
+
   public static func duration(_ value: Any?) -> Duration? {
     (value as? Double).map { Duration.milliseconds(Int64(($0 * 1000).rounded())) }
       ?? (value as? Int).map { Duration.seconds($0) }

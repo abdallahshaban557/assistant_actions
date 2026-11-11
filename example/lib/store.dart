@@ -51,6 +51,9 @@ class Store extends ChangeNotifier {
     );
   }
 
+  /// What Siri planned for each meal (`planMeal`).
+  final plan = <Meal, String>{};
+
   /// Tells listeners and republishes what Siri can see.
   void changed() {
     notifyListeners();
@@ -226,8 +229,11 @@ class SystemHandler implements SystemAssistantHandler {
 }
 
 /// `camera.*`: the app opens its camera. A real app starts capture here.
-/// `startCapture` replies, so Siri says what's on and shows a card.
+/// `startCapture` replies, so Siri says what's on and shows a card. "Take a
+/// video with …" is an App Shortcut for it.
 @CameraIntents(startCapture: true, stopCapture: true, replies: {'startCapture'})
+@IntentShortcut('camera.startCapture',
+    phrases: ['Take a {captureMode} with {app}', 'Open the {app} camera'], shortTitle: 'Camera', systemImage: 'camera')
 class CameraHandler implements CameraAssistantHandler {
   @override
   Future<AssistantReply<void>> startCapture({

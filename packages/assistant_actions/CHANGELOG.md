@@ -1,3 +1,32 @@
+## 0.0.16
+
+* `@AssistantEnum` and `@CaseTitle`: the app's enums as App Enums, with case
+  titles and synonyms.
+* Action parameters can be enums (the app's or schema enums such as
+  `ClockTimerState`), lists, `Duration`, `AssistantPerson`, `AssistantPlace`
+  and `AssistantFile`. Dart defaults become App Intents defaults.
+* `Runs.withFlutter` actions can return values to Shortcuts (`ReturnsValue`):
+  values, `@AssistantEntity` or schema entity items (by id), and lists. Return
+  the value, an `ActionResult<T>` (with a dialog), or an `AssistantReply<T>`
+  (with a dialog and a card; `choose` asks which item). Live Activity actions
+  can't return values.
+* `@AssistantAction(searchKeywords:, isDiscoverable:)`.
+* App Shortcut phrases can name entity and enum parameters (`{recipe}`). The
+  runtime refreshes them after `AssistantActions.publish` through
+  `updateAppShortcutParameters()` (`AssistantShortcutParameters` finds the
+  generated `AssistantActionsAppShortcuts` by name).
+* `@IntentShortcut('domain.intent', ...)` makes App Schema intents App
+  Shortcuts. `@AssistantActionsApp(shortcutTileColor:)` and
+  `ShortcutTileColor`.
+* `dart run assistant_actions:install` raises the Runner targets to iOS 17.4
+  / macOS 14.4, which App Shortcuts need for `if #available` (never lowering
+  one). Rerun it in apps installed earlier.
+* `AssistantValue.encodeResult`, `AssistantReply.encodeValue`; Swift
+  `AssistantValues.result`, `AssistantValues.measurement` and
+  `encode(Measurement<UnitDuration>?)`.
+* The README documents localizing titles and phrases with String Catalogs.
+* Needs assistant_actions_generator 0.0.13.
+
 ## 0.0.15
 
 * Focus filters: `@AssistantFocusFilter` on a top-level function makes it

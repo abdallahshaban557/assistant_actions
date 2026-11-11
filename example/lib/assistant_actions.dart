@@ -1,4 +1,4 @@
-@AssistantActionsApp(name: 'Assistant Actions Example')
+@AssistantActionsApp(name: 'Assistant Actions Example', shortcutTileColor: ShortcutTileColor.orange)
 library;
 
 import 'package:assistant_actions/assistant_actions.dart';
@@ -49,6 +49,22 @@ Future<AssistantReply<void>> showRecipeCard(Recipe recipe) async {
   );
 }
 
+/// A value for Shortcuts with a result card: `AssistantReply<Recipe>`. When
+/// several recipes fit the meal, Siri asks which one (iOS / macOS 26).
+@AssistantAction(title: 'Pick a Recipe', runs: Runs.withFlutter, confirm: 'Pick a recipe for {meal}?')
+Future<AssistantReply<Recipe>> pickRecipe({Meal meal = Meal.dinner}) async {
+  final recipes = Store.instance.recipes;
+  if (meal == Meal.dinner) {
+    return AssistantReply.choose([for (final r in recipes) r.id], prompt: 'Which recipe?');
+  }
+  final quick = recipes.reduce((a, b) => a.minutes <= b.minutes ? a : b);
+  return AssistantReply(
+    value: quick,
+    dialog: '${quick.name} for ${meal.name}.',
+    card: AssistantCard(title: quick.name, subtitle: '${quick.minutes} min', systemImage: 'fork.knife'),
+  );
+}
+
 /// Level 1, live: Siri speaks what this returns.
 @AssistantAction(
   title: 'Count Open Tasks',
@@ -62,6 +78,55 @@ Future<AssistantReply<void>> showRecipeCard(Recipe recipe) async {
 Future<String> countOpenTasks() async {
   final open = Store.instance.tasks.where((t) => !t.done).length;
   return open == 1 ? 'You have 1 open task.' : 'You have $open open tasks.';
+}
+
+/// An App Shortcut with parameters: "Cook Pancakes for breakfast in …" works
+/// for every published recipe and every [Meal]. Unsaid, the meal defaults
+/// to dinner.
+@AssistantAction(
+  title: 'Plan a Meal',
+  description: 'Adds a recipe to the meal plan.',
+  dialog: 'Planned {recipe} for {meal}.',
+  searchKeywords: ['menu', 'meal plan'],
+  shortcut: AppShortcut(
+    phrases: ['Cook {recipe} for {meal} in {app}', 'Plan {meal} in {app}'],
+    shortTitle: 'Plan a Meal',
+    systemImage: 'fork.knife',
+  ),
+)
+Future<void> planMeal(Recipe recipe, {Meal meal = Meal.dinner}) async {
+  Store.instance.plan[meal] = recipe.name;
+  Store.instance.changed();
+}
+
+/// Returns values a shortcut can use in its next step: the quickest recipe
+/// under a time limit, with what Siri says.
+@AssistantAction(
+  title: 'Quickest Recipe',
+  description: 'Finds the quickest recipe, for use in a shortcut.',
+  runs: Runs.withFlutter,
+)
+Future<ActionResult<Recipe?>> quickestRecipe({@Param(title: 'Under') Duration? under}) async {
+  final recipes = [
+    for (final r in Store.instance.recipes)
+      if (under == null || r.minutes <= under.inMinutes) r,
+  ]..sort((a, b) => a.minutes.compareTo(b.minutes));
+  final quickest = recipes.firstOrNull;
+  return ActionResult(quickest, dialog: quickest == null ? 'Nothing is that quick.' : '${quickest.name} it is.');
+}
+
+/// A list Shortcuts can loop over.
+@AssistantAction(title: 'Shopping List', runs: Runs.withFlutter, dialog: 'Here is your list.')
+Future<List<String>> shoppingList() async => [...Store.instance.shopping];
+
+/// A schema entity as a result (`TaskItem` is a `reminders.reminder`), so the
+/// action needs the OS that has the schema.
+@AssistantAction(title: 'Next Task', runs: Runs.withFlutter)
+Future<ActionResult<TaskItem?>> nextTask() async {
+  final open = Store.instance.tasks.where((t) => !t.done && t.due != null).toList()
+    ..sort((a, b) => a.due!.compareTo(b.due!));
+  final next = open.firstOrNull;
+  return ActionResult(next, dialog: next == null ? 'Nothing is due.' : 'Next up: ${next.title}.');
 }
 
 /// Answered from published data in Swift, without starting Flutter: open
