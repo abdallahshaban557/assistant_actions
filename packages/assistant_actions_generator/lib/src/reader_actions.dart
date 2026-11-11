@@ -141,6 +141,13 @@ extension _Actions on ModelReader {
           '${fn.displayName}: longRunning needs runs: Runs.withFlutter (deferred actions return at once).',
           element: fn);
     }
+    final cardButtons = annotation.peek('cardButtons')?.boolValue ?? false;
+    if (cardButtons && !returnsReply) {
+      throw InvalidGenerationSourceError(
+          '${fn.displayName}: cardButtons needs a Runs.withFlutter function that returns an AssistantReply '
+          '(its card has the buttons).',
+          element: fn);
+    }
     return ActionModel(
       functionName: fn.displayName,
       library: fn.library.uri,
@@ -161,6 +168,7 @@ extension _Actions on ModelReader {
       longRunning: longRunning,
       unlock: _unlock(annotation),
       summary: _summary(annotation, params, fn),
+      cardButtons: cardButtons,
     );
   }
 

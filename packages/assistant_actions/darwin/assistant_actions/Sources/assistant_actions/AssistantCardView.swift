@@ -1,3 +1,4 @@
+import AppIntents
 import Foundation
 import SwiftUI
 
@@ -9,12 +10,34 @@ import SwiftUI
 
 /// The result card a generated intent shows (`ShowsSnippetView`) for a Dart
 /// `AssistantCard`: an image or SF Symbol, the title and subtitle, then
-/// label and value rows. Shows nothing without a card.
+/// label and value rows, and buttons in an interactive snippet. Shows
+/// nothing without a card.
 public struct AssistantCardView: View {
   let card: AssistantCard?
+  let buttons: AnyView?
 
+  /// [card] without its buttons.
   public init(_ card: AssistantCard?) {
     self.card = card
+    buttons = nil
+  }
+
+  /// [card] with its buttons, each running the intent [intent] makes for it
+  /// (`Button(intent:)`). For a `SnippetIntent`'s view: elsewhere, Siri
+  /// doesn't run them.
+  public init<Intent: AppIntent>(_ card: AssistantCard?, intent: (AssistantCard.Button) -> Intent) {
+    self.card = card
+    let items = (card?.buttons ?? []).map { ($0, intent($0)) }
+    buttons =
+      items.isEmpty
+      ? nil
+      : AnyView(
+        HStack(spacing: 8) {
+          ForEach(Array(items.enumerated()), id: \.offset) { _, item in
+            Self.button(item.0, intent: item.1).frame(maxWidth: .infinity)
+          }
+        }
+        .buttonStyle(.bordered))
   }
 
   public var body: some View {
@@ -41,8 +64,25 @@ public struct AssistantCardView: View {
             .font(.subheadline)
           }
         }
+        if let buttons {
+          buttons.padding(.top, 4)
+        }
       }
       .padding()
+    }
+  }
+
+  @ViewBuilder
+  private static func button(_ button: AssistantCard.Button, intent: some AppIntent) -> some View {
+    let role: ButtonRole? = button.destructive ? .destructive : nil
+    if let symbol = button.systemImage {
+      Button(role: role, intent: intent) {
+        Label(button.title, systemImage: symbol).frame(maxWidth: .infinity)
+      }
+    } else {
+      Button(role: role, intent: intent) {
+        Text(button.title).frame(maxWidth: .infinity)
+      }
     }
   }
 

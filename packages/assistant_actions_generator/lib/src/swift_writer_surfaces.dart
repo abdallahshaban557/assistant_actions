@@ -84,8 +84,8 @@ ${_performOrQueue(a)}
         ? 'let reply = AssistantReply(json: try await callDart("${a.id}", args: args))'
         : 'let reply = try await callDart("${a.id}", args: args)';
     final result = a.returnsReply
-        ? _resultOf(dialog: 'reply.dialog ?? $dialog', snippet: true)
-        : '.result(dialog: IntentDialog(stringLiteral: reply ?? $dialog))';
+        ? _replyReturn(dialog: 'reply.dialog ?? $dialog', floor: _actionFloor(a), interactive: a.cardButtons).trimRight()
+        : '    return .result(dialog: IntentDialog(stringLiteral: reply ?? $dialog))';
     // Without background execution, iOS comes forward unless Dart already runs.
     final forward = _foregroundLines(modes,
         activateOnMac: false,
@@ -94,7 +94,7 @@ ${_performOrQueue(a)}
             ? null
             : '      // A Live Activity intent can run in the background; the Flutter engine\n'
                 '      // only starts with a scene, so come forward unless Dart already runs.');
-    return '$forward\n    $call\n    return $result';
+    return '$forward\n    $call\n$result';
   }
 
   /// `LiveActivityIntent` is iOS-only.

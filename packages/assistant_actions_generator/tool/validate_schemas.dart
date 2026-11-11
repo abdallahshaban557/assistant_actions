@@ -447,6 +447,8 @@ List<String> _interactions(List<(IntentSchema, IntentKind)> intents) {
       'confirm: ${map([for (final (intent, _) in chosen) "'${intent.name}': '${template(intent, result: false)}?'"])}',
     ],
     if (replies.isNotEmpty) 'replies: {${replies.join(', ')}}',
+    // Half the replies opt in to card buttons, so both card forms are checked.
+    if (replies.isNotEmpty) 'cardButtons: {${[for (final (i, r) in replies.indexed) if (i.isEven) r].join(', ')}}',
   ];
 }
 
@@ -491,7 +493,7 @@ Future<bool> _processSwift(String swift, String platform, String out, {String? d
     stub,
     for (final f in ['AssistantValues', 'AssistantInbox', 'AssistantSnapshot', 'AssistantQuery', 'AssistantSpotlight',
       'AssistantMatch', 'AssistantComparison', 'AssistantRichValues', 'AssistantHostCalls', 'AssistantReply',
-      'AssistantDialog', 'AssistantInteraction', 'AssistantCardView', 'AssistantLiveCall', 'AssistantLiveIntents',
+      'AssistantDialog', 'AssistantInteraction', 'AssistantCardView', 'AssistantCardStore', 'AssistantLiveCall', 'AssistantLiveIntents',
       'AssistantFileIDs', 'AssistantUndo', 'AssistantContext', 'AssistantVisualIntelligence'])
       p.join(sources, '$f.swift'),
   ];

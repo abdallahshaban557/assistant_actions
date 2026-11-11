@@ -13,6 +13,7 @@ abstract class SchemaEntity {
     this.confirm = const {},
     this.confirmDeletes = true,
     this.replies = const {},
+    this.cardButtons = const {},
     this.url,
     this.visualSearch = false,
     this.requiresUnlock,
@@ -44,6 +45,12 @@ abstract class SchemaEntity {
   /// (what Siri says, a result card, or several items to choose from)
   /// instead of a plain value. Changes those methods' return types.
   final Set<String> replies;
+
+  /// Intents in [replies] whose card can have `AssistantCard.buttons` below
+  /// iOS 26 / macOS 26 deployment targets (see `AssistantAction.cardButtons`).
+  /// Without it, only apps that target iOS 26 and macOS 26 show buttons;
+  /// elsewhere cards show without them.
+  final Set<String> cardButtons;
 
   /// A deep link to an item, such as `'mira://tasks/{id}'`; see
   /// `AssistantEntity.url`.
@@ -119,6 +126,7 @@ abstract class SchemaIntents {
     this.replies = const {},
     this.requiresUnlock,
     this.summaries = const {},
+    this.cardButtons = const {},
   });
 
   /// The schema domain, such as `camera`.
@@ -143,4 +151,8 @@ abstract class SchemaIntents {
   /// How Shortcuts shows turned-on intents, by intent name. See
   /// [SchemaEntity.summaries].
   final Map<String, String> summaries;
+
+  /// Intents in [replies] whose card can have buttons below iOS 26 /
+  /// macOS 26. See [SchemaEntity.cardButtons].
+  final Set<String> cardButtons;
 }

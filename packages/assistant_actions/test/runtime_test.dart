@@ -255,6 +255,35 @@ void main() {
           host: _FakeHost([]));
       expect(jsonDecode((await AssistantActions.perform('show', '{"name":"Mira"}'))!), {'dialog': 'Hi Mira.'});
     });
+
+    test('card buttons name the action they run and its arguments', () async {
+      await AssistantActions.start(AssistantActionsRegistry(actions: {'toggle': (args) async => null}),
+          host: _FakeHost([]));
+      final card = AssistantCard(title: 'Pancakes', buttons: [
+        AssistantCardButton('Add', action: 'toggle', args: {
+          'recipe': 'p1',
+          'when': DateTime.fromMillisecondsSinceEpoch(1500),
+          'meal': _Meal.dinner,
+        }, systemImage: 'cart'),
+        const AssistantCardButton('Remove', action: 'toggle', destructive: true),
+      ]);
+      expect(jsonDecode(AssistantReply.encode(AssistantReply<void>(card: card))), {
+        'card': {
+          'title': 'Pancakes',
+          'buttons': [
+            {
+              'title': 'Add',
+              'action': 'toggle',
+              'args': {'recipe': 'p1', 'when': 1.5, 'meal': 'dinner'},
+              'systemImage': 'cart',
+            },
+            {'title': 'Remove', 'action': 'toggle', 'args': <String, Object?>{}, 'destructive': true},
+          ],
+        },
+      });
+      expect(() => const AssistantCardButton('Nope', action: 'missing').toJson(),
+          throwsA(isA<ArgumentError>().having((e) => e.message, 'message', contains('Card button "Nope"'))));
+    });
   });
 
   test('action results reach Swift as JSON with an optional dialog', () async {
@@ -405,6 +434,8 @@ class _BackgroundHost extends _FakeHost implements AssistantHostCalls {
 }
 
 enum _Case { a, b, this$ }
+
+enum _Meal { dinner }
 
 class _CallingHost extends _FakeHost implements AssistantHostCalls {
   _CallingHost({this.reply}) : super([]);

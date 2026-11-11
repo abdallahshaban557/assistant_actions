@@ -619,6 +619,7 @@ class ModelReader {
       confirm: templates('confirm'),
       confirmDeletes: annotation.peek('confirmDeletes')?.boolValue ?? true,
       replies: {for (final r in annotation.peek('replies')?.setValue ?? const <Never>{}) r.toStringValue()!},
+      cardButtons: {for (final r in annotation.peek('cardButtons')?.setValue ?? const <Never>{}) r.toStringValue()!},
     );
     if (checkInteractions(interactions, intents, name) case final problem?) {
       throw InvalidGenerationSourceError(problem, element: element);

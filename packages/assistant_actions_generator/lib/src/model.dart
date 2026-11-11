@@ -390,6 +390,7 @@ class ActionModel {
     this.longRunning = false,
     this.unlock,
     this.summary,
+    this.cardButtons = false,
   });
 
   final String functionName;
@@ -402,6 +403,10 @@ class ActionModel {
 
   /// `longRunning: true`: a `LongRunningIntent`.
   final bool longRunning;
+
+  /// `cardButtons: true`: below a deployment target of 26 the reply's card
+  /// is still interactive from 26 (`swift_writer_cards.dart`).
+  final bool cardButtons;
   final Uri library;
   final String title;
   final String? description;

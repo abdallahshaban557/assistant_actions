@@ -168,7 +168,8 @@ class FixedMessagesCustomAttachment extends SchemaContainer {
 ///
 /// `dialogs` and `confirm` give, by intent name, what Siri says when one
 /// finishes and what it asks first.
-/// `replies` lets live intents' handlers return an `AssistantReply`.
+/// `replies` lets live intents' handlers return an `AssistantReply`, and
+/// `cardButtons` lets their cards have buttons below iOS / macOS 26 targets.
 /// `summaries` gives, by intent name, the sentence Shortcuts shows it as.
 ///
 /// `requiresUnlock` keeps Siri from running its intents on a locked device;
@@ -187,6 +188,7 @@ class MessagesMessage extends SchemaEntity {
     super.dialogs,
     super.confirm,
     super.replies,
+    super.cardButtons,
     super.summaries,
     super.url,
     super.requiresUnlock,
