@@ -1218,10 +1218,10 @@ $availability
 @AppIntent(schema: .${intent.id})
 struct $name${_continuable(modes, ': ')} {
 ${_modesMember(modes)}  @MainActor
-  func perform() async throws -> some ${_resultType('IntentResult', dialog: reply || dialog != null, snippet: reply, floor: floor)} {
+  func perform() async throws -> some ${_resultType('IntentResult', dialog: reply || dialog != null, snippet: reply, floor: floor, interactive: ix.hasCardButtons(intent))} {
 ${_confirmLines(intent, IntentKind.record, ix)}$foreground
 ${reply ? '''    let reply = AssistantReply(json: try await $call)
-${_replyReturn(dialog: 'reply.dialog ?? ${dialog ?? '"Done."'}', floor: floor).trimRight()}''' : '''    _ = try await $call
+${_replyReturn(dialog: 'reply.dialog ?? ${dialog ?? '"Done."'}', floor: floor, interactive: ix.hasCardButtons(intent)).trimRight()}''' : '''    _ = try await $call
     return ${_resultOf(dialog: dialog)}'''}
   }
 }
@@ -1308,7 +1308,8 @@ ${_continuableExtension(name, modes, availability)}${_liveConformances(name, flo
     if (intent.parameters.isNotEmpty) _out.writeln();
     _out
       ..writeln('  @MainActor')
-      ..writeln('  func perform() async throws -> some ${_resultType(returns, dialog: reply || dialog != null, snippet: reply, floor: floor)} {')
+      ..writeln('  func perform() async throws -> some '
+          '${_resultType(returns, dialog: reply || dialog != null, snippet: reply, floor: floor, interactive: ix.hasCardButtons(intent))} {')
       ..writeln(args.isEmpty ? '    let args: [String: Any] = [:]' : '    let args: [String: Any] = [\n${args.join('\n')}\n    ]')
       ..write(_confirmLines(intent, IntentKind.call, ix));
     // Undo calls `<id>.undo` with the same arguments, and the result ids.
@@ -1331,6 +1332,7 @@ ${_continuableExtension(name, modes, availability)}${_liveConformances(name, flo
     if (live && reply) {
       _replyResult(intent, id, method, result, resultType, unionType, dialog,
           floor: floor,
+          interactive: ix.hasCardButtons(intent),
           undo: undo(switch (callResult(intent)) {
             CallResult.entity => 'reply.ids.first ?? NSNull()',
             CallResult.entities => 'reply.ids',

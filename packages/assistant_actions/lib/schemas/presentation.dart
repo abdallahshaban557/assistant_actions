@@ -21,7 +21,8 @@ import '../src/schema.dart';
 ///
 /// `dialogs` and `confirm` give, by intent name, what Siri says when one
 /// finishes and what it asks first (deletes ask by default; see `confirmDeletes`).
-/// `replies` lets live intents' handlers return an `AssistantReply`.
+/// `replies` lets live intents' handlers return an `AssistantReply`, and
+/// `cardButtons` lets their cards have buttons below iOS / macOS 26 targets.
 class PresentationSlide extends SchemaEntity {
   const PresentationSlide({
     required this.presentation,
@@ -40,6 +41,7 @@ class PresentationSlide extends SchemaEntity {
     super.confirm,
     super.confirmDeletes,
     super.replies,
+    super.cardButtons,
     super.url,
     super.visualSearch,
   }) : super('presentation.slide');
@@ -208,7 +210,8 @@ class FixedPresentationTemplate extends SchemaContainer {
 ///
 /// `dialogs` and `confirm` give, by intent name, what Siri says when one
 /// finishes and what it asks first.
-/// `replies` lets live intents' handlers return an `AssistantReply`.
+/// `replies` lets live intents' handlers return an `AssistantReply`, and
+/// `cardButtons` lets their cards have buttons below iOS / macOS 26 targets.
 ///
 /// Syncable (`SyncableEntity`), like Apple's own: keep each `@EntityId()`
 /// stable across launches and devices. Opt out with `@AssistantSyncable(false)`.
@@ -221,6 +224,7 @@ class PresentationDocument extends SchemaEntity {
     super.dialogs,
     super.confirm,
     super.replies,
+    super.cardButtons,
     super.url,
     super.visualSearch,
   }) : super('presentation.document');

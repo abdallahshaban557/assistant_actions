@@ -86,6 +86,7 @@ class AssistantAction {
     this.isDiscoverable = true,
     this.opensApp = false,
     this.longRunning = false,
+    this.cardButtons = false,
   });
 
   final String title;
@@ -114,6 +115,14 @@ class AssistantAction {
   /// Whether the action shows in Shortcuts and Spotlight. Hidden actions can't
   /// be App Shortcuts.
   final bool isDiscoverable;
+  /// The `AssistantReply` card this [Runs.withFlutter] function returns can
+  /// have `AssistantCard.buttons` below iOS 26 / macOS 26 deployment
+  /// targets: the intent then shows its card as an interactive snippet from
+  /// 26 (and a plain card before), so its result type no longer states
+  /// `ShowsSnippetView`. Without it, only apps that target iOS 26 and
+  /// macOS 26 show buttons; elsewhere cards show without them.
+  final bool cardButtons;
+
   /// The action shows something in the app, so it always brings the app to
   /// the foreground (and, on macOS, activates it), even when Dart could run
   /// in the background with [AssistantBackground]. [Runs.withFlutter] only.

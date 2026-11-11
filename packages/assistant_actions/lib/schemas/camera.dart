@@ -36,7 +36,8 @@ class CameraCaptureDuration extends SchemaEnumCases {
 ///
 /// `dialogs` and `confirm` give, by intent name, what Siri says when one
 /// finishes and what it asks first.
-/// `replies` lets live intents' handlers return an `AssistantReply`.
+/// `replies` lets live intents' handlers return an `AssistantReply`, and
+/// `cardButtons` lets their cards have buttons below iOS / macOS 26 targets.
 class CameraIntents extends SchemaIntents {
   const CameraIntents({
     this.switchDevice = false,
@@ -47,6 +48,7 @@ class CameraIntents extends SchemaIntents {
     super.dialogs,
     super.confirm,
     super.replies,
+    super.cardButtons,
   }) : super('camera');
 
   /// Handle `camera.switchDevice` ("Flip Camera"): calls

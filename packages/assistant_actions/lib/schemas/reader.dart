@@ -27,7 +27,8 @@ class ReaderDocumentKind extends SchemaEnumCases {
 ///
 /// `dialogs` and `confirm` give, by intent name, what Siri says when one
 /// finishes and what it asks first (deletes ask by default; see `confirmDeletes`).
-/// `replies` lets live intents' handlers return an `AssistantReply`.
+/// `replies` lets live intents' handlers return an `AssistantReply`, and
+/// `cardButtons` lets their cards have buttons below iOS / macOS 26 targets.
 class ReaderPage extends SchemaEntity {
   const ReaderPage({
     this.openPage = false,
@@ -38,6 +39,7 @@ class ReaderPage extends SchemaEntity {
     super.confirm,
     super.confirmDeletes,
     super.replies,
+    super.cardButtons,
     super.url,
     super.visualSearch,
   }) : super('reader.page');

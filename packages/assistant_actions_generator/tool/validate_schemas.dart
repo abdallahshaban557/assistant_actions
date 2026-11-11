@@ -423,6 +423,8 @@ List<String> _interactions(List<(IntentSchema, IntentKind)> intents) {
       'confirm: ${map([for (final (intent, _) in chosen) "'${intent.name}': '${template(intent, result: false)}?'"])}',
     ],
     if (replies.isNotEmpty) 'replies: {${replies.join(', ')}}',
+    // Half the replies opt in to card buttons, so both card forms are checked.
+    if (replies.isNotEmpty) 'cardButtons: {${[for (final (i, r) in replies.indexed) if (i.isEven) r].join(', ')}}',
   ];
 }
 

@@ -106,8 +106,12 @@ class AssistantCard {
   final String? systemImage;
 
   /// Buttons under the rows that run an action in Dart and update the card
-  /// (interactive snippets, iOS 26 / macOS 26). Earlier, the card shows
-  /// without them. Keep it to one or two.
+  /// (interactive snippets, iOS 26 / macOS 26). Keep it to one or two.
+  ///
+  /// They show when the app's deployment target is iOS 26 and macOS 26, or
+  /// when the intent opts in (`@AssistantAction(cardButtons: true)`, or
+  /// `cardButtons: {'intentName'}` on a schema annotation), and then only on
+  /// iOS / macOS 26 and later. Otherwise the card shows without them.
   final List<AssistantCardButton> buttons;
 
   Map<String, Object?> toJson() => {
@@ -147,9 +151,11 @@ class AssistantCardRow {
 /// AssistantCardButton('Add to list', action: 'toggleOnList', args: {'recipe': recipe.id}, systemImage: 'cart')
 /// ```
 ///
-/// Needs iOS 26 or macOS 26 (`SnippetIntent`); earlier, cards show without
-/// buttons. With `@AssistantBackground()`, a press runs Dart without opening
-/// the app on iOS, like other live actions.
+/// Needs iOS 26 or macOS 26 (`SnippetIntent`), and an app that targets 26
+/// or an intent that opts in with `cardButtons` (see
+/// [AssistantCard.buttons]); otherwise cards show without buttons. With
+/// `@AssistantBackground()`, a press runs Dart without opening the app on
+/// iOS, like other live actions.
 class AssistantCardButton {
   const AssistantCardButton(this.title,
       {required this.action, this.args = const {}, this.systemImage, this.destructive = false});

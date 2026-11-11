@@ -84,7 +84,7 @@ ${_performOrQueue(a)}
         ? 'let reply = AssistantReply(json: try await callDart("${a.id}", args: args))'
         : 'let reply = try await callDart("${a.id}", args: args)';
     final result = a.returnsReply
-        ? _replyReturn(dialog: 'reply.dialog ?? $dialog', floor: _actionFloor(a)).trimRight()
+        ? _replyReturn(dialog: 'reply.dialog ?? $dialog', floor: _actionFloor(a), interactive: a.cardButtons).trimRight()
         : '    return .result(dialog: IntentDialog(stringLiteral: reply ?? $dialog))';
     // Without background execution, iOS comes forward unless Dart already runs.
     final forward = _foregroundLines(modes,

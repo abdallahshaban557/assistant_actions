@@ -132,7 +132,8 @@ class FixedCalendarCalendar extends SchemaContainer {
 ///
 /// `dialogs` and `confirm` give, by intent name, what Siri says when one
 /// finishes and what it asks first.
-/// `replies` lets live intents' handlers return an `AssistantReply`.
+/// `replies` lets live intents' handlers return an `AssistantReply`, and
+/// `cardButtons` lets their cards have buttons below iOS / macOS 26 targets.
 ///
 /// Syncable (`SyncableEntity`), like Apple's own: keep each `@EntityId()`
 /// stable across launches and devices. Opt out with `@AssistantSyncable(false)`.
@@ -145,6 +146,7 @@ class CalendarEvent extends SchemaEntity {
     super.dialogs,
     super.confirm,
     super.replies,
+    super.cardButtons,
     super.url,
     super.visualSearch,
   }) : super('calendar.event');

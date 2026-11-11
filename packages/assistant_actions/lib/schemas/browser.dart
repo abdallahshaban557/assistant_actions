@@ -32,7 +32,8 @@ class BrowserClearHistoryTimeFrame extends SchemaEnumCases {
 ///
 /// `dialogs` and `confirm` give, by intent name, what Siri says when one
 /// finishes and what it asks first.
-/// `replies` lets live intents' handlers return an `AssistantReply`.
+/// `replies` lets live intents' handlers return an `AssistantReply`, and
+/// `cardButtons` lets their cards have buttons below iOS / macOS 26 targets.
 class BrowserTab extends SchemaEntity {
   const BrowserTab({
     this.createTab = false,
@@ -43,6 +44,7 @@ class BrowserTab extends SchemaEntity {
     super.dialogs,
     super.confirm,
     super.replies,
+    super.cardButtons,
     super.url,
     super.visualSearch,
   }) : super('browser.tab');
@@ -194,7 +196,8 @@ abstract final class BrowserReadingListItemField {
 ///
 /// `dialogs` and `confirm` give, by intent name, what Siri says when one
 /// finishes and what it asks first (deletes ask by default; see `confirmDeletes`).
-/// `replies` lets live intents' handlers return an `AssistantReply`.
+/// `replies` lets live intents' handlers return an `AssistantReply`, and
+/// `cardButtons` lets their cards have buttons below iOS / macOS 26 targets.
 class BrowserBookmark extends SchemaEntity {
   const BrowserBookmark({
     this.bookmarkTab = false,
@@ -205,6 +208,7 @@ class BrowserBookmark extends SchemaEntity {
     super.confirm,
     super.confirmDeletes,
     super.replies,
+    super.cardButtons,
     super.url,
     super.visualSearch,
   }) : super('browser.bookmark');
@@ -263,7 +267,8 @@ abstract final class BrowserBookmarkField {
 ///
 /// `dialogs` and `confirm` give, by intent name, what Siri says when one
 /// finishes and what it asks first.
-/// `replies` lets live intents' handlers return an `AssistantReply`.
+/// `replies` lets live intents' handlers return an `AssistantReply`, and
+/// `cardButtons` lets their cards have buttons below iOS / macOS 26 targets.
 class BrowserWindow extends SchemaEntity {
   const BrowserWindow({
     this.createWindow = false,
@@ -271,6 +276,7 @@ class BrowserWindow extends SchemaEntity {
     super.dialogs,
     super.confirm,
     super.replies,
+    super.cardButtons,
     super.url,
     super.visualSearch,
   }) : super('browser.window');

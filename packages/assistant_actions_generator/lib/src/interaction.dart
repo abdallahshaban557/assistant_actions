@@ -14,6 +14,7 @@ class Interactions {
     this.confirm = const {},
     this.confirmDeletes = true,
     this.replies = const {},
+    this.cardButtons = const {},
   });
 
   static const none = Interactions();
@@ -30,7 +31,11 @@ class Interactions {
   /// Live intents whose Dart handler returns an `AssistantReply`.
   final Set<String> replies;
 
-  bool get isEmpty => dialogs.isEmpty && confirm.isEmpty && replies.isEmpty;
+  /// Intents in [replies] whose card is interactive from iOS / macOS 26 even
+  /// below a deployment target of 26 (`swift_writer_cards.dart`).
+  final Set<String> cardButtons;
+
+  bool get isEmpty => dialogs.isEmpty && confirm.isEmpty && replies.isEmpty && cardButtons.isEmpty;
 
   /// The question for [intent] of [kind], or null when it runs at once.
   /// [Confirmation.question] is null for the default delete question.
@@ -43,6 +48,9 @@ class Interactions {
   }
 
   bool repliesTo(IntentSchema intent) => replies.contains(intent.name);
+
+  /// Whether [intent] opted in to card buttons below 26.
+  bool hasCardButtons(IntentSchema intent) => cardButtons.contains(intent.name);
 }
 
 /// A question Siri asks before an intent runs.
@@ -96,6 +104,7 @@ String? checkInteractions(Interactions ix, List<(IntentSchema, IntentKind)> inte
     ('dialogs', ix.dialogs.keys),
     ('confirm', ix.confirm.keys),
     ('replies', ix.replies),
+    ('cardButtons', ix.cardButtons),
   ]) {
     for (final name in names) {
       final found = byName[name];
@@ -106,6 +115,10 @@ String? checkInteractions(Interactions ix, List<(IntentSchema, IntentKind)> inte
       final (intent, kind) = found;
       if (intent.id == 'system.open') {
         return '$annotation: system.open (open) can\'t have dialogs, confirm or replies yet.';
+      }
+      if (option == 'cardButtons' && !ix.replies.contains(name)) {
+        return '$annotation: cardButtons names $name, which is not in replies: only intents whose handler '
+            'returns an AssistantReply have a card. Add it to replies too.';
       }
       if (option == 'replies' && !canReply(intent, kind)) {
         return '$annotation: replies names $name, but ${intent.id} '

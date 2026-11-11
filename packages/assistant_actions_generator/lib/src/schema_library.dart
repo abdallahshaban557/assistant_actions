@@ -117,7 +117,9 @@ String generateSchemaLibrary(DomainCatalog catalog) {
         ..writeln('/// `dialogs` and `confirm` give, by intent name, what Siri says when one')
         ..writeln('/// finishes and what it asks first${intents.any((e) => e.$2 == IntentKind.delete) ? ' (deletes ask by default; see `confirmDeletes`)' : ''}.');
       if (intents.any((e) => canReply(e.$1, e.$2))) {
-        out.writeln('/// `replies` lets live intents\' handlers return an `AssistantReply`.');
+        out
+          ..writeln('/// `replies` lets live intents\' handlers return an `AssistantReply`, and')
+          ..writeln('/// `cardButtons` lets their cards have buttons below iOS / macOS 26 targets.');
       }
     }
     if (entity.isFile) {
@@ -148,7 +150,7 @@ String generateSchemaLibrary(DomainCatalog catalog) {
       // Siri conversation options (`SchemaEntity`), for entities with intents.
       if (intents.isNotEmpty) ...['super.dialogs,', 'super.confirm,'],
       if (intents.any((e) => e.$2 == IntentKind.delete)) 'super.confirmDeletes,',
-      if (intents.any((e) => canReply(e.$1, e.$2))) 'super.replies,',
+      if (intents.any((e) => canReply(e.$1, e.$2))) ...['super.replies,', 'super.cardButtons,'],
       for (final q in imports) 'this.${q.name} = false,',
       'super.url,',
       // A trailing comma keeps long lists one per line; short ones stay on one.
@@ -280,14 +282,18 @@ String generateSchemaLibrary(DomainCatalog catalog) {
       ..writeln('///')
       ..writeln('/// `dialogs` and `confirm` give, by intent name, what Siri says when one')
       ..writeln('/// finishes and what it asks first.');
-    if (domainIntents.any((i) => i.isLive)) out.writeln("/// `replies` lets live intents' handlers return an `AssistantReply`.");
+    if (domainIntents.any((i) => i.isLive)) {
+      out
+        ..writeln("/// `replies` lets live intents' handlers return an `AssistantReply`, and")
+        ..writeln('/// `cardButtons` lets their cards have buttons below iOS / macOS 26 targets.');
+    }
     out
       ..writeln('class $name extends SchemaIntents {')
       ..writeln('  const $name({${[
         for (final i in domainIntents) 'this.${i.name} = false,',
         'super.dialogs,',
         'super.confirm,',
-        if (domainIntents.any((i) => i.isLive)) 'super.replies,',
+        if (domainIntents.any((i) => i.isLive)) ...['super.replies,', 'super.cardButtons,'],
       ].join(' ')}})')
       ..writeln("      : super('$domain');")
       ..writeln();

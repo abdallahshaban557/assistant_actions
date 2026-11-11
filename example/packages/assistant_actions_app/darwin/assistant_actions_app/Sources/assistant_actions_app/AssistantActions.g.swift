@@ -285,7 +285,7 @@ public struct PickRecipeAction: AppIntent, ForegroundContinuableIntent {
   public init() {}
 
   @MainActor
-  public func perform() async throws -> some IntentResult & ReturnsValue<RecipeEntity> & ProvidesDialog {
+  public func perform() async throws -> some IntentResult & ReturnsValue<RecipeEntity> & ProvidesDialog & ShowsSnippetView {
     let args: [String: Any] = [
       "meal": AssistantValues.encode(meal),
     ]
@@ -304,11 +304,7 @@ public struct PickRecipeAction: AppIntent, ForegroundContinuableIntent {
     let reply = AssistantReply(json: try await callDart("pickRecipe", args: args))
     let candidates = try await RecipeEntityQuery().entities(for: reply.ids)
     guard let value = try await assistantChoose(among: candidates, prompt: reply.prompt) else { throw AssistantActionError.failed("pickRecipe returned nothing Siri can use") }
-    if #available(iOS 26.0, macOS 26.0, *) {
-      return .result(value: value, dialog: IntentDialog(stringLiteral: reply.dialog ?? "Done."), snippetIntent: AssistantCardSnippetIntent(reply.card))
-    } else {
-      return .result(value: value, dialog: IntentDialog(stringLiteral: reply.dialog ?? "Done."), view: AssistantCardView(reply.card))
-    }
+    return .result(value: value, dialog: IntentDialog(stringLiteral: reply.dialog ?? "Done."), view: AssistantCardView(reply.card))
   }
 }
 
@@ -2048,7 +2044,7 @@ public struct CameraStartCaptureIntent: ForegroundContinuableIntent {
   public var timerDuration: CameraCaptureDurationEnum?
 
   @MainActor
-  public func perform() async throws -> some IntentResult & ProvidesDialog {
+  public func perform() async throws -> some IntentResult & ProvidesDialog & ShowsSnippetView {
     let args: [String: Any] = [
       "captureMode": AssistantValues.encode(captureMode),
       "device": AssistantValues.encode(device),
@@ -2062,11 +2058,7 @@ public struct CameraStartCaptureIntent: ForegroundContinuableIntent {
       NSApplication.shared.activate()
     #endif
     let reply = AssistantReply(json: try await callDart("camera.startCapture", args: args))
-    if #available(iOS 26.0, macOS 26.0, *) {
-      return .result(dialog: IntentDialog(stringLiteral: reply.dialog ?? "Done."), snippetIntent: AssistantCardSnippetIntent(reply.card))
-    } else {
-      return .result(dialog: IntentDialog(stringLiteral: reply.dialog ?? "Done."), view: AssistantCardView(reply.card))
-    }
+    return .result(dialog: IntentDialog(stringLiteral: reply.dialog ?? "Done."), view: AssistantCardView(reply.card))
   }
 }
 

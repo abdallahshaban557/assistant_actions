@@ -20,13 +20,15 @@ import '../src/schema.dart';
 ///
 /// `dialogs` and `confirm` give, by intent name, what Siri says when one
 /// finishes and what it asks first.
-/// `replies` lets live intents' handlers return an `AssistantReply`.
+/// `replies` lets live intents' handlers return an `AssistantReply`, and
+/// `cardButtons` lets their cards have buttons below iOS / macOS 26 targets.
 class VisualIntelligenceIntents extends SchemaIntents {
   const VisualIntelligenceIntents({
     this.semanticContentSearch = false,
     super.dialogs,
     super.confirm,
     super.replies,
+    super.cardButtons,
   }) : super('visualIntelligence');
 
   /// Handle `visualIntelligence.semanticContentSearch` ("Show Visual Search Results"): calls

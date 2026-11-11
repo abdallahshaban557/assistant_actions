@@ -21,7 +21,8 @@ import '../src/schema.dart';
 ///
 /// `dialogs` and `confirm` give, by intent name, what Siri says when one
 /// finishes and what it asks first.
-/// `replies` lets live intents' handlers return an `AssistantReply`.
+/// `replies` lets live intents' handlers return an `AssistantReply`, and
+/// `cardButtons` lets their cards have buttons below iOS / macOS 26 targets.
 class WordProcessorDocument extends SchemaEntity {
   const WordProcessorDocument({
     this.open = false,
@@ -29,6 +30,7 @@ class WordProcessorDocument extends SchemaEntity {
     super.dialogs,
     super.confirm,
     super.replies,
+    super.cardButtons,
     super.url,
     super.visualSearch,
   }) : super('wordProcessor.document');
@@ -147,7 +149,8 @@ class FixedWordProcessorTemplate extends SchemaContainer {
 ///
 /// `dialogs` and `confirm` give, by intent name, what Siri says when one
 /// finishes and what it asks first.
-/// `replies` lets live intents' handlers return an `AssistantReply`.
+/// `replies` lets live intents' handlers return an `AssistantReply`, and
+/// `cardButtons` lets their cards have buttons below iOS / macOS 26 targets.
 class WordProcessorPage extends SchemaEntity {
   const WordProcessorPage({
     required this.document,
@@ -160,6 +163,7 @@ class WordProcessorPage extends SchemaEntity {
     super.dialogs,
     super.confirm,
     super.replies,
+    super.cardButtons,
     super.url,
     super.visualSearch,
   }) : super('wordProcessor.page');

@@ -35,16 +35,18 @@ Future<void> removeFromShoppingList(Recipe recipe) async {
 
 /// Level 1, live, with a result card: Siri says the reply's dialog and shows
 /// its card. From iOS / macOS 26 the card's button adds the recipe to the
-/// shopping list (or takes it off) without leaving Siri.
-@AssistantAction(title: 'Show Recipe Card', runs: Runs.withFlutter)
+/// shopping list (or takes it off) without leaving Siri: `cardButtons` lets
+/// the card have buttons although the app targets iOS 17 / macOS 14.
+@AssistantAction(title: 'Show Recipe Card', runs: Runs.withFlutter, cardButtons: true)
 Future<AssistantReply<void>> showRecipeCard(Recipe recipe) async => AssistantReply(
       dialog: '${recipe.name} takes ${recipe.minutes} minutes.',
       card: _recipeCard(recipe),
     );
 
 /// What the recipe card's button runs: the card it replies with replaces the
-/// one Siri shows. Not in Shortcuts' list (`isDiscoverable: false`).
-@AssistantAction(title: 'Toggle on Shopping List', runs: Runs.withFlutter, isDiscoverable: false)
+/// one Siri shows, buttons included (`cardButtons`). Not in Shortcuts' list
+/// (`isDiscoverable: false`).
+@AssistantAction(title: 'Toggle on Shopping List', runs: Runs.withFlutter, isDiscoverable: false, cardButtons: true)
 Future<AssistantReply<void>> toggleShoppingList(Recipe recipe) async {
   final store = Store.instance;
   if (!store.shopping.any((item) => item.startsWith('${recipe.name} ×'))) {

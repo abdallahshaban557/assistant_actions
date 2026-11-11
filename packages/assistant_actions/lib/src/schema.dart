@@ -11,6 +11,7 @@ abstract class SchemaEntity {
     this.confirm = const {},
     this.confirmDeletes = true,
     this.replies = const {},
+    this.cardButtons = const {},
     this.url,
     this.visualSearch = false,
   });
@@ -39,6 +40,12 @@ abstract class SchemaEntity {
   /// (what Siri says, a result card, or several items to choose from)
   /// instead of a plain value. Changes those methods' return types.
   final Set<String> replies;
+
+  /// Intents in [replies] whose card can have `AssistantCard.buttons` below
+  /// iOS 26 / macOS 26 deployment targets (see `AssistantAction.cardButtons`).
+  /// Without it, only apps that target iOS 26 and macOS 26 show buttons;
+  /// elsewhere cards show without them.
+  final Set<String> cardButtons;
 
   /// A deep link to an item, such as `'mira://tasks/{id}'`; see
   /// `AssistantEntity.url`.
@@ -91,7 +98,8 @@ abstract class SchemaEnumCases {
 /// no entity, such as `@CameraIntents(startCapture: true)`. Put it on the
 /// class implementing the generated handler (`CameraAssistantHandler`).
 abstract class SchemaIntents {
-  const SchemaIntents(this.domain, {this.dialogs = const {}, this.confirm = const {}, this.replies = const {}});
+  const SchemaIntents(this.domain,
+      {this.dialogs = const {}, this.confirm = const {}, this.replies = const {}, this.cardButtons = const {}});
 
   /// The schema domain, such as `camera`.
   final String domain;
@@ -107,4 +115,8 @@ abstract class SchemaIntents {
   /// Live intents whose handler method returns an `AssistantReply`. See
   /// [SchemaEntity.replies].
   final Set<String> replies;
+
+  /// Intents in [replies] whose card can have buttons below iOS 26 /
+  /// macOS 26. See [SchemaEntity.cardButtons].
+  final Set<String> cardButtons;
 }

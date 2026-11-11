@@ -1,10 +1,17 @@
 part of 'swift_writer.dart';
 
-/// Interactive result cards. From iOS 26 / macOS 26 an intent shows its
+/// Interactive result cards. From iOS 26 / macOS 26 an intent can show its
 /// Dart reply's card through a `SnippetIntent` (`AssistantCardSnippetIntent`),
 /// so the card's buttons (`AssistantCardButtonIntent`, `Button(intent:)`) run
-/// Dart and update it. Earlier, the card is a plain `ShowsSnippetView`
-/// without buttons.
+/// Dart and update it.
+///
+/// * Intents that always run on 26 (the deployment target, or their own
+///   floor): always, as `ShowsSnippetIntent`.
+/// * Below that, intents that opt in (`cardButtons`): the snippet intent from
+///   26 and a plain `AssistantCardView` before, with no snippet protocol in
+///   the result type (an opaque result type with limited availability).
+/// * Other intents: a plain `ShowsSnippetView` card, without buttons, as
+///   before interactive cards.
 ///
 /// Both intents are generated here, not in the runtime, because Apple's
 /// metadata processor only registers intents of the app plugin's module.
@@ -20,31 +27,39 @@ extension _Cards on SwiftWriter {
   }
 
   /// The snippet protocol of a reply's result type: `ShowsSnippetIntent`
-  /// when it always has one. Otherwise none, so `perform` can return a
-  /// snippet intent from 26 and a snippet view before (an opaque result type
-  /// with limited availability, SE-0360).
-  String? _replySnippet(Map<String, num>? floor) => _snippetIntents(floor) ? 'ShowsSnippetIntent' : null;
+  /// when it always has one; none for an [interactive] intent below that, so
+  /// `perform` can return a snippet intent from 26 and a snippet view before
+  /// (an opaque result type with limited availability, SE-0360); else
+  /// `ShowsSnippetView`.
+  String? _replySnippet(Map<String, num>? floor, {required bool interactive}) {
+    if (_snippetIntents(floor)) return 'ShowsSnippetIntent';
+    return interactive ? null : 'ShowsSnippetView';
+  }
 
   /// The `return` lines ending a `perform` that shows Dart's `reply.card`,
-  /// with [value] and [dialog] (Swift expressions; [dialog] a `String`).
-  String _replyReturn({String? value, String? dialog, Map<String, num>? floor}) {
-    _cards = true;
+  /// with [value] and [dialog] (Swift expressions; [dialog] a `String`). See
+  /// [_replySnippet].
+  String _replyReturn({String? value, String? dialog, Map<String, num>? floor, required bool interactive}) {
     _imports.add('SwiftUI');
     String result(String snippet) => '.result(${[
           if (value != null) 'value: $value',
           if (dialog != null) 'dialog: IntentDialog(stringLiteral: $dialog)',
           snippet,
         ].join(', ')})';
+    final view = result('view: AssistantCardView(reply.card)');
+    if (!_snippetIntents(floor) && !interactive) return '    return $view\n';
+    _cards = true;
     final intent = result('snippetIntent: AssistantCardSnippetIntent(reply.card)');
     if (_snippetIntents(floor)) return '    return $intent\n';
     return '    if #available(iOS 26.0, macOS 26.0, *) {\n'
         '      return $intent\n'
         '    } else {\n'
-        '      return ${result('view: AssistantCardView(reply.card)')}\n'
+        '      return $view\n'
         '    }\n';
   }
 
-  /// The snippet and button intents, when an intent shows a Dart card.
+  /// The snippet and button intents, when an intent shows a Dart card
+  /// through the snippet intent.
   void _cardIntents() {
     if (!_cards) return;
     final availability = _availability(_cardFloor);

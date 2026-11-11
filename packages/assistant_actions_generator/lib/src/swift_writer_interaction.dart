@@ -5,9 +5,11 @@ part of 'swift_writer.dart';
 /// (`swift_writer_cards.dart`) or items to choose from.
 extension _Interaction on SwiftWriter {
   /// `base & ProvidesDialog`, as needed, and with a Dart card ([snippet]) the
-  /// snippet protocol of an intent available from [floor] (`_replySnippet`).
-  String _resultType(String base, {required bool dialog, bool snippet = false, Map<String, num>? floor}) =>
-      [base, if (dialog) 'ProvidesDialog', if (snippet) ?_replySnippet(floor)].join(' & ');
+  /// snippet protocol of an intent available from [floor] that may opt in to
+  /// card buttons ([interactive]; see `_replySnippet`).
+  String _resultType(String base,
+          {required bool dialog, bool snippet = false, Map<String, num>? floor, bool interactive = false}) =>
+      [base, if (dialog) 'ProvidesDialog', if (snippet) ?_replySnippet(floor, interactive: interactive)].join(' & ');
 
   /// `.result(value: …, dialog: …)`. [dialog] is a Swift `String`. Results
   /// with a Dart card are `_replyReturn`.
@@ -70,10 +72,12 @@ extension _Interaction on SwiftWriter {
   /// The end of a live call whose Dart handler returns an `AssistantReply`:
   /// its value (asking which item when Dart sent several), what it says
   /// (else the `dialogs` template [dialog], else "Done.") and its card. The
-  /// intent is available from [floor].
+  /// intent is available from [floor]; [interactive] when it opted in to
+  /// card buttons.
   void _replyResult(IntentSchema intent, String id, String method, String? result, String? resultType,
-      String? unionType, String? dialog, {String undo = '', Map<String, num>? floor}) {
+      String? unionType, String? dialog, {String undo = '', Map<String, num>? floor, bool interactive = false}) {
     final says = 'reply.dialog ?? ${dialog ?? '"Done."'}';
+    String done({String? value}) => _replyReturn(value: value, dialog: says, floor: floor, interactive: interactive);
     _out
       ..writeln('    let reply = AssistantReply(json: try await callDart("$id", args: args))')
       // Undo (`swift_writer_modern.dart`) gets the ids the reply names.
@@ -85,23 +89,23 @@ extension _Interaction on SwiftWriter {
           ..writeln('    guard let value = try await assistantChoose(among: candidates, prompt: reply.prompt) else {')
           ..writeln('      throw AssistantActionError.failed("$method returned no ${SwiftWriter._escape(result!)} item")')
           ..writeln('    }')
-          ..write(_replyReturn(value: 'value', dialog: says, floor: floor));
+          ..write(done(value: 'value'));
       case CallResult.entities:
         _out
           ..writeln('    let value = ${_lookup(resultType!, result, 'AssistantValues.strings(reply.value) ?? []')}')
-          ..write(_replyReturn(value: 'value', dialog: says, floor: floor));
+          ..write(done(value: 'value'));
       case CallResult.union:
         _out
           ..writeln('    guard let value = $unionType.decode(reply.value) else {')
           ..writeln('      throw AssistantActionError.failed("$method returned nothing Siri can use")')
           ..writeln('    }')
-          ..write(_replyReturn(value: 'value', dialog: says, floor: floor));
+          ..write(done(value: 'value'));
       case CallResult.unions:
         _out
           ..writeln('    let value = (AssistantValues.items(reply.value) ?? []).compactMap($unionType.decode)')
-          ..write(_replyReturn(value: 'value', dialog: says, floor: floor));
+          ..write(done(value: 'value'));
       default:
-        _out.write(_replyReturn(dialog: says, floor: floor));
+        _out.write(done());
     }
   }
 }

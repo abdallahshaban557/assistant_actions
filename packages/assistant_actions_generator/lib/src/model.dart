@@ -370,12 +370,17 @@ class ActionModel {
     this.isDiscoverable = true,
     this.opensApp = false,
     this.longRunning = false,
+    this.cardButtons = false,
   });
 
   final String functionName;
 
   /// `longRunning: true`: a `LongRunningIntent`.
   final bool longRunning;
+
+  /// `cardButtons: true`: below a deployment target of 26 the reply's card
+  /// is still interactive from 26 (`swift_writer_cards.dart`).
+  final bool cardButtons;
   final Uri library;
   final String title;
   final String? description;

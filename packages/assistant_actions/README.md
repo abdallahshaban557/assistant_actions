@@ -341,7 +341,7 @@ Listing an intent in `replies` changes its method's return type to
 `AssistantReply<T>`, where `T` is what it returned before: the item's id
 (`String`), ids (`List<String>`), an `AssistantUnion`, or `void`. Put the id
 in `value`. The card is a generic SwiftUI view in the runtime
-(`AssistantCardView`): a snippet view on iOS 17 / macOS 14, and from 26 an
+(`AssistantCardView`): a snippet view, and from iOS / macOS 26 an
 interactive snippet that can have buttons (below).
 
 **Choosing between items.** For an intent that returns one item, return
@@ -351,7 +351,7 @@ later; earlier, the first is taken), and that item is the intent's result.
 Dart isn't called again with the choice, so use it where the result *is* the
 answer (finding or opening an item), not to pick what to change.
 
-**Buttons on cards.** From iOS 26 / macOS 26 a card is an interactive
+**Buttons on cards.** From iOS 26 / macOS 26 a card can be an interactive
 snippet, and its `buttons` run Dart without leaving Siri. A button names the
 action it runs, by id (an `@AssistantAction` function's name, or a schema
 intent's such as `Countdown.pauseTimer`: a key of the generated registry's
@@ -361,12 +361,12 @@ enum as its case name). The card then shows the `card` of the
 as it was:
 
 ```dart
-@AssistantAction(title: 'Show Recipe Card', runs: Runs.withFlutter)
+@AssistantAction(title: 'Show Recipe Card', runs: Runs.withFlutter, cardButtons: true)
 Future<AssistantReply<void>> showRecipeCard(Recipe recipe) async =>
     AssistantReply(dialog: '${recipe.name} takes ${recipe.minutes} minutes.', card: recipeCard(recipe));
 
 // What the button runs; hidden from Shortcuts' list.
-@AssistantAction(title: 'Toggle on Shopping List', runs: Runs.withFlutter, isDiscoverable: false)
+@AssistantAction(title: 'Toggle on Shopping List', runs: Runs.withFlutter, isDiscoverable: false, cardButtons: true)
 Future<AssistantReply<void>> toggleShoppingList(Recipe recipe) async {
   ... // add it, or take it off
   return AssistantReply(card: recipeCard(recipe));    // the card after the press
@@ -382,19 +382,33 @@ AssistantCard recipeCard(Recipe recipe) => AssistantCard(
     );
 ```
 
+Which cards show their buttons:
+
+- **Deployment target iOS 26 and macOS 26** (or an intent that itself needs
+  26, such as `journal.entry`'s): every card, always.
+- **Below that**, only intents that opt in: `cardButtons: true` on
+  `@AssistantAction`, or `cardButtons: {'pauseTimer'}` (intent names, also
+  listed in `replies`) on a schema annotation. They show buttons on iOS /
+  macOS 26 and later, and the same card without them before.
+- **Every other intent** shows its card without buttons. Dart doesn't know
+  the deployment target, so this isn't an error: the buttons are just left
+  out.
+
+Opting in changes the intent's result type: it returns the snippet intent
+from 26 (`.result(snippetIntent:)`) and the plain `AssistantCardView` before,
+so the type no longer states `ShowsSnippetView` (Shortcuts' metadata then
+lists a dialog but no snippet). Intents that don't opt in keep exactly the
+output they had.
+
 A button whose `action` isn't in the registry throws an `ArgumentError` when
 the card is sent. With `@AssistantBackground()` a press runs Dart without
 opening the app on iOS, like other live actions; without it, iOS brings the
-app forward if Flutter isn't running. Below iOS / macOS 26 the same card
-shows without its buttons.
+app forward if Flutter isn't running.
 
 How it works: the generated plugin has a `SnippetIntent`
 (`AssistantCardSnippetIntent`) holding the card, and an
-`AssistantCardButtonIntent` for its buttons (`Button(intent:)`). The intent
-returns the snippet intent from 26 (`.result(snippetIntent:)`) and the plain
-`AssistantCardView` before, so its result type no longer states
-`ShowsSnippetView` unless the deployment target is 26 (then
-`ShowsSnippetIntent`). After a press Siri performs the snippet intent again,
+`AssistantCardButtonIntent` for its buttons (`Button(intent:)`); Apple only
+registers intents of the app's own module. After a press Siri performs the snippet intent again,
 which shows the newest card the button's action replied with
 (`AssistantCardStore`, the last 20 cards). Toggles (`Toggle(intent:)`) aren't
 supported; use a button whose title says the state.

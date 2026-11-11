@@ -83,7 +83,8 @@ class BooksPageNavigationSetting extends SchemaEnumCases {
 ///
 /// `dialogs` and `confirm` give, by intent name, what Siri says when one
 /// finishes and what it asks first.
-/// `replies` lets live intents' handlers return an `AssistantReply`.
+/// `replies` lets live intents' handlers return an `AssistantReply`, and
+/// `cardButtons` lets their cards have buttons below iOS / macOS 26 targets.
 class BooksBook extends SchemaEntity {
   const BooksBook({
     this.openBook = false,
@@ -91,6 +92,7 @@ class BooksBook extends SchemaEntity {
     super.dialogs,
     super.confirm,
     super.replies,
+    super.cardButtons,
     super.url,
     super.visualSearch,
   }) : super('books.book');
@@ -244,7 +246,8 @@ class FixedBooksAudiobook extends SchemaContainer {
 ///
 /// `dialogs` and `confirm` give, by intent name, what Siri says when one
 /// finishes and what it asks first.
-/// `replies` lets live intents' handlers return an `AssistantReply`.
+/// `replies` lets live intents' handlers return an `AssistantReply`, and
+/// `cardButtons` lets their cards have buttons below iOS / macOS 26 targets.
 class BooksSettings extends SchemaEntity {
   const BooksSettings({
     this.updateFontSize = false,
@@ -255,6 +258,7 @@ class BooksSettings extends SchemaEntity {
     super.dialogs,
     super.confirm,
     super.replies,
+    super.cardButtons,
     super.url,
     super.visualSearch,
   }) : super('books.settings');

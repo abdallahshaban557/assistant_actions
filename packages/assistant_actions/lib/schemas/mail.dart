@@ -122,7 +122,8 @@ class FixedMailMailbox extends SchemaContainer {
 ///
 /// `dialogs` and `confirm` give, by intent name, what Siri says when one
 /// finishes and what it asks first (deletes ask by default; see `confirmDeletes`).
-/// `replies` lets live intents' handlers return an `AssistantReply`.
+/// `replies` lets live intents' handlers return an `AssistantReply`, and
+/// `cardButtons` lets their cards have buttons below iOS / macOS 26 targets.
 class MailDraft extends SchemaEntity {
   const MailDraft({
     required this.account,
@@ -136,6 +137,7 @@ class MailDraft extends SchemaEntity {
     super.confirm,
     super.confirmDeletes,
     super.replies,
+    super.cardButtons,
     super.url,
     super.visualSearch,
   }) : super('mail.draft');
@@ -243,7 +245,8 @@ class FixedMailDraft extends SchemaContainer {
 ///
 /// `dialogs` and `confirm` give, by intent name, what Siri says when one
 /// finishes and what it asks first (deletes ask by default; see `confirmDeletes`).
-/// `replies` lets live intents' handlers return an `AssistantReply`.
+/// `replies` lets live intents' handlers return an `AssistantReply`, and
+/// `cardButtons` lets their cards have buttons below iOS / macOS 26 targets.
 class MailMessage extends SchemaEntity {
   const MailMessage({
     required this.account,
@@ -258,6 +261,7 @@ class MailMessage extends SchemaEntity {
     super.confirm,
     super.confirmDeletes,
     super.replies,
+    super.cardButtons,
     super.url,
     super.visualSearch,
   }) : super('mail.message');

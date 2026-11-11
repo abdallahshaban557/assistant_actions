@@ -43,7 +43,8 @@ enum ClockTimerState {
 ///
 /// `dialogs` and `confirm` give, by intent name, what Siri says when one
 /// finishes and what it asks first (deletes ask by default; see `confirmDeletes`).
-/// `replies` lets live intents' handlers return an `AssistantReply`.
+/// `replies` lets live intents' handlers return an `AssistantReply`, and
+/// `cardButtons` lets their cards have buttons below iOS / macOS 26 targets.
 class ClockAlarm extends SchemaEntity {
   const ClockAlarm({
     this.createAlarm = false,
@@ -55,6 +56,7 @@ class ClockAlarm extends SchemaEntity {
     super.confirm,
     super.confirmDeletes,
     super.replies,
+    super.cardButtons,
     super.url,
     super.visualSearch,
   }) : super('clock.alarm');
@@ -138,7 +140,8 @@ abstract final class ClockAlarmField {
 ///
 /// `dialogs` and `confirm` give, by intent name, what Siri says when one
 /// finishes and what it asks first.
-/// `replies` lets live intents' handlers return an `AssistantReply`.
+/// `replies` lets live intents' handlers return an `AssistantReply`, and
+/// `cardButtons` lets their cards have buttons below iOS / macOS 26 targets.
 class ClockStopwatch extends SchemaEntity {
   const ClockStopwatch({
     this.lapStopwatch = false,
@@ -148,6 +151,7 @@ class ClockStopwatch extends SchemaEntity {
     super.dialogs,
     super.confirm,
     super.replies,
+    super.cardButtons,
     super.url,
     super.visualSearch,
   }) : super('clock.stopwatch');
@@ -223,7 +227,8 @@ abstract final class ClockStopwatchField {
 ///
 /// `dialogs` and `confirm` give, by intent name, what Siri says when one
 /// finishes and what it asks first.
-/// `replies` lets live intents' handlers return an `AssistantReply`.
+/// `replies` lets live intents' handlers return an `AssistantReply`, and
+/// `cardButtons` lets their cards have buttons below iOS / macOS 26 targets.
 class ClockTimer extends SchemaEntity {
   const ClockTimer({
     this.cancelTimer = false,
@@ -234,6 +239,7 @@ class ClockTimer extends SchemaEntity {
     super.dialogs,
     super.confirm,
     super.replies,
+    super.cardButtons,
     super.url,
     super.visualSearch,
   }) : super('clock.timer');

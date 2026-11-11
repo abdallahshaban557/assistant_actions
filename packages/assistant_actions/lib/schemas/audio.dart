@@ -1027,7 +1027,8 @@ class FixedAudioSongCollection extends SchemaContainer {
 ///
 /// `dialogs` and `confirm` give, by intent name, what Siri says when one
 /// finishes and what it asks first.
-/// `replies` lets live intents' handlers return an `AssistantReply`.
+/// `replies` lets live intents' handlers return an `AssistantReply`, and
+/// `cardButtons` lets their cards have buttons below iOS / macOS 26 targets.
 class AudioWarmupAudioQueueResult extends SchemaEntity {
   const AudioWarmupAudioQueueResult({
     this.playAudio = false,
@@ -1035,6 +1036,7 @@ class AudioWarmupAudioQueueResult extends SchemaEntity {
     super.dialogs,
     super.confirm,
     super.replies,
+    super.cardButtons,
     super.url,
     super.visualSearch,
   }) : super('audio.warmupAudioQueueResult');
@@ -1078,7 +1080,8 @@ class FixedAudioWarmupAudioQueueResult extends SchemaContainer {
 ///
 /// `dialogs` and `confirm` give, by intent name, what Siri says when one
 /// finishes and what it asks first.
-/// `replies` lets live intents' handlers return an `AssistantReply`.
+/// `replies` lets live intents' handlers return an `AssistantReply`, and
+/// `cardButtons` lets their cards have buttons below iOS / macOS 26 targets.
 class AudioIntents extends SchemaIntents {
   const AudioIntents({
     this.addToLibrary = false,
@@ -1088,6 +1091,7 @@ class AudioIntents extends SchemaIntents {
     super.dialogs,
     super.confirm,
     super.replies,
+    super.cardButtons,
   }) : super('audio');
 
   /// Handle `audio.addToLibrary` ("Add Audio Item to Library"): calls

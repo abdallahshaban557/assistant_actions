@@ -21,7 +21,8 @@ import '../src/schema.dart';
 ///
 /// `dialogs` and `confirm` give, by intent name, what Siri says when one
 /// finishes and what it asks first (deletes ask by default; see `confirmDeletes`).
-/// `replies` lets live intents' handlers return an `AssistantReply`.
+/// `replies` lets live intents' handlers return an `AssistantReply`, and
+/// `cardButtons` lets their cards have buttons below iOS / macOS 26 targets.
 class SpreadsheetSheet extends SchemaEntity {
   const SpreadsheetSheet({
     required this.spreadsheet,
@@ -39,6 +40,7 @@ class SpreadsheetSheet extends SchemaEntity {
     super.confirm,
     super.confirmDeletes,
     super.replies,
+    super.cardButtons,
     super.url,
     super.visualSearch,
   }) : super('spreadsheet.sheet');
@@ -147,7 +149,8 @@ abstract final class SpreadsheetSheetField {
 ///
 /// `dialogs` and `confirm` give, by intent name, what Siri says when one
 /// finishes and what it asks first (deletes ask by default; see `confirmDeletes`).
-/// `replies` lets live intents' handlers return an `AssistantReply`.
+/// `replies` lets live intents' handlers return an `AssistantReply`, and
+/// `cardButtons` lets their cards have buttons below iOS / macOS 26 targets.
 class SpreadsheetDocument extends SchemaEntity {
   const SpreadsheetDocument({
     this.create = false,
@@ -158,6 +161,7 @@ class SpreadsheetDocument extends SchemaEntity {
     super.confirm,
     super.confirmDeletes,
     super.replies,
+    super.cardButtons,
     super.url,
     super.visualSearch,
   }) : super('spreadsheet.document');

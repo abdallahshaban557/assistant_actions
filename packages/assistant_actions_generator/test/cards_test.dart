@@ -4,7 +4,7 @@ import 'package:assistant_actions_generator/src/model.dart';
 import 'package:assistant_actions_generator/src/swift_writer.dart';
 import 'package:test/test.dart';
 
-ActionModel _action(String name, {bool reply = true, ResultModel? result}) => ActionModel(
+ActionModel _action(String name, {bool reply = true, ResultModel? result, bool buttons = false}) => ActionModel(
       functionName: name,
       library: Uri.parse('package:app/actions.dart'),
       title: name,
@@ -13,6 +13,7 @@ ActionModel _action(String name, {bool reply = true, ResultModel? result}) => Ac
       returnsString: false,
       returnsReply: reply,
       result: result,
+      cardButtons: buttons,
     );
 
 AppModel _app(List<ActionModel> actions,
@@ -41,8 +42,19 @@ String _block(String swift, String start) {
 }
 
 void main() {
-  test('below 26 a reply shows a static card, and from 26 an interactive one', () {
+  test('below 26 a reply keeps its static ShowsSnippetView card unless it opts in', () {
     final swift = SwiftWriter(_app([_action('show')])).write();
+    final show = _block(swift, 'public struct ShowAction');
+    expect(show, contains('some IntentResult & ProvidesDialog & ShowsSnippetView {'));
+    expect(show, contains('    return .result(dialog: IntentDialog(stringLiteral: reply.dialog ?? "Done."), '
+        'view: AssistantCardView(reply.card))\n  }'));
+    expect(show, isNot(contains('#available')));
+    expect(swift, isNot(contains('AssistantCardSnippetIntent')), reason: 'no intent shows one');
+    expect(swift, contains('import SwiftUI\n'));
+  });
+
+  test('cardButtons: a card view below 26 and a snippet intent from 26', () {
+    final swift = SwiftWriter(_app([_action('show', buttons: true)])).write();
     final show = _block(swift, 'public struct ShowAction');
     // SE-0360: one opaque result type, a different result in each branch.
     expect(show, contains('some IntentResult & ProvidesDialog {'));
@@ -58,7 +70,7 @@ void main() {
     expect(swift, contains('import SwiftUI\n'));
   });
 
-  test('a deployment target of 26 always shows the snippet intent', () {
+  test('a deployment target of 26 always shows the snippet intent, opted in or not', () {
     final swift =
         SwiftWriter(_app([_action('show')], deployment: const DeploymentTarget(iOS: 26, macOS: 26))).write();
     final show = _block(swift, 'public struct ShowAction');
@@ -70,14 +82,14 @@ void main() {
   });
 
   test('one platform below 26 keeps both branches', () {
-    final swift =
-        SwiftWriter(_app([_action('show')], deployment: const DeploymentTarget(iOS: 26, macOS: 14))).write();
+    final swift = SwiftWriter(
+        _app([_action('show', buttons: true)], deployment: const DeploymentTarget(iOS: 26, macOS: 14))).write();
     expect(_block(swift, 'public struct ShowAction'), contains('if #available(iOS 26.0, macOS 26.0, *) {'));
   });
 
   test('values come back with the card', () {
     final swift = SwiftWriter(_app([
-      _action('count', result: const ResultModel(value: ValueType(ValueKind.integer), wrapped: true)),
+      _action('count', buttons: true, result: const ResultModel(value: ValueType(ValueKind.integer), wrapped: true)),
     ])).write();
     final count = _block(swift, 'public struct CountAction');
     expect(count, contains('some IntentResult & ReturnsValue<Int> & ProvidesDialog {'));
@@ -86,7 +98,7 @@ void main() {
   });
 
   test('the snippet and button intents are generated in the app module', () {
-    final swift = SwiftWriter(_app([_action('show')])).write();
+    final swift = SwiftWriter(_app([_action('show', buttons: true)])).write();
     final snippet = _block(swift, 'public struct AssistantCardSnippetIntent: SnippetIntent');
     expect(swift, contains('@available(iOS 26.0, macOS 26.0, *)\npublic struct AssistantCardSnippetIntent: SnippetIntent {'));
     expect(snippet, contains('public static let isDiscoverable = false'));
@@ -111,7 +123,7 @@ void main() {
   });
 
   test('with @AssistantBackground() a press runs Dart without opening the app on iOS', () {
-    final swift = SwiftWriter(_app([_action('show')], background: true)).write();
+    final swift = SwiftWriter(_app([_action('show', buttons: true)], background: true)).write();
     final button = _block(swift, 'public struct AssistantCardButtonIntent: AppIntent');
     expect(button, contains('  #if os(iOS)\n  public static let supportedModes: IntentModes = [.background, .foreground(.dynamic)]\n  #endif'));
     expect(button, contains('if !(await AssistantBackground.shared.prepare()), UIApplication.shared.applicationState != .active {'));
