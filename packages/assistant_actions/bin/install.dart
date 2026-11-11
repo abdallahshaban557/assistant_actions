@@ -3,14 +3,21 @@
 //   dart run assistant_actions:install
 //
 // It is safe to run again; each step skips what is already done.
+//
+// With --widgets it also adds an iOS widget extension (AssistantWidgets) that
+// draws the Live Activities started with AssistantLiveActivity, and turns
+// on NSSupportsLiveActivities.
 
 import 'dart:io';
+import 'dart:isolate';
 import 'dart:math';
+
+part 'src/widgets.dart';
 
 const _plugin = 'assistant_actions_app';
 const _shortcuts = 'AssistantShortcuts.g.swift';
 
-void main(List<String> args) {
+Future<void> main(List<String> args) async {
   final root = Directory.current;
   final pubspec = File('${root.path}/pubspec.yaml');
   if (!pubspec.existsSync() || !pubspec.readAsStringSync().contains(RegExp(r'^\s+assistant_actions:', multiLine: true))) {
@@ -30,6 +37,7 @@ void main(List<String> args) {
     pbx = _raiseDeploymentTarget(pbx, platform);
     project.writeAsStringSync(pbx);
   }
+  if (args.contains('--widgets')) await _installWidgets(root);
 
   stdout.writeln('''
 

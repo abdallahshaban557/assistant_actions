@@ -1,3 +1,12 @@
+## 0.0.12
+
+* Generates Focus filters from `@AssistantFocusFilter`, checking that each
+  parameter is nullable or has a constant default.
+* `liveActivity: true` actions conform to `LiveActivityIntent` on iOS, and
+  call Dart without coming forward when it's already running. They can also
+  return an `AssistantReply`. On a `SnapshotAnswer` the option is a build
+  error.
+
 ## 0.0.11
 
 * Generates `requestConfirmation` (deletes by default), `ProvidesDialog` from

@@ -92,3 +92,32 @@ const quickRecipes = SnapshotAnswer<Recipe>(
   dialog: 'Quickest: {items}.',
   empty: 'No recipes yet.',
 );
+
+/// Ends the recording `journal.createAudioEntry` started. A Live Activity
+/// intent on iOS: while the app records in the background, this runs at once,
+/// without bringing the app forward, and ends the Live Activity.
+@AssistantAction(
+  title: 'Stop Recording',
+  description: 'Stops recording the journal entry.',
+  dialog: 'Stopped recording.',
+  liveActivity: true,
+)
+Future<void> stopRecording() => Store.instance.stopRecording();
+
+/// The app's Focus filter: in Settings → Focus, add it to, say, a Work Focus
+/// and turn on "Hide tasks". Runs when that Focus turns on, and again with
+/// the defaults when it turns off.
+@AssistantFocusFilter(
+  title: 'Assistant Actions Example',
+  description: 'Choose what the app shows during this Focus.',
+  summary: 'Hide tasks: {hideTasks}',
+)
+Future<void> applyFocus({
+  @Param(title: 'Hide tasks') bool hideTasks = false,
+  @Param(title: 'Note to show') String? note,
+}) async {
+  Store.instance
+    ..hideTasks = hideTasks
+    ..focusNote = note
+    ..changed();
+}

@@ -1,0 +1,5 @@
+// Written by `dart run assistant_actions:install --widgets`.
+// Flutter's build name and number, so the extension's version matches the
+// app's (App Store Connect requires it). Not the Runner xcconfigs: those can
+// bring in CocoaPods settings meant for the app.
+#include "../Flutter/Generated.xcconfig"

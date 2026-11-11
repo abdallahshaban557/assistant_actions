@@ -2,7 +2,7 @@
 
 The `build_runner` generator for
 [`assistant_actions`](https://pub.dev/packages/assistant_actions). It reads
-`@AssistantAction`, `@AssistantEntity` and App Schema annotations from
+`@AssistantAction`, `@AssistantEntity`, `@AssistantFocusFilter` and App Schema annotations from
 `lib/assistant_actions.dart` and writes:
 
 - `lib/assistant_actions.g.dart` — the registry for `AssistantActions.start` and

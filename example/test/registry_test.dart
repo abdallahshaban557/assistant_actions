@@ -20,6 +20,22 @@ class _NoHost implements AssistantHost {
   Future<void> publish(String collection, String json) async {}
 }
 
+/// Also plays the Swift side of Live Activities.
+class _ActivityHost extends _NoHost implements AssistantHostCalls {
+  final calls = <(String, Map<String, Object?>)>[];
+
+  @override
+  Future<String?> invoke(String method, String argsJson) async {
+    final args = (jsonDecode(argsJson) as Map).cast<String, Object?>();
+    calls.add((method, args));
+    return jsonEncode(switch (method) {
+      'liveActivity.start' => {'id': 'a1', 'kind': args['kind'], 'state': 'active'},
+      'liveActivity.end' => true,
+      _ => null,
+    });
+  }
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   final store = Store.instance;
@@ -30,7 +46,11 @@ void main() {
     store.journal.clear();
     store.timers.clear();
     store.onScreen = null;
-    store.recording = false;
+    store
+      ..recording = false
+      ..recordingActivity = null
+      ..hideTasks = false
+      ..focusNote = null;
     registry = assistantActionsRegistry(
       findRecipe: (id) => store.recipes.where((r) => r.id == id).firstOrNull,
       taskItem: TaskHandler(),
@@ -167,5 +187,35 @@ void main() {
     final entry = store.journal.single;
     expect(entry.media.single.path, '/tmp/note.m4a');
     expect(entry.place?.name, 'Lake');
+  });
+
+  test('the Focus filter applies its values, and its defaults when the Focus ends', () async {
+    await AssistantActions.perform('applyFocus', '{"hideTasks":true,"note":"Deep work"}');
+    expect((store.hideTasks, store.focusNote), (true, 'Deep work'));
+    await AssistantActions.perform('applyFocus', '{"hideTasks":false,"note":null}');
+    expect((store.hideTasks, store.focusNote), (false, null));
+  });
+
+  test('recording an audio entry shows a Live Activity, and stopping ends it', () async {
+    final host = _ActivityHost();
+    await AssistantActions.start(registry, host: host);
+    await AssistantActions.perform('JournalItem.startAudioEntry', '{}');
+    expect(store.recording, isTrue);
+    expect(store.recordingActivity?.kind, 'recording');
+    final (method, args) = host.calls.single;
+    expect(method, 'liveActivity.start');
+    expect((args['content'] as Map)['systemImage'], 'mic.fill');
+
+    await AssistantActions.perform('stopRecording', '{}');
+    expect(store.recording, isFalse);
+    expect(store.recordingActivity, isNull);
+    expect(host.calls.last.$1, 'liveActivity.end');
+    expect((host.calls.last.$2['content'] as Map)['title'], 'Journal entry saved');
+  });
+
+  test('without Live Activities, recording still starts', () async {
+    await AssistantActions.perform('JournalItem.startAudioEntry', '{}');
+    expect(store.recording, isTrue);
+    expect(store.recordingActivity, isNull);
   });
 }

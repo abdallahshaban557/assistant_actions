@@ -1,3 +1,21 @@
+## 0.0.15
+
+* Focus filters: `@AssistantFocusFilter` on a top-level function makes it
+  the app's Focus filter (`SetFocusFilterIntent`). It runs live when Dart is
+  running and is queued otherwise.
+* Live Activities (iOS): `AssistantLiveActivity.start / update / end /
+  running / areEnabled`, with `AssistantActivityContent` and the runtime's
+  JSON-backed `AssistantActivityAttributes`, over `AssistantHostCalls`.
+* `dart run assistant_actions:install --widgets` adds an `AssistantWidgets`
+  widget extension with a generic Live Activity view: the files, the Xcode
+  target embedded in Runner, and `NSSupportsLiveActivities`.
+* `@AssistantAction(liveActivity: true)` makes the intent a
+  `LiveActivityIntent` on iOS, which runs at once when Dart is already
+  running.
+* The README documents what an app adds for Controls and widget
+  configuration, which live in the widget extension, and for the Action
+  button.
+
 ## 0.0.14
 
 * Siri can confirm, speak results and show result cards.
