@@ -17,10 +17,17 @@ import '../src/schema.dart';
 
 /// Turns on Apple's `system` intents that belong to no entity. Put it on
 /// the class that implements the generated `SystemAssistantHandler`.
+///
+/// `dialogs` and `confirm` give, by intent name, what Siri says when one
+/// finishes and what it asks first.
+/// `replies` lets live intents' handlers return an `AssistantReply`.
 class SystemIntents extends SchemaIntents {
   const SystemIntents({
     this.open = false,
     this.searchInApp = false,
+    super.dialogs,
+    super.confirm,
+    super.replies,
   }) : super('system');
 
   /// Handle `system.open` ("Open Item"): Siri opens one of the app's entities.

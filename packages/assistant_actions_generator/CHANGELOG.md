@@ -1,3 +1,14 @@
+## 0.0.11
+
+* Generates `requestConfirmation` (deletes by default), `ProvidesDialog` from
+  `dialogs` templates, `ShowsSnippetView` result cards, and `requestChoice`
+  for intents that use replies.
+* Checks intent names, placeholders and whether an intent can reply, at
+  build time.
+* `tool/validate_schemas.dart` exercises these options on every other
+  intent.
+* Needs assistant_actions 0.0.14.
+
 ## 0.0.10
 
 * Maps people, places, files, recurrence rules and unions to the runtime's

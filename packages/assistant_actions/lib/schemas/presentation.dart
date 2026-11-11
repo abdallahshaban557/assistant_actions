@@ -18,6 +18,10 @@ import '../src/schema.dart';
 ///
 /// Map fields with [PresentationSlideField] and turn on the schema intents the app
 /// supports. Each one becomes a method on the generated handler.
+///
+/// `dialogs` and `confirm` give, by intent name, what Siri says when one
+/// finishes and what it asks first (deletes ask by default; see `confirmDeletes`).
+/// `replies` lets live intents' handlers return an `AssistantReply`.
 class PresentationSlide extends SchemaEntity {
   const PresentationSlide({
     required this.presentation,
@@ -32,6 +36,10 @@ class PresentationSlide extends SchemaEntity {
     this.addCommentToSlide = false,
     this.addWebVideoToSlide = false,
     this.deleteSlide = false,
+    super.dialogs,
+    super.confirm,
+    super.confirmDeletes,
+    super.replies,
   }) : super('presentation.slide');
 
   /// The fixed `presentation.document` every item belongs to (required by the schema).
@@ -195,12 +203,19 @@ class FixedPresentationTemplate extends SchemaContainer {
 ///
 /// Map fields with [PresentationDocumentField] and turn on the schema intents the app
 /// supports. Each one becomes a method on the generated handler.
+///
+/// `dialogs` and `confirm` give, by intent name, what Siri says when one
+/// finishes and what it asks first.
+/// `replies` lets live intents' handlers return an `AssistantReply`.
 class PresentationDocument extends SchemaEntity {
   const PresentationDocument({
     this.create = false,
     this.open = false,
     this.update = false,
     this.stopPlayback = false,
+    super.dialogs,
+    super.confirm,
+    super.replies,
   }) : super('presentation.document');
 
   /// Handle `presentation.create` ("Create Presentation"): calls

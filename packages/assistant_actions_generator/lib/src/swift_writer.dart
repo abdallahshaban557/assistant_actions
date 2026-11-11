@@ -1,8 +1,11 @@
 import 'package:source_gen/source_gen.dart';
 
 import 'catalog.dart';
+import 'interaction.dart';
 import 'model.dart';
 import 'schema_calls.dart';
+
+part 'swift_writer_interaction.dart';
 
 /// Writes `AssistantActions.g.swift`, compiled into the generated
 /// `assistant_actions_app` plugin.
@@ -260,7 +263,7 @@ ${_propertyQuery(name, [const _Queryable('title', 'Title', 'string', optional: f
       ..writeln('  public init() {}')
       ..writeln()
       ..writeln('  @MainActor')
-      ..writeln('  public func perform() async throws -> some IntentResult & ProvidesDialog {')
+      ..writeln('  public func perform() async throws -> some ${_resultType('IntentResult', dialog: true, snippet: a.returnsReply)} {')
       ..writeln(a.params.isEmpty ? '    let args: [String: Any] = [:]' : '    let args: [String: Any] = [');
     for (final p in a.params) {
       final value = p.entity != null
@@ -269,8 +272,20 @@ ${_propertyQuery(name, [const _Queryable('title', 'Title', 'string', optional: f
       _out.writeln('      "${p.name}": $value,');
     }
     if (a.params.isNotEmpty) _out.writeln('    ]');
+    // Asked before anything runs or is queued.
+    if (a.confirm != null) _out.writeln('    try await assistantConfirm(${_interpolate(a.confirm!, a)})');
     final dialog = a.dialog == null ? '"Done."' : _interpolate(a.dialog!, a);
-    if (foreground) {
+    if (foreground && a.returnsReply) {
+      _out.writeln('''
+    #if os(iOS)
+      // iOS doesn't start the Flutter engine without a scene, so answer from the foreground.
+      if UIApplication.shared.applicationState != .active {
+        try await requestToContinueInForeground()
+      }
+    #endif
+    let reply = AssistantReply(json: try await AssistantBridge.shared.perform("${a.id}", args: args))
+    return ${_resultOf(dialog: 'reply.dialog ?? $dialog', snippet: true)}''');
+    } else if (foreground) {
       _out.writeln('''
     #if os(iOS)
       // iOS doesn't start the Flutter engine without a scene, so answer from the foreground.
@@ -550,7 +565,7 @@ extension ${e.swiftName}: IndexedEntity {
         if (intent.id == 'system.open') {
           _openIntents(d, intent);
         } else {
-          _callIntent(null, intent, d.handler);
+          _callIntent(null, intent, d.handler, d.interactions);
         }
       }
     }
@@ -1093,9 +1108,11 @@ ${queryables.isEmpty ? '' : '\n${_propertyQuery(name, queryables, 'all()')}'}}
 
   void _schemaIntent(SchemaEntityModel s, IntentSchema intent, IntentKind kind) {
     if (kind == IntentKind.record) return _recordIntent(s, intent);
-    if (kind == IntentKind.call) return _callIntent(s, intent, '${s.className}AssistantHandler');
+    if (kind == IntentKind.call) return _callIntent(s, intent, '${s.className}AssistantHandler', s.interactions);
     final entity = s.swiftName;
+    final ix = s.interactions;
     final returnsEntity = intent.result?.base.kind == 'entity' && intent.result!.base.ref == s.schema.id;
+    final dialog = _schemaDialog(intent, ix, result: kind == IntentKind.create ? 'value' : 'updated');
     // `valueState` (clearing a field) is iOS 18.2 / macOS 15.2.
     final clears = kind == IntentKind.update &&
         intent.parameters.any((p) =>
@@ -1112,7 +1129,9 @@ ${queryables.isEmpty ? '' : '\n${_propertyQuery(name, queryables, 'all()')}'}}
     _out
       ..writeln()
       ..writeln('  @MainActor')
-      ..writeln('  func perform() async throws -> some ${returnsEntity ? 'ReturnsValue<$entity>' : 'IntentResult'} {');
+      ..writeln('  func perform() async throws -> some '
+          '${_resultType(returnsEntity ? 'ReturnsValue<$entity>' : 'IntentResult', dialog: dialog != null)} {')
+      ..write(_confirmLines(intent, kind, ix));
 
     // Parameters that set a mapped Dart field, grouped by field.
     final byField = <String, List<SchemaMember>>{};
@@ -1129,8 +1148,11 @@ ${queryables.isEmpty ? '' : '\n${_propertyQuery(name, queryables, 'all()')}'}}
         }
         _out.writeln('''
     let id = AssistantInbox.create("${s.collection}", fields: fields)
-    AssistantBridge.shared.inboxChanged()
-    return .result(value: $entity(record: AssistantRecord(id: id, title: "", fields: fields)))''');
+    AssistantBridge.shared.inboxChanged()''');
+        final created = '$entity(record: AssistantRecord(id: id, title: "", fields: fields))';
+        _out.writeln(dialog == null
+            ? '    return .result(value: $created)'
+            : '    let value = $created\n    return ${_resultOf(value: 'value', dialog: dialog)}');
       case IntentKind.update || IntentKind.append:
         bool clearable(List<SchemaMember> params) =>
             kind == IntentKind.update &&
@@ -1189,7 +1211,7 @@ ${queryables.isEmpty ? '' : '\n${_propertyQuery(name, queryables, 'all()')}'}}
           }
           _out.writeln('    }');
         }
-        _out.writeln('    return .result(value: updated)');
+        _out.writeln('    return ${_resultOf(value: 'updated', dialog: dialog)}');
       case IntentKind.record || IntentKind.call:
         throw StateError('handled by _recordIntent / _callIntent');
       case IntentKind.delete:
@@ -1198,7 +1220,7 @@ ${queryables.isEmpty ? '' : '\n${_propertyQuery(name, queryables, 'all()')}'}}
       AssistantInbox.delete("${s.collection}", id: item.id)
     }
     AssistantBridge.shared.inboxChanged()
-    return .result()''');
+    return ${_resultOf(dialog: dialog)}''');
     }
     _out
       ..writeln('  }')
@@ -1213,14 +1235,18 @@ ${queryables.isEmpty ? '' : '\n${_propertyQuery(name, queryables, 'all()')}'}}
   /// like a `Runs.withFlutter` action, then calls the Dart handler live.
   void _recordIntent(SchemaEntityModel s, IntentSchema intent) {
     final method = recordMethod(intent);
+    final ix = s.interactions;
+    final reply = ix.repliesTo(intent);
+    final dialog = _schemaDialog(intent, ix);
+    final call = 'AssistantBridge.shared.perform("${recordActionId(s, intent)}", args: [:])';
     _out.writeln('''
 /// `${intent.id}` → opens the app and calls `$method()` on the `${s.className}` handler.
 ${_availability(_max(_intentFloor(intent), _entityFloor(s.schema)))}
 @AppIntent(schema: .${intent.id})
 struct ${s.className}${pascal(intent.name)}Intent: ForegroundContinuableIntent {
   @MainActor
-  func perform() async throws -> some IntentResult {
-    #if os(iOS)
+  func perform() async throws -> some ${_resultType('IntentResult', dialog: reply || dialog != null, snippet: reply)} {
+${_confirmLines(intent, IntentKind.record, ix)}    #if os(iOS)
       // Recording needs the microphone, which iOS only starts in the foreground,
       // and the Flutter engine needs a scene.
       if UIApplication.shared.applicationState != .active {
@@ -1229,8 +1255,9 @@ struct ${s.className}${pascal(intent.name)}Intent: ForegroundContinuableIntent {
     #elseif os(macOS)
       NSApplication.shared.activate()
     #endif
-    _ = try await AssistantBridge.shared.perform("${recordActionId(s, intent)}", args: [:])
-    return .result()
+${reply ? '''    let reply = AssistantReply(json: try await $call)
+    return ${_resultOf(dialog: 'reply.dialog ?? ${dialog ?? '"Done."'}', snippet: true)}''' : '''    _ = try await $call
+    return ${_resultOf(dialog: dialog)}'''}
   }
 }
 ''');
@@ -1273,7 +1300,7 @@ struct ${s.className}${pascal(intent.name)}Intent: ForegroundContinuableIntent {
   /// A schema intent that calls a Dart handler method with its parameters
   /// (a [IntentKind.call]): live when [IntentSchema.isLive], else queued in
   /// the inbox like a `Runs.deferred` action.
-  void _callIntent(SchemaEntityModel? owner, IntentSchema intent, String handler) {
+  void _callIntent(SchemaEntityModel? owner, IntentSchema intent, String handler, Interactions ix) {
     final method = callMethod(intent, owner?.schema);
     final id = callActionId(owner, intent);
     final name = '${owner?.className ?? pascal(intent.domain)}${pascal(intent.name)}Intent';
@@ -1288,6 +1315,8 @@ struct ${s.className}${pascal(intent.name)}Intent: ForegroundContinuableIntent {
       CallResult.unions => 'ReturnsValue<[$unionType]>',
       _ => 'IntentResult',
     };
+    final reply = live && ix.repliesTo(intent);
+    final dialog = _schemaDialog(intent, ix, result: 'value');
     final floor = _max(_intentFloor(intent), owner == null ? const {'iOS': 0, 'macOS': 0} : _entityFloor(owner.schema));
     // From iOS 26 an intent that opens the app declares it (`supportedModes`),
     // and the system brings the app forward before `perform`.
@@ -1313,13 +1342,17 @@ struct ${s.className}${pascal(intent.name)}Intent: ForegroundContinuableIntent {
     if (intent.parameters.isNotEmpty) _out.writeln();
     _out
       ..writeln('  @MainActor')
-      ..writeln('  func perform() async throws -> some $returns {')
-      ..writeln(args.isEmpty ? '    let args: [String: Any] = [:]' : '    let args: [String: Any] = [\n${args.join('\n')}\n    ]');
+      ..writeln('  func perform() async throws -> some ${_resultType(returns, dialog: reply || dialog != null, snippet: reply)} {')
+      ..writeln(args.isEmpty ? '    let args: [String: Any] = [:]' : '    let args: [String: Any] = [\n${args.join('\n')}\n    ]')
+      ..write(_confirmLines(intent, IntentKind.call, ix));
     if (!live) {
       _out
         ..writeln('    AssistantInbox.call("$id", args: args)')
         ..writeln('    AssistantBridge.shared.inboxChanged()')
-        ..writeln('    return .result()');
+        ..writeln('    return ${_resultOf(dialog: dialog)}');
+    } else if (reply) {
+      if (!modes) _out.writeln(_foreground(activateOnMac: intent.opensApp));
+      _replyResult(intent, id, method, result, resultType, unionType, dialog);
     } else {
       if (!modes) _out.writeln(_foreground(activateOnMac: intent.opensApp));
       _out.writeln('    ${intent.result == null ? '_' : 'let reply'} = try await AssistantBridge.shared.perform("$id", args: args)');
@@ -1329,21 +1362,21 @@ struct ${s.className}${pascal(intent.name)}Intent: ForegroundContinuableIntent {
             ..writeln('    guard let id = reply, let value = try await ${resultType}Query().entities(for: [id]).first else {')
             ..writeln('      throw AssistantActionError.failed("$method returned no ${_escape(result!)} item")')
             ..writeln('    }')
-            ..writeln('    return .result(value: value)');
+            ..writeln('    return ${_resultOf(value: 'value', dialog: dialog)}');
         case CallResult.entities:
           _out
             ..writeln('    let ids = AssistantValues.stringList(reply)')
-            ..writeln('    return .result(value: try await ${resultType}Query().entities(for: ids))');
+            ..writeln('    return ${_resultOf(value: 'try await ${resultType}Query().entities(for: ids)', dialog: dialog)}');
         case CallResult.union:
           _out
             ..writeln('    guard let value = $unionType.decode(AssistantValues.json(reply)) else {')
             ..writeln('      throw AssistantActionError.failed("$method returned nothing Siri can use")')
             ..writeln('    }')
-            ..writeln('    return .result(value: value)');
+            ..writeln('    return ${_resultOf(value: 'value', dialog: dialog)}');
         case CallResult.unions:
-          _out.writeln('    return .result(value: ((AssistantValues.json(reply) as? [Any]) ?? []).compactMap($unionType.decode))');
+          _out.writeln('    return ${_resultOf(value: '((AssistantValues.json(reply) as? [Any]) ?? []).compactMap($unionType.decode)', dialog: dialog)}');
         default:
-          _out.writeln('    return .result()');
+          _out.writeln('    return ${_resultOf(dialog: dialog)}');
       }
     }
     _out

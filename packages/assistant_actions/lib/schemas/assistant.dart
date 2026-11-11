@@ -15,9 +15,16 @@ import '../src/schema.dart';
 
 /// Turns on Apple's `assistant` intents that belong to no entity. Put it on
 /// the class that implements the generated `AssistantAssistantHandler`.
+///
+/// `dialogs` and `confirm` give, by intent name, what Siri says when one
+/// finishes and what it asks first.
+/// `replies` lets live intents' handlers return an `AssistantReply`.
 class AssistantIntents extends SchemaIntents {
   const AssistantIntents({
     this.activate = false,
+    super.dialogs,
+    super.confirm,
+    super.replies,
   }) : super('assistant');
 
   /// Handle `assistant.activate` ("Activate Assistant"): calls

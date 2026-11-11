@@ -72,9 +72,14 @@ class FixedRemindersGroup extends SchemaContainer {
 ///
 /// Map fields with [RemindersListField] and turn on the schema intents the app
 /// supports. Each one becomes a method on the generated handler.
+///
+/// `dialogs` and `confirm` give, by intent name, what Siri says when one
+/// finishes and what it asks first.
 class RemindersList extends SchemaEntity {
   const RemindersList({
     this.createList = false,
+    super.dialogs,
+    super.confirm,
   }) : super('reminders.list');
 
   /// Handle `reminders.createList` ("Create List"): creates items.
@@ -118,12 +123,18 @@ class FixedRemindersList extends SchemaContainer {
 ///
 /// Map fields with [RemindersReminderField] and turn on the schema intents the app
 /// supports. Each one becomes a method on the generated handler.
+///
+/// `dialogs` and `confirm` give, by intent name, what Siri says when one
+/// finishes and what it asks first (deletes ask by default; see `confirmDeletes`).
 class RemindersReminder extends SchemaEntity {
   const RemindersReminder({
     required this.list,
     this.createReminder = false,
     this.deleteReminders = false,
     this.updateReminder = false,
+    super.dialogs,
+    super.confirm,
+    super.confirmDeletes,
   }) : super('reminders.reminder');
 
   /// The fixed `reminders.list` every item belongs to (required by the schema).
@@ -208,10 +219,15 @@ abstract final class RemindersReminderField {
 ///
 /// Map fields with [RemindersSectionField] and turn on the schema intents the app
 /// supports. Each one becomes a method on the generated handler.
+///
+/// `dialogs` and `confirm` give, by intent name, what Siri says when one
+/// finishes and what it asks first.
 class RemindersSection extends SchemaEntity {
   const RemindersSection({
     required this.list,
     this.createSection = false,
+    super.dialogs,
+    super.confirm,
   }) : super('reminders.section');
 
   /// The fixed `reminders.list` every item belongs to (required by the schema).

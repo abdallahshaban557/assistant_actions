@@ -21,6 +21,34 @@ Future<void> addToShoppingList(
   Store.instance.changed();
 }
 
+/// Level 1, deferred, with a confirmation: Siri asks first, and nothing is
+/// queued if the user says no.
+@AssistantAction(
+  title: 'Remove from Shopping List',
+  confirm: 'Remove {recipe} from your shopping list?',
+  dialog: 'Removed {recipe}.',
+)
+Future<void> removeFromShoppingList(Recipe recipe) async {
+  Store.instance.shopping.removeWhere((item) => item.startsWith('${recipe.name} ×'));
+  Store.instance.changed();
+}
+
+/// Level 1, live, with a result card: Siri says the reply's dialog and shows
+/// its card.
+@AssistantAction(title: 'Show Recipe Card', runs: Runs.withFlutter)
+Future<AssistantReply<void>> showRecipeCard(Recipe recipe) async {
+  final onList = Store.instance.shopping.any((item) => item.startsWith('${recipe.name} ×'));
+  return AssistantReply(
+    dialog: '${recipe.name} takes ${recipe.minutes} minutes.',
+    card: AssistantCard(
+      title: recipe.name,
+      subtitle: '${recipe.minutes} min',
+      rows: [AssistantCardRow('On shopping list', onList ? 'Yes' : 'No')],
+      systemImage: 'fork.knife',
+    ),
+  );
+}
+
 /// Level 1, live: Siri speaks what this returns.
 @AssistantAction(
   title: 'Count Open Tasks',

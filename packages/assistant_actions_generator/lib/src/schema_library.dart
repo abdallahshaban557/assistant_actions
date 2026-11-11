@@ -1,4 +1,5 @@
 import 'catalog.dart';
+import 'interaction.dart' show canReply;
 import 'schema_calls.dart';
 
 /// Names used for a schema entity in the generated Dart library and by the
@@ -110,6 +111,15 @@ String generateSchemaLibrary(DomainCatalog catalog) {
       ..writeln('///')
       ..writeln('/// Map fields with [${names.fields}] and turn on the schema intents the app')
       ..writeln('/// supports. Each one becomes a method on the generated handler.');
+    if (intents.isNotEmpty) {
+      out
+        ..writeln('///')
+        ..writeln('/// `dialogs` and `confirm` give, by intent name, what Siri says when one')
+        ..writeln('/// finishes and what it asks first${intents.any((e) => e.$2 == IntentKind.delete) ? ' (deletes ask by default; see `confirmDeletes`)' : ''}.');
+      if (intents.any((e) => canReply(e.$1, e.$2))) {
+        out.writeln('/// `replies` lets live intents\' handlers return an `AssistantReply`.');
+      }
+    }
     if (entity.protocols.contains('file')) {
       out
         ..writeln('///')
@@ -120,6 +130,10 @@ String generateSchemaLibrary(DomainCatalog catalog) {
     final params = [
       for (final m in containers) m.type.isOptional ? 'this.${m.name},' : 'required this.${m.name},',
       for (final (intent, _) in intents) 'this.${intent.name} = false,',
+      // Siri conversation options (`SchemaEntity`), for entities with intents.
+      if (intents.isNotEmpty) ...['super.dialogs,', 'super.confirm,'],
+      if (intents.any((e) => e.$2 == IntentKind.delete)) 'super.confirmDeletes,',
+      if (intents.any((e) => canReply(e.$1, e.$2))) 'super.replies,',
     ];
     out
       ..writeln(params.isEmpty
@@ -238,8 +252,18 @@ String generateSchemaLibrary(DomainCatalog catalog) {
       ..writeln()
       ..writeln("/// Turns on Apple's `$domain` intents that belong to no entity. Put it on")
       ..writeln('/// the class that implements the generated `${pascal(domain)}AssistantHandler`.')
+      ..writeln('///')
+      ..writeln('/// `dialogs` and `confirm` give, by intent name, what Siri says when one')
+      ..writeln('/// finishes and what it asks first.');
+    if (domainIntents.any((i) => i.isLive)) out.writeln("/// `replies` lets live intents' handlers return an `AssistantReply`.");
+    out
       ..writeln('class $name extends SchemaIntents {')
-      ..writeln('  const $name({${[for (final i in domainIntents) 'this.${i.name} = false,'].join(' ')}})')
+      ..writeln('  const $name({${[
+        for (final i in domainIntents) 'this.${i.name} = false,',
+        'super.dialogs,',
+        'super.confirm,',
+        if (domainIntents.any((i) => i.isLive)) 'super.replies,',
+      ].join(' ')}})')
       ..writeln("      : super('$domain');")
       ..writeln();
     for (final intent in domainIntents) {

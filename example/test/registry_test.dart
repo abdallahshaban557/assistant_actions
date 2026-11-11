@@ -1,5 +1,7 @@
 // Drives the generated registry the way AssistantActions does when it drains
 // Siri's inbox. No device, simulator or Siri needed.
+import 'dart:convert';
+
 import 'package:assistant_actions/assistant_actions.dart';
 import 'package:assistant_actions_example/assistant_actions.g.dart';
 import 'package:assistant_actions_example/models/models.dart';
@@ -116,6 +118,35 @@ void main() {
   test('domain intents decode app-defined enum cases', () async {
     await AssistantActions.perform('camera.startCapture', '{"captureMode":"video","device":"front"}');
     expect(store.onScreen, 'camera: video, front');
+  });
+
+  test('startCapture replies with a dialog and a result card', () async {
+    final reply = jsonDecode((await AssistantActions.perform('camera.startCapture', '{"captureMode":"photo","device":"back"}'))!);
+    expect(reply, {
+      'dialog': 'The camera is ready for a photo.',
+      'card': {
+        'title': 'Camera',
+        'subtitle': 'Photo',
+        'rows': [
+          ['Lens', 'back'],
+        ],
+        'systemImage': 'camera',
+      },
+    });
+  });
+
+  test('a live action returns a recipe card; a confirmed one removes from the list', () async {
+    store.shopping
+      ..clear()
+      ..add('Pancakes × 2');
+    final reply = jsonDecode((await AssistantActions.perform('showRecipeCard', '{"recipe":"pancakes"}'))!) as Map;
+    expect(reply['dialog'], 'Pancakes takes 20 minutes.');
+    expect((reply['card'] as Map)['rows'], [
+      ['On shopping list', 'Yes'],
+    ]);
+    // Swift asked "Remove Pancakes from your shopping list?" before queuing this.
+    await registry.actions['removeFromShoppingList']!({'recipe': 'pancakes'});
+    expect(store.shopping, isEmpty);
   });
 
   test('system.open and searchInApp show things in the app', () async {

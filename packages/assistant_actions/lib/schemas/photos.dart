@@ -45,6 +45,10 @@ class PhotosRotationDirection extends SchemaEnumCases {
 ///
 /// Map fields with [PhotosAssetField] and turn on the schema intents the app
 /// supports. Each one becomes a method on the generated handler.
+///
+/// `dialogs` and `confirm` give, by intent name, what Siri says when one
+/// finishes and what it asks first (deletes ask by default; see `confirmDeletes`).
+/// `replies` lets live intents' handlers return an `AssistantReply`.
 class PhotosAsset extends SchemaEntity {
   const PhotosAsset({
     this.createAssets = false,
@@ -67,6 +71,10 @@ class PhotosAsset extends SchemaEntity {
     this.toggleDepth = false,
     this.straighten = false,
     this.editAsset = false,
+    super.dialogs,
+    super.confirm,
+    super.confirmDeletes,
+    super.replies,
   }) : super('photos.asset');
 
   /// Handle `photos.createAssets` ("Create Photos"): calls
@@ -293,6 +301,10 @@ class FixedPhotosAsset extends SchemaContainer {
 ///
 /// Map fields with [PhotosAlbumField] and turn on the schema intents the app
 /// supports. Each one becomes a method on the generated handler.
+///
+/// `dialogs` and `confirm` give, by intent name, what Siri says when one
+/// finishes and what it asks first (deletes ask by default; see `confirmDeletes`).
+/// `replies` lets live intents' handlers return an `AssistantReply`.
 class PhotosAlbum extends SchemaEntity {
   const PhotosAlbum({
     this.createAlbum = false,
@@ -300,6 +312,10 @@ class PhotosAlbum extends SchemaEntity {
     this.updateAlbum = false,
     this.deleteAlbum = false,
     this.postToSharedAlbum = false,
+    super.dialogs,
+    super.confirm,
+    super.confirmDeletes,
+    super.replies,
   }) : super('photos.album');
 
   /// Handle `photos.createAlbum` ("Create Album"): creates items.
@@ -358,9 +374,14 @@ abstract final class PhotosAlbumField {
 ///
 /// Map fields with [PhotosRecognizedPersonField] and turn on the schema intents the app
 /// supports. Each one becomes a method on the generated handler.
+///
+/// `dialogs` and `confirm` give, by intent name, what Siri says when one
+/// finishes and what it asks first.
 class PhotosRecognizedPerson extends SchemaEntity {
   const PhotosRecognizedPerson({
     this.updateRecognizedPerson = false,
+    super.dialogs,
+    super.confirm,
   }) : super('photos.recognizedPerson');
 
   /// Handle `photos.updateRecognizedPerson` ("Update Person"): updates items.

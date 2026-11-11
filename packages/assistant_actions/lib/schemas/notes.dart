@@ -19,12 +19,17 @@ import '../src/values.dart';
 ///
 /// Map fields with [NotesNoteField] and turn on the schema intents the app
 /// supports. Each one becomes a method on the generated handler.
+///
+/// `dialogs` and `confirm` give, by intent name, what Siri says when one
+/// finishes and what it asks first.
 class NotesNote extends SchemaEntity {
   const NotesNote({
     this.folder,
     this.createNote = false,
     this.updateNote = false,
     this.appendText = false,
+    super.dialogs,
+    super.confirm,
   }) : super('notes.note');
 
   /// The fixed `notes.folder` every item belongs to, if any.

@@ -18,6 +18,10 @@ import '../src/schema.dart';
 ///
 /// Map fields with [SpreadsheetSheetField] and turn on the schema intents the app
 /// supports. Each one becomes a method on the generated handler.
+///
+/// `dialogs` and `confirm` give, by intent name, what Siri says when one
+/// finishes and what it asks first (deletes ask by default; see `confirmDeletes`).
+/// `replies` lets live intents' handlers return an `AssistantReply`.
 class SpreadsheetSheet extends SchemaEntity {
   const SpreadsheetSheet({
     required this.spreadsheet,
@@ -31,6 +35,10 @@ class SpreadsheetSheet extends SchemaEntity {
     this.addCommentToSheet = false,
     this.addWebVideoToSheet = false,
     this.deleteSheet = false,
+    super.dialogs,
+    super.confirm,
+    super.confirmDeletes,
+    super.replies,
   }) : super('spreadsheet.sheet');
 
   /// The fixed `spreadsheet.document` every item belongs to (required by the schema).
@@ -134,12 +142,20 @@ abstract final class SpreadsheetSheetField {
 ///
 /// Map fields with [SpreadsheetDocumentField] and turn on the schema intents the app
 /// supports. Each one becomes a method on the generated handler.
+///
+/// `dialogs` and `confirm` give, by intent name, what Siri says when one
+/// finishes and what it asks first (deletes ask by default; see `confirmDeletes`).
+/// `replies` lets live intents' handlers return an `AssistantReply`.
 class SpreadsheetDocument extends SchemaEntity {
   const SpreadsheetDocument({
     this.create = false,
     this.open = false,
     this.update = false,
     this.delete = false,
+    super.dialogs,
+    super.confirm,
+    super.confirmDeletes,
+    super.replies,
   }) : super('spreadsheet.document');
 
   /// Handle `spreadsheet.create` ("Create Spreadsheet"): creates items.

@@ -80,10 +80,17 @@ class BooksPageNavigationSetting extends SchemaEnumCases {
 ///
 /// Map fields with [BooksBookField] and turn on the schema intents the app
 /// supports. Each one becomes a method on the generated handler.
+///
+/// `dialogs` and `confirm` give, by intent name, what Siri says when one
+/// finishes and what it asks first.
+/// `replies` lets live intents' handlers return an `AssistantReply`.
 class BooksBook extends SchemaEntity {
   const BooksBook({
     this.openBook = false,
     this.navigatePage = false,
+    super.dialogs,
+    super.confirm,
+    super.replies,
   }) : super('books.book');
 
   /// Handle `books.openBook` ("Open Book"): calls
@@ -232,6 +239,10 @@ class FixedBooksAudiobook extends SchemaContainer {
 ///
 /// Map fields with [BooksSettingsField] and turn on the schema intents the app
 /// supports. Each one becomes a method on the generated handler.
+///
+/// `dialogs` and `confirm` give, by intent name, what Siri says when one
+/// finishes and what it asks first.
+/// `replies` lets live intents' handlers return an `AssistantReply`.
 class BooksSettings extends SchemaEntity {
   const BooksSettings({
     this.updateFontSize = false,
@@ -239,6 +250,9 @@ class BooksSettings extends SchemaEntity {
     this.updateCharacterSpacing = false,
     this.updateWordSpacing = false,
     this.updateSettings = false,
+    super.dialogs,
+    super.confirm,
+    super.replies,
   }) : super('books.settings');
 
   /// Handle `books.updateFontSize` ("Update Book Font Size"): calls

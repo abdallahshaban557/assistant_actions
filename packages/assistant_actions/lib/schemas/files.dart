@@ -21,6 +21,10 @@ import '../src/schema.dart';
 /// Map fields with [FilesFileField] and turn on the schema intents the app
 /// supports. Each one becomes a method on the generated handler.
 ///
+/// `dialogs` and `confirm` give, by intent name, what Siri says when one
+/// finishes and what it asks first (deletes ask by default; see `confirmDeletes`).
+/// `replies` lets live intents' handlers return an `AssistantReply`.
+///
 /// Not supported yet: Apple requires file-based ids (`FileEntity`) for this
 /// schema, and the generator rejects it.
 class FilesFile extends SchemaEntity {
@@ -30,6 +34,10 @@ class FilesFile extends SchemaEntity {
     this.createFolder = false,
     this.renameFile = false,
     this.deleteFiles = false,
+    super.dialogs,
+    super.confirm,
+    super.confirmDeletes,
+    super.replies,
   }) : super('files.file');
 
   /// Handle `files.openFile` ("Open Item"): calls

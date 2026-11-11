@@ -181,7 +181,11 @@ String callMethod(IntentSchema intent, EntitySchema? owner) {
 
 /// The Dart signature of [intent]'s handler method, such as
 /// `Future<void> startCapture({required CameraCaptureMode captureMode, ...})`.
-String callSignature(IntentSchema intent, EntitySchema? owner, [Map<String, String> openEnums = const {}]) {
+///
+/// With [reply] (the intent is in the annotation's `replies`), it returns an
+/// `AssistantReply` of that value instead.
+String callSignature(IntentSchema intent, EntitySchema? owner,
+    [Map<String, String> openEnums = const {}, bool reply = false]) {
   final args = [
     for (final p in intent.parameters)
       if (callArg(p, openEnums) case final a?) a.optional ? '${a.dartType} ${a.name}' : 'required ${a.dartType} ${a.name}',
@@ -193,7 +197,8 @@ String callSignature(IntentSchema intent, EntitySchema? owner, [Map<String, Stri
     CallResult.unions => 'List<AssistantUnion>',
     _ => 'void',
   };
-  return 'Future<$returns> ${callMethod(intent, owner)}(${args.isEmpty ? '' : '{${args.join(', ')}}'})';
+  final result = reply ? 'AssistantReply<$returns>' : returns;
+  return 'Future<$result> ${callMethod(intent, owner)}(${args.isEmpty ? '' : '{${args.join(', ')}}'})';
 }
 
 /// The parameters of [intent] Dart doesn't receive yet, with their types.

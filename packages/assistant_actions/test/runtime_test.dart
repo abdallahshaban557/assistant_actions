@@ -187,6 +187,64 @@ void main() {
     await AssistantActions.start(const AssistantActionsRegistry(), host: _FakeHost([]));
     expect(await AssistantActions.callSwift('echo'), isNull, reason: 'plain hosts have no Swift calls');
   });
+
+  group('AssistantReply', () {
+    test('encodes the dialog, a card and the value for Swift', () {
+      const reply = AssistantReply<String>(
+        value: 't1',
+        dialog: 'Opened it.',
+        card: AssistantCard(
+          title: 'Pancakes',
+          subtitle: '20 min',
+          rows: [AssistantCardRow('Serves', '4'), AssistantCardRow('Vegan', 'No')],
+          imagePath: '/tmp/p.png',
+          systemImage: 'fork.knife',
+        ),
+      );
+      expect(jsonDecode(AssistantReply.encode(reply)), {
+        'value': 't1',
+        'dialog': 'Opened it.',
+        'card': {
+          'title': 'Pancakes',
+          'subtitle': '20 min',
+          'rows': [
+            ['Serves', '4'],
+            ['Vegan', 'No'],
+          ],
+          'imagePath': '/tmp/p.png',
+          'systemImage': 'fork.knife',
+        },
+      });
+    });
+
+    test('leaves out what is not set, and encodes values like fields', () {
+      expect(jsonDecode(AssistantReply.encode(const AssistantReply<void>())), isEmpty);
+      expect(jsonDecode(AssistantReply.encode(null)), isEmpty);
+      expect(jsonDecode(AssistantReply.encode(const AssistantReply(card: AssistantCard(title: 'T')))), {
+        'card': {'title': 'T'},
+      });
+      final union = AssistantReply(value: AssistantUnion('when', DateTime.fromMillisecondsSinceEpoch(1500)));
+      expect(jsonDecode(AssistantReply.encode(union)), {
+        'value': {'case': 'when', 'value': 1.5},
+      });
+    });
+
+    test('choose sends the ids to ask about and the question', () {
+      expect(jsonDecode(AssistantReply.encode(const AssistantReply<String>.choose(['a', 'b'], prompt: 'Which tab?'))), {
+        'choices': ['a', 'b'],
+        'prompt': 'Which tab?',
+      });
+    });
+
+    test('perform returns what a registry entry encoded', () async {
+      await AssistantActions.start(
+          AssistantActionsRegistry(actions: {
+            'show': (args) async => AssistantReply.encode(AssistantReply<void>(dialog: 'Hi ${args['name']}.')),
+          }),
+          host: _FakeHost([]));
+      expect(jsonDecode((await AssistantActions.perform('show', '{"name":"Mira"}'))!), {'dialog': 'Hi Mira.'});
+    });
+  });
 }
 
 enum _Case { a, b, this$ }

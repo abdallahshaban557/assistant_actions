@@ -192,13 +192,30 @@ class SystemHandler implements SystemAssistantHandler {
 }
 
 /// `camera.*`: the app opens its camera. A real app starts capture here.
-@CameraIntents(startCapture: true, stopCapture: true)
+/// `startCapture` replies, so Siri says what's on and shows a card.
+@CameraIntents(startCapture: true, stopCapture: true, replies: {'startCapture'})
 class CameraHandler implements CameraAssistantHandler {
   @override
-  Future<void> startCapture({required CaptureMode captureMode, Lens? device, CaptureDelay? timerDuration}) async {
+  Future<AssistantReply<void>> startCapture({
+    required CaptureMode captureMode,
+    Lens? device,
+    CaptureDelay? timerDuration,
+  }) async {
     Store.instance
       ..onScreen = 'camera: ${captureMode.name}${device == null ? '' : ', ${device.name}'}'
       ..changed();
+    return AssistantReply(
+      dialog: 'The camera is ready for a ${captureMode.name}.',
+      card: AssistantCard(
+        title: 'Camera',
+        subtitle: captureMode == CaptureMode.photo ? 'Photo' : 'Video',
+        rows: [
+          if (device != null) AssistantCardRow('Lens', device.name),
+          if (timerDuration != null) AssistantCardRow('Timer', timerDuration.name),
+        ],
+        systemImage: 'camera',
+      ),
+    );
   }
 
   @override

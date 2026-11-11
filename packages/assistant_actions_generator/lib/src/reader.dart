@@ -7,6 +7,7 @@ import 'package:build/build.dart';
 import 'package:source_gen/source_gen.dart';
 
 import 'catalog.dart';
+import 'interaction.dart';
 import 'model.dart';
 import 'schema_calls.dart';
 
@@ -14,7 +15,7 @@ const _package = 'assistant_actions';
 
 /// The `api` this generator needs in assistant_actions'
 /// `lib/src/catalog/generator_api.json`.
-const _runtimeApi = 7;
+const _runtimeApi = 8;
 
 /// Reads the app's annotations from the definitions library and everything
 /// it imports from the app's own package.
@@ -219,7 +220,7 @@ class ModelReader {
         : 0;
     if (api < _runtimeApi) {
       throw InvalidGenerationSourceError(
-          'This version of assistant_actions_generator needs assistant_actions 0.0.12 or later. '
+          'This version of assistant_actions_generator needs assistant_actions 0.0.14 or later. '
           'Run `flutter pub upgrade assistant_actions`.',
           element: library);
     }
@@ -379,6 +380,7 @@ class ModelReader {
       mapping: mapping,
       intents: intents,
       containers: containers,
+      interactions: _interactions(annotation, intents, '@${pascal(schema.domain)}${pascal(schema.name)}', cls),
     );
   }
 
@@ -452,14 +454,37 @@ class ModelReader {
   Future<SchemaDomainModel> _schemaDomain(ClassElement cls, ConstantReader annotation) async {
     final domain = annotation.read('domain').stringValue;
     final catalog = await _catalog(domain, cls);
+    final intents = [
+      for (final intent in catalog.domainIntents)
+        if (annotation.peek(intent.name)?.boolValue ?? false) intent,
+    ];
     return SchemaDomainModel(
       className: cls.displayName,
       catalog: catalog,
-      intents: [
-        for (final intent in catalog.domainIntents)
-          if (annotation.peek(intent.name)?.boolValue ?? false) intent,
-      ],
+      intents: intents,
+      interactions: _interactions(
+          annotation, [for (final i in intents) (i, IntentKind.call)], '@${pascal(domain)}Intents', cls),
     );
+  }
+
+  /// The `dialogs`, `confirm`, `confirmDeletes` and `replies` of a schema
+  /// annotation, checked against the [intents] it turned on.
+  Interactions _interactions(
+      ConstantReader annotation, List<(IntentSchema, IntentKind)> intents, String name, Element element) {
+    Map<String, String> templates(String field) => {
+          for (final MapEntry(:key, :value) in annotation.peek(field)?.mapValue.entries ?? const <Never, Never>{}.entries)
+            key!.toStringValue()!: value!.toStringValue()!,
+        };
+    final interactions = Interactions(
+      dialogs: templates('dialogs'),
+      confirm: templates('confirm'),
+      confirmDeletes: annotation.peek('confirmDeletes')?.boolValue ?? true,
+      replies: {for (final r in annotation.peek('replies')?.setValue ?? const <Never>{}) r.toStringValue()!},
+    );
+    if (checkInteractions(interactions, intents, name) case final problem?) {
+      throw InvalidGenerationSourceError(problem, element: element);
+    }
+    return interactions;
   }
 
   Future<DomainCatalog> _catalog(String domain, Element element) async {
@@ -481,10 +506,12 @@ class ModelReader {
     ];
     final runs = RunsModel.values[annotation.read('runs').objectValue.getField('index')!.toIntValue()!];
     final dialog = annotation.peek('dialog')?.stringValue;
-    if (dialog != null) {
-      for (final match in RegExp(r'\{(\w+)\}').allMatches(dialog)) {
+    final confirm = annotation.peek('confirm')?.stringValue;
+    for (final (field, template) in [('dialog', dialog), ('confirm', confirm)]) {
+      if (template == null) continue;
+      for (final match in RegExp(r'\{(\w+)\}').allMatches(template)) {
         if (!params.any((p) => p.name == match.group(1))) {
-          throw InvalidGenerationSourceError('dialog uses {${match.group(1)}}, which is not a parameter.',
+          throw InvalidGenerationSourceError('$field uses {${match.group(1)}}, which is not a parameter.',
               element: fn);
         }
       }
@@ -496,13 +523,21 @@ class ModelReader {
       result = (result as InterfaceType).typeArguments.single;
     }
     final returnsString = result.isDartCoreString;
-    if (!returnsString && result is! VoidType && !result.isDartCoreNull) {
+    final returnsReply = _isFrom(result, 'AssistantReply', exact: true);
+    if (!returnsString && !returnsReply && result is! VoidType && !result.isDartCoreNull) {
       throw InvalidGenerationSourceError(
-          'An @AssistantAction returns void or String (optionally in a Future), not ${result.getDisplayString()}.',
+          'An @AssistantAction returns void, String or AssistantReply (optionally in a Future), '
+          'not ${result.getDisplayString()}.',
           element: fn);
     }
     if (runs == RunsModel.deferred && returnsString) {
       log.warning('${fn.displayName} runs deferred, so Siri says its dialog, not the String it returns.');
+    }
+    if (runs == RunsModel.deferred && returnsReply) {
+      throw InvalidGenerationSourceError(
+          '${fn.displayName} returns an AssistantReply, but it runs deferred: Siri answers before it runs. '
+          'Use runs: Runs.withFlutter, or return void and set dialog.',
+          element: fn);
     }
     return ActionModel(
       functionName: fn.displayName,
@@ -511,9 +546,11 @@ class ModelReader {
       description: annotation.peek('description')?.stringValue,
       runs: runs,
       dialog: dialog,
+      confirm: confirm,
       shortcut: shortcut,
       params: params,
       returnsString: returnsString,
+      returnsReply: returnsReply,
     );
   }
 

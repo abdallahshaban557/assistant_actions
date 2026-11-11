@@ -1,4 +1,5 @@
 import 'catalog.dart';
+import 'interaction.dart';
 import 'schema_calls.dart';
 
 /// A Dart value type the generator can pass between Swift and Dart.
@@ -242,8 +243,10 @@ class ActionModel {
     required this.runs,
     required this.params,
     required this.returnsString,
+    this.returnsReply = false,
     this.description,
     this.dialog,
+    this.confirm,
     this.shortcut,
   });
 
@@ -253,8 +256,15 @@ class ActionModel {
   final String? description;
   final RunsModel runs;
   final String? dialog;
+
+  /// The question Siri asks before running it (`confirm:`).
+  final String? confirm;
   final ShortcutModel? shortcut;
   final List<ParamModel> params;
+
+  /// The function returns an `AssistantReply` (possibly in a `Future`):
+  /// a dialog and a result card.
+  final bool returnsReply;
 
   /// The function returns `String`/`String?` (possibly in a `Future`), which
   /// becomes what Siri says.
@@ -344,12 +354,16 @@ class SchemaEntityModel {
     required this.mapping,
     required this.intents,
     required this.containers,
+    this.interactions = Interactions.none,
   });
 
   final String className;
   final Uri library;
   final DomainCatalog catalog;
   final EntitySchema schema;
+
+  /// Dialogs, confirmations and replies from the annotation.
+  final Interactions interactions;
   final String idField;
 
   /// Schema member name → the Dart field it maps to.
@@ -390,9 +404,17 @@ String callActionId(SchemaEntityModel? owner, IntentSchema intent) =>
 /// `@CameraIntents(...)` on one of the app's classes: the domain's intents
 /// that belong to no entity, handled by `CameraAssistantHandler`.
 class SchemaDomainModel {
-  SchemaDomainModel({required this.className, required this.catalog, required this.intents});
+  SchemaDomainModel({
+    required this.className,
+    required this.catalog,
+    required this.intents,
+    this.interactions = Interactions.none,
+  });
 
   final String className;
+
+  /// Dialogs, confirmations and replies from the annotation.
+  final Interactions interactions;
   final DomainCatalog catalog;
   final List<IntentSchema> intents;
 

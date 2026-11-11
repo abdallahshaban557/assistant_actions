@@ -5,10 +5,38 @@ library;
 /// `@RemindersReminder(...)`. Each schema's subclass is generated from Apple's
 /// schema catalog.
 abstract class SchemaEntity {
-  const SchemaEntity(this.schema);
+  const SchemaEntity(
+    this.schema, {
+    this.dialogs = const {},
+    this.confirm = const {},
+    this.confirmDeletes = true,
+    this.replies = const {},
+  });
 
   /// The schema's identifier, such as `reminders.reminder`.
   final String schema;
+
+  /// What Siri says when a turned-on intent finishes, by intent name:
+  /// `{'createReminder': 'Added {title}.'}`. `{name}` is the intent's
+  /// parameter `name` (an item is its title, a list reads "A, B and C");
+  /// `{result}` is the item an intent returns. Checked at build time.
+  final Map<String, String> dialogs;
+
+  /// Intents Siri asks the user to confirm before running, with the
+  /// question, by intent name: `{'cancelTimer': 'Cancel {entities}?'}`.
+  /// Placeholders work as in [dialogs]. Confirmation happens in Swift,
+  /// before anything is queued or Dart runs.
+  final Map<String, String> confirm;
+
+  /// Delete intents (`deleteReminders`) ask "Delete …?" first, the way
+  /// Apple's apps do. Set false to delete at once; a delete listed in
+  /// [confirm] still asks, with that question.
+  final bool confirmDeletes;
+
+  /// Live intents whose Dart handler method returns an `AssistantReply`
+  /// (what Siri says, a result card, or several items to choose from)
+  /// instead of a plain value. Changes those methods' return types.
+  final Set<String> replies;
 }
 
 /// A member of schema entity [S] with Dart type [T], used as a field
@@ -53,8 +81,20 @@ abstract class SchemaEnumCases {
 /// no entity, such as `@CameraIntents(startCapture: true)`. Put it on the
 /// class implementing the generated handler (`CameraAssistantHandler`).
 abstract class SchemaIntents {
-  const SchemaIntents(this.domain);
+  const SchemaIntents(this.domain, {this.dialogs = const {}, this.confirm = const {}, this.replies = const {}});
 
   /// The schema domain, such as `camera`.
   final String domain;
+
+  /// What Siri says when a turned-on intent finishes, by intent name. See
+  /// [SchemaEntity.dialogs].
+  final Map<String, String> dialogs;
+
+  /// Intents Siri asks the user to confirm first, with the question. See
+  /// [SchemaEntity.confirm].
+  final Map<String, String> confirm;
+
+  /// Live intents whose handler method returns an `AssistantReply`. See
+  /// [SchemaEntity.replies].
+  final Set<String> replies;
 }

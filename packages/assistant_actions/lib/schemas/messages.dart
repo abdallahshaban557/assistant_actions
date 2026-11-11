@@ -153,6 +153,10 @@ class FixedMessagesCustomAttachment extends SchemaContainer {
 ///
 /// Map fields with [MessagesMessageField] and turn on the schema intents the app
 /// supports. Each one becomes a method on the generated handler.
+///
+/// `dialogs` and `confirm` give, by intent name, what Siri says when one
+/// finishes and what it asks first.
+/// `replies` lets live intents' handlers return an `AssistantReply`.
 class MessagesMessage extends SchemaEntity {
   const MessagesMessage({
     this.editSentMessage = false,
@@ -160,6 +164,9 @@ class MessagesMessage extends SchemaEntity {
     this.setMessageReadStatus = false,
     this.draftMessage = false,
     this.unsendMessage = false,
+    super.dialogs,
+    super.confirm,
+    super.replies,
   }) : super('messages.message');
 
   /// Handle `messages.editSentMessage` ("Edit Sent Message"): calls

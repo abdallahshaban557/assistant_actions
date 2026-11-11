@@ -124,12 +124,19 @@ class FixedCalendarCalendar extends SchemaContainer {
 ///
 /// Map fields with [CalendarEventField] and turn on the schema intents the app
 /// supports. Each one becomes a method on the generated handler.
+///
+/// `dialogs` and `confirm` give, by intent name, what Siri says when one
+/// finishes and what it asks first.
+/// `replies` lets live intents' handlers return an `AssistantReply`.
 class CalendarEvent extends SchemaEntity {
   const CalendarEvent({
     required this.calendar,
     this.createEvent = false,
     this.deleteEvent = false,
     this.updateEvent = false,
+    super.dialogs,
+    super.confirm,
+    super.replies,
   }) : super('calendar.event');
 
   /// The fixed `calendar.calendar` every item belongs to (required by the schema).

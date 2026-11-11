@@ -92,11 +92,18 @@ class FixedMapsCurrentLocation extends SchemaContainer {
 ///
 /// Map fields with [MapsNavigationSessionField] and turn on the schema intents the app
 /// supports. Each one becomes a method on the generated handler.
+///
+/// `dialogs` and `confirm` give, by intent name, what Siri says when one
+/// finishes and what it asks first.
+/// `replies` lets live intents' handlers return an `AssistantReply`.
 class MapsNavigationSession extends SchemaEntity {
   const MapsNavigationSession({
     this.startNavigation = false,
     this.updateNavigationWaypoints = false,
     this.stopNavigation = false,
+    super.dialogs,
+    super.confirm,
+    super.replies,
   }) : super('maps.navigationSession');
 
   /// Handle `maps.startNavigation` ("Start Navigation"): calls
@@ -391,11 +398,16 @@ abstract final class MapsRatingField {
 
 /// Turns on Apple's `maps` intents that belong to no entity. Put it on
 /// the class that implements the generated `MapsAssistantHandler`.
+///
+/// `dialogs` and `confirm` give, by intent name, what Siri says when one
+/// finishes and what it asks first.
 class MapsIntents extends SchemaIntents {
   const MapsIntents({
     this.shareETA = false,
     this.stopShareETA = false,
     this.reportIncident = false,
+    super.dialogs,
+    super.confirm,
   }) : super('maps');
 
   /// Handle `maps.shareETA` ("Share ETA"): calls
