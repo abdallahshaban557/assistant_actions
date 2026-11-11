@@ -210,8 +210,10 @@ public struct ShowRecipeCardAction: AppIntent, ForegroundContinuableIntent {
 
 extension ShowRecipeCardAction: ProgressReportingIntent {}
 
+#if compiler(>=6.4)
 @available(iOS 26.4, macOS 26.4, *)
 extension ShowRecipeCardAction: CancellableIntent {}
+#endif
 
 /// `pickRecipe` in Dart (runs with Flutter).
 public struct PickRecipeAction: AppIntent, ForegroundContinuableIntent {
@@ -253,8 +255,10 @@ public struct PickRecipeAction: AppIntent, ForegroundContinuableIntent {
 
 extension PickRecipeAction: ProgressReportingIntent {}
 
+#if compiler(>=6.4)
 @available(iOS 26.4, macOS 26.4, *)
 extension PickRecipeAction: CancellableIntent {}
+#endif
 
 /// `countOpenTasks` in Dart (runs with Flutter).
 public struct CountOpenTasksAction: AppIntent, ForegroundContinuableIntent {
@@ -288,8 +292,10 @@ public struct CountOpenTasksAction: AppIntent, ForegroundContinuableIntent {
 
 extension CountOpenTasksAction: ProgressReportingIntent {}
 
+#if compiler(>=6.4)
 @available(iOS 26.4, macOS 26.4, *)
 extension CountOpenTasksAction: CancellableIntent {}
+#endif
 
 /// `planMeal` in Dart (deferred).
 public struct PlanMealAction: AppIntent {
@@ -357,8 +363,10 @@ public struct QuickestRecipeAction: AppIntent, ForegroundContinuableIntent {
 
 extension QuickestRecipeAction: ProgressReportingIntent {}
 
+#if compiler(>=6.4)
 @available(iOS 26.4, macOS 26.4, *)
 extension QuickestRecipeAction: CancellableIntent {}
+#endif
 
 /// `shoppingList` in Dart (runs with Flutter).
 public struct ShoppingListAction: AppIntent, ForegroundContinuableIntent {
@@ -394,8 +402,10 @@ public struct ShoppingListAction: AppIntent, ForegroundContinuableIntent {
 
 extension ShoppingListAction: ProgressReportingIntent {}
 
+#if compiler(>=6.4)
 @available(iOS 26.4, macOS 26.4, *)
 extension ShoppingListAction: CancellableIntent {}
+#endif
 
 /// `nextTask` in Dart (runs with Flutter).
 @available(iOS 27.0, macOS 27.0, *)
@@ -434,8 +444,10 @@ extension NextTaskAction: ForegroundContinuableIntent {}
 @available(iOS 27.0, macOS 27.0, *)
 extension NextTaskAction: ProgressReportingIntent {}
 
+#if compiler(>=6.4)
 @available(iOS 27.0, macOS 27.0, *)
 extension NextTaskAction: CancellableIntent {}
+#endif
 
 /// `archiveDoneTasks` in Dart (runs with Flutter).
 public struct ArchiveDoneTasksAction: AppIntent, ForegroundContinuableIntent {
@@ -469,11 +481,13 @@ public struct ArchiveDoneTasksAction: AppIntent, ForegroundContinuableIntent {
 
 extension ArchiveDoneTasksAction: ProgressReportingIntent {}
 
+#if compiler(>=6.4)
 @available(iOS 26.4, macOS 26.4, *)
 extension ArchiveDoneTasksAction: CancellableIntent {}
 
 @available(iOS 27.0, macOS 27.0, *)
 extension ArchiveDoneTasksAction: LongRunningIntent {}
+#endif
 
 /// `stopRecording` in Dart (deferred).
 public struct StopRecordingAction: AppIntent {
@@ -501,8 +515,10 @@ public struct StopRecordingAction: AppIntent {
 
 extension StopRecordingAction: ProgressReportingIntent {}
 
+#if compiler(>=6.4)
 @available(iOS 26.4, macOS 26.4, *)
 extension StopRecordingAction: CancellableIntent {}
+#endif
 
 /// `applyFocus` in Dart: the app's Focus filter, run live when Dart is running and
 /// queued otherwise.
@@ -1564,8 +1580,10 @@ struct JournalItemCreateAudioEntryIntent: ForegroundContinuableIntent {
 @available(iOS 26.0, macOS 26.0, *)
 extension JournalItemCreateAudioEntryIntent: ProgressReportingIntent {}
 
+#if compiler(>=6.4)
 @available(iOS 26.4, macOS 26.4, *)
 extension JournalItemCreateAudioEntryIntent: CancellableIntent {}
+#endif
 
 /// `journal.updateEntry` → updates `JournalItem` items through the inbox.
 @available(iOS 26.0, macOS 26.0, *)
@@ -1742,8 +1760,10 @@ struct DocItemOpenFileIntent: ForegroundContinuableIntent {
 @available(iOS 18.0, macOS 15.0, *)
 extension DocItemOpenFileIntent: ProgressReportingIntent {}
 
+#if compiler(>=6.4)
 @available(iOS 26.4, macOS 26.4, *)
 extension DocItemOpenFileIntent: CancellableIntent {}
+#endif
 
 /// `files.moveFiles` → queues a call to `moveFiles` on `DocItemAssistantHandler`, applied when the app next runs.
 @available(iOS 18.0, macOS 15.0, *)
@@ -1804,8 +1824,10 @@ struct DocItemCreateFolderIntent: ForegroundContinuableIntent {
 @available(iOS 18.0, macOS 15.0, *)
 extension DocItemCreateFolderIntent: ProgressReportingIntent {}
 
+#if compiler(>=6.4)
 @available(iOS 26.4, macOS 26.4, *)
 extension DocItemCreateFolderIntent: CancellableIntent {}
+#endif
 
 /// `files.renameFile` → queues a call to `renameFile` on `DocItemAssistantHandler`, applied when the app next runs.
 @available(iOS 18.0, macOS 15.0, *)
@@ -1965,8 +1987,10 @@ struct SystemSearchInAppIntent {
 @available(iOS 27.0, macOS 27.0, *)
 extension SystemSearchInAppIntent: ProgressReportingIntent {}
 
+#if compiler(>=6.4)
 @available(iOS 27.0, macOS 27.0, *)
 extension SystemSearchInAppIntent: CancellableIntent {}
+#endif
 
 /// `camera.startCapture` → calls `startCapture` on `CameraAssistantHandler`.
 @available(iOS 18.0, macOS 15.0, *)
@@ -1999,8 +2023,10 @@ public struct CameraStartCaptureIntent: ForegroundContinuableIntent {
 @available(iOS 18.0, macOS 15.0, *)
 extension CameraStartCaptureIntent: ProgressReportingIntent {}
 
+#if compiler(>=6.4)
 @available(iOS 26.4, macOS 26.4, *)
 extension CameraStartCaptureIntent: CancellableIntent {}
+#endif
 
 /// `camera.stopCapture` → queues a call to `stopCapture` on `CameraAssistantHandler`, applied when the app next runs.
 @available(iOS 18.0, macOS 15.0, *)
@@ -2153,6 +2179,7 @@ public final class AssistantActionsAppSpotlight: NSObject, AssistantSpotlightInd
 }
 
 /// Spotlight asks for `RecipeEntity` items to be indexed again, after it loses them.
+#if compiler(>=6.4)
 @available(iOS 27.0, macOS 27.0, *)
 extension RecipeEntityQuery: IndexedEntityQuery {
   public func reindexEntities(for identifiers: [RecipeEntity.ID], indexDescription: CSSearchableIndexDescription) async throws {
@@ -2163,12 +2190,16 @@ extension RecipeEntityQuery: IndexedEntityQuery {
     try await CSSearchableIndex.default().indexAppEntities(try await allEntities())
   }
 }
+#endif
 
 /// `@AssistantSyncable()`: Siri keeps `TaskItem` ids across devices.
+#if compiler(>=6.4)
 @available(iOS 27.0, macOS 27.0, *)
 extension TaskItemEntity: SyncableEntity {}
+#endif
 
 /// Spotlight asks for `TaskItemEntity` items to be indexed again, after it loses them.
+#if compiler(>=6.4)
 @available(iOS 27.0, macOS 27.0, *)
 extension TaskItemEntityQuery: IndexedEntityQuery {
   public func reindexEntities(for identifiers: [TaskItemEntity.ID], indexDescription: CSSearchableIndexDescription) async throws {
@@ -2179,12 +2210,16 @@ extension TaskItemEntityQuery: IndexedEntityQuery {
     try await CSSearchableIndex.default().indexAppEntities(try await allEntities())
   }
 }
+#endif
 
 /// Like Apple's own `notes.note`: Siri keeps `MemoryItem` ids across devices.
+#if compiler(>=6.4)
 @available(iOS 27.0, macOS 27.0, *)
 extension MemoryItemEntity: SyncableEntity {}
+#endif
 
 /// Spotlight asks for `MemoryItemEntity` items to be indexed again, after it loses them.
+#if compiler(>=6.4)
 @available(iOS 27.0, macOS 27.0, *)
 extension MemoryItemEntityQuery: IndexedEntityQuery {
   func reindexEntities(for identifiers: [MemoryItemEntity.ID], indexDescription: CSSearchableIndexDescription) async throws {
@@ -2195,8 +2230,10 @@ extension MemoryItemEntityQuery: IndexedEntityQuery {
     try await CSSearchableIndex.default().indexAppEntities(try await allEntities())
   }
 }
+#endif
 
 /// Spotlight asks for `JournalItemEntity` items to be indexed again, after it loses them.
+#if compiler(>=6.4)
 @available(iOS 27.0, macOS 27.0, *)
 extension JournalItemEntityQuery: IndexedEntityQuery {
   func reindexEntities(for identifiers: [JournalItemEntity.ID], indexDescription: CSSearchableIndexDescription) async throws {
@@ -2207,8 +2244,10 @@ extension JournalItemEntityQuery: IndexedEntityQuery {
     try await CSSearchableIndex.default().indexAppEntities(try await allEntities())
   }
 }
+#endif
 
 /// Spotlight asks for `CountdownEntity` items to be indexed again, after it loses them.
+#if compiler(>=6.4)
 @available(iOS 27.0, macOS 27.0, *)
 extension CountdownEntityQuery: IndexedEntityQuery {
   func reindexEntities(for identifiers: [CountdownEntity.ID], indexDescription: CSSearchableIndexDescription) async throws {
@@ -2219,8 +2258,10 @@ extension CountdownEntityQuery: IndexedEntityQuery {
     try await CSSearchableIndex.default().indexAppEntities(try await allEntities())
   }
 }
+#endif
 
 /// Spotlight asks for `DocItemEntity` items to be indexed again, after it loses them.
+#if compiler(>=6.4)
 @available(iOS 27.0, macOS 27.0, *)
 extension DocItemEntityQuery: IndexedEntityQuery {
   func reindexEntities(for identifiers: [DocItemEntity.ID], indexDescription: CSSearchableIndexDescription) async throws {
@@ -2231,6 +2272,7 @@ extension DocItemEntityQuery: IndexedEntityQuery {
     try await CSSearchableIndex.default().indexAppEntities(try await allEntities())
   }
 }
+#endif
 
 #if os(iOS)
   /// Where `AssistantBackground` starts Dart on a headless engine: the

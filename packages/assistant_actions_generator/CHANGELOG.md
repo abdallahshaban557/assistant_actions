@@ -16,6 +16,9 @@
   `@AssistantUndoable()`, including inbox changes that say a dialog.
 * `files.file` with `FileEntityIdentifier` ids and all five `files.*`
   intents.
+* `CancellableIntent`, `LongRunningIntent`, `SyncableEntity` and
+  `IndexedEntityQuery` conformances are inside `#if compiler(>=6.4)`, so the
+  generated code still builds with Xcodes before 27, whose SDKs lack them.
 * `tool/validate_schemas.dart` adopts `files.file`, makes every class
   undoable and long-running, and takes `--deployment=26.0`.
 * Needs assistant_actions 0.0.18.

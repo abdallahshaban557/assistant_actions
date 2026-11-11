@@ -5,16 +5,20 @@ import Foundation
 /// reports progress into the intent's `progress`, is cancelled with the
 /// intent (`CancellableIntent`, iOS 26.4 / macOS 26.4) and, for a
 /// `LongRunningIntent` (iOS 27 / macOS 27), keeps running in the background.
+///
+/// Both protocols are only in the iOS / macOS 27 SDKs (Swift 6.4, Xcode 27),
+/// so with older Xcodes the call is a plain one.
 extension ProgressReportingIntent {
   @MainActor
   public func callDart(_ action: String, args: [String: Any]) async throws -> String? {
     let call = AssistantLiveCall(progress: progress)
-    let cancel = AssistantLiveIntentCancel(id: call.id)
     let run: () async throws -> String? = {
       try await call.run(action, args: args) { action, args in
         try await AssistantBridge.shared.perform(action, args: args)
       }
     }
+    #if compiler(>=6.4)
+    let cancel = AssistantLiveIntentCancel(id: call.id)
     if #available(iOS 27.0, macOS 27.0, *) {
       if let intent = self as? any LongRunningIntent & CancellableIntent {
         return try await assistantLongRunning(intent, run: run, cancel: cancel)
@@ -26,6 +30,7 @@ extension ProgressReportingIntent {
     if #available(iOS 26.4, macOS 26.4, *), let intent = self as? any CancellableIntent {
       return try await assistantCancellable(intent, run: run, cancel: cancel)
     }
+    #endif
     return try await run()
   }
 }
@@ -42,6 +47,7 @@ struct AssistantLiveIntentCancel: Sendable {
   }
 }
 
+#if compiler(>=6.4)
 @available(iOS 26.4, macOS 26.4, *)
 @MainActor
 private func assistantCancellable<I: CancellableIntent>(
@@ -69,3 +75,4 @@ private func assistantLongRunning<I: LongRunningIntent>(
 ) async throws -> String? {
   try await intent.performBackgroundTask(operation: run)
 }
+#endif

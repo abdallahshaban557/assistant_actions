@@ -153,12 +153,19 @@ extension _Modern on SwiftWriter {
       if (floor != null) _availability(floor),
       'extension $name: ProgressReportingIntent {}',
       '',
-      at(const {'iOS': 26.4, 'macOS': 26.4}),
-      'extension $name: CancellableIntent {}',
-      if (longRunning) ...['', at(const {'iOS': 27, 'macOS': 27}), 'extension $name: LongRunningIntent {}'],
+      _newSdk([
+        at(const {'iOS': 26.4, 'macOS': 26.4}),
+        'extension $name: CancellableIntent {}',
+        if (longRunning) ...['', at(const {'iOS': 27, 'macOS': 27}), 'extension $name: LongRunningIntent {}'],
+      ].join('\n')),
       '',
     ].join('\n');
   }
+
+  /// [code] using App Intents types only in the iOS / macOS 27 SDKs (and
+  /// 26.4's `CancellableIntent`), compiled only by Swift 6.4 (Xcode 27), so
+  /// the generated code still builds with older Xcodes.
+  String _newSdk(String code) => '#if compiler(>=6.4)\n$code\n#endif';
 
   // ── Undo ──────────────────────────────────────────────────────────────
 
@@ -201,8 +208,7 @@ extension _Modern on SwiftWriter {
       if (e.syncable) {
         _out
           ..writeln('/// `@AssistantSyncable()`: Siri keeps `${e.className}` ids across devices.')
-          ..writeln(_availability(syncFloor))
-          ..writeln('extension ${e.swiftName}: SyncableEntity {}')
+          ..writeln(_newSdk('${_availability(syncFloor)}\nextension ${e.swiftName}: SyncableEntity {}'))
           ..writeln();
       }
       _indexedQuery(e.swiftName, syncFloor, 'public ');
@@ -213,8 +219,7 @@ extension _Modern on SwiftWriter {
         final why = s.syncableOverride == null ? 'Like Apple\'s own `${s.schema.id}`' : '`@AssistantSyncable()`';
         _out
           ..writeln('/// $why: Siri keeps `${s.className}` ids across devices.')
-          ..writeln(_availability(floor))
-          ..writeln('extension ${s.swiftName}: SyncableEntity {}')
+          ..writeln(_newSdk('${_availability(floor)}\nextension ${s.swiftName}: SyncableEntity {}'))
           ..writeln();
       }
       _indexedQuery(s.swiftName, floor, '');
@@ -226,6 +231,7 @@ extension _Modern on SwiftWriter {
   void _indexedQuery(String entity, Map<String, num> floor, String access) {
     _out.writeln('''
 /// Spotlight asks for `$entity` items to be indexed again, after it loses them.
+#if compiler(>=6.4)
 ${_availability(floor)}
 extension ${entity}Query: IndexedEntityQuery {
   ${access}func reindexEntities(for identifiers: [$entity.ID], indexDescription: CSSearchableIndexDescription) async throws {
@@ -236,6 +242,7 @@ extension ${entity}Query: IndexedEntityQuery {
     try await CSSearchableIndex.default().indexAppEntities(try await allEntities())
   }
 }
+#endif
 ''');
   }
 }
