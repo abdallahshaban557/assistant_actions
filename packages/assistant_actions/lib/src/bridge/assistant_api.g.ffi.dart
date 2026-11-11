@@ -778,6 +778,27 @@ extension AssistantHostApiSetup$Methods on AssistantHostApiSetup {
         retain: false, release: true);
   }
 
+  /// Runs the Swift handler registered for [method] (see
+  /// <code>AssistantHostCalls.swift</code>) with [argsJson] and returns its result as
+  /// JSON, if any. Features that need Swift from Dart use this, so the FFI
+  /// surface doesn’t grow with each one.
+  objc.NSString? invokeWithMethod(objc.NSString methodArg,
+      {required objc.NSString argsJson, required PigeonError wrappedError}) {
+    final _$$ref = object$.ref;
+    final _$$ref$1 = methodArg.ref;
+    final _$$ref$2 = argsJson.ref;
+    final _$$ref$3 = wrappedError.ref;
+    final $ret = _objc_msgSend_11spmsz(
+        _$$ref.pointer,
+        _sel_invokeWithMethod_argsJson_wrappedError_,
+        _$$ref$1.pointer,
+        _$$ref$2.pointer,
+        _$$ref$3.pointer);
+    return $ret.address == 0
+        ? null
+        : objc.NSString.fromPointer($ret, retain: true, release: true);
+  }
+
   /// Dart’s [AssistantFlutterApi] is set up and can take <code>perform</code> calls.
   void markReadyWithWrappedError(PigeonError wrappedError) {
     final _$$ref = object$.ref;
@@ -2216,6 +2237,8 @@ late final _sel_initWithCoder_ = objc.registerName("initWithCoder:");
 late final _sel_initWithData_type_ = objc.registerName("initWithData:type:");
 late final _sel_initWithNumber_type_ =
     objc.registerName("initWithNumber:type:");
+late final _sel_invokeWithMethod_argsJson_wrappedError_ =
+    objc.registerName("invokeWithMethod:argsJson:wrappedError:");
 late final _sel_isEqual_ = objc.registerName("isEqual:");
 late final _sel_isKindOfClass_ = objc.registerName("isKindOfClass:");
 late final _sel_markReadyWithWrappedError_ =

@@ -327,6 +327,11 @@ protocol AssistantHostApi {
   func drainInbox() throws -> [String]
   /// Saves the snapshot of [collection] that entity queries read.
   func publish(collection: String, json: String) throws
+  /// Runs the Swift handler registered for [method] (see
+  /// `AssistantHostCalls.swift`) with [argsJson] and returns its result as
+  /// JSON, if any. Features that need Swift from Dart use this, so the FFI
+  /// surface doesn't grow with each one.
+  func invoke(method: String, argsJson: String) throws -> String?
 }
 
 /// Generated setup class from Pigeon to register implemented AssistantHostApi classes.
@@ -392,6 +397,25 @@ protocol AssistantHostApi {
       wrappedError.details = "Stacktrace: \(Thread.callStackSymbols)"
     }
     return
+  }
+  /// Runs the Swift handler registered for [method] (see
+  /// `AssistantHostCalls.swift`) with [argsJson] and returns its result as
+  /// JSON, if any. Features that need Swift from Dart use this, so the FFI
+  /// surface doesn't grow with each one.
+  @objc func invoke(method methodArg: NSString, argsJson argsJsonArg: NSString, wrappedError: PigeonError) -> NSString? {
+    do {
+      let res: String? = try api!.invoke(method: methodArg as String, argsJson: argsJsonArg as String)
+      return res as NSString?
+    } catch let error as PigeonError {
+      wrappedError.code = error.code
+      wrappedError.message = error.message
+      wrappedError.details = error.details
+    } catch let error {
+      wrappedError.code = "\(error)"
+      wrappedError.message = "\(Swift.type(of: error))"
+      wrappedError.details = "Stacktrace: \(Thread.callStackSymbols)"
+    }
+    return nil
   }
 }
 

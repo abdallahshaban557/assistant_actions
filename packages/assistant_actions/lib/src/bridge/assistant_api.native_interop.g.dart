@@ -332,6 +332,19 @@ class _AssistantHostApiForNativeInterop implements AssistantHostApiForNativeInte
     }
   }
 
+  @override
+  String? invoke(String method, String argsJson) {
+ if (_ffiApi != null) {
+      final pigeonVar_error = ffi_bridge.PigeonError();
+      final NSString? pigeonVar_res =  _ffiApi.invokeWithMethod(_PigeonFfiCodec.writeValue<NSString>(method), argsJson: _PigeonFfiCodec.writeValue<NSString>(argsJson), wrappedError: pigeonVar_error);
+      _throwIfFfiError(pigeonVar_error);
+      final String? pigeonVar_dartTypeRes = pigeonVar_res?.toDartString();
+      return pigeonVar_dartTypeRes;
+    } else {
+      throw Exception('No JNI or FFI api available');
+    }
+  }
+
 }
 
 final class _AssistantFlutterApiRegistrar {

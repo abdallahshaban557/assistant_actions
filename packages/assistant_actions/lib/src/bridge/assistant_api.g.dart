@@ -92,6 +92,8 @@ abstract class AssistantHostApiForNativeInterop {
   List<String> drainInbox();
 
   void publish(String collection, String json);
+
+  String? invoke(String method, String argsJson);
 }
 
 /// Implemented in Swift (`AssistantActionsPlugin.swift`), called from Dart.
@@ -215,6 +217,32 @@ class AssistantHostApi {
         isNullValid: true,
     )
     ;
+  }
+
+  /// Runs the Swift handler registered for [method] (see
+  /// `AssistantHostCalls.swift`) with [argsJson] and returns its result as
+  /// JSON, if any. Features that need Swift from Dart use this, so the FFI
+  /// surface doesn't grow with each one.
+  Future<String?> invoke(String method, String argsJson) async {
+    if (_nativeInteropApi != null) {
+      return _nativeInteropApi.invoke(method, argsJson);
+    }
+    final pigeonVar_channelName = 'dev.flutter.pigeon.assistant_actions.AssistantHostApi.invoke$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channel = BasicMessageChannel<Object?>(
+      pigeonVar_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: pigeonVar_binaryMessenger,
+    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[method, argsJson]);
+    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
+
+    final Object? pigeonVar_replyValue = _extractReplyValueOrThrow(
+        pigeonVar_replyList,
+        pigeonVar_channelName,
+        isNullValid: true,
+    )
+    ;
+    return pigeonVar_replyValue as String?;
   }
 }
 

@@ -86,6 +86,18 @@ abstract final class AssistantActions {
     }
   }
 
+  /// Runs Swift feature [method] (registered with `AssistantHostCalls` in
+  /// Swift) with [args] and returns its decoded JSON result. For features of
+  /// assistant_actions; null when the runtime isn't started or there is no
+  /// Swift side (tests with a plain [AssistantHost]).
+  @internal
+  static Future<Object?> callSwift(String method, [Map<String, Object?> args = const {}]) async {
+    final host = _host;
+    if (host is! AssistantHostCalls) return null;
+    final result = await (host as AssistantHostCalls).invoke(method, jsonEncode(args));
+    return result == null ? null : jsonDecode(result);
+  }
+
   /// Runs a `Runs.withFlutter` action for Swift.
   @visibleForTesting
   static Future<String?> perform(String action, String argsJson) async {
