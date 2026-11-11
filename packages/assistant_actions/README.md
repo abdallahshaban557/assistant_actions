@@ -341,7 +341,8 @@ Listing an intent in `replies` changes its method's return type to
 `AssistantReply<T>`, where `T` is what it returned before: the item's id
 (`String`), ids (`List<String>`), an `AssistantUnion`, or `void`. Put the id
 in `value`. The card is a generic SwiftUI view in the runtime
-(`ShowsSnippetView`, iOS 17 / macOS 14 and later).
+(`AssistantCardView`): a snippet view on iOS 17 / macOS 14, and from 26 an
+interactive snippet that can have buttons (below).
 
 **Choosing between items.** For an intent that returns one item, return
 `AssistantReply.choose(ids, prompt: 'Which tab?')` when several match: Siri
@@ -349,6 +350,54 @@ lists their titles, the user picks one (`requestChoice`, iOS / macOS 26 and
 later; earlier, the first is taken), and that item is the intent's result.
 Dart isn't called again with the choice, so use it where the result *is* the
 answer (finding or opening an item), not to pick what to change.
+
+**Buttons on cards.** From iOS 26 / macOS 26 a card is an interactive
+snippet, and its `buttons` run Dart without leaving Siri. A button names the
+action it runs, by id (an `@AssistantAction` function's name, or a schema
+intent's such as `Countdown.pauseTimer`: a key of the generated registry's
+`actions`), and its arguments the way Swift sends them (an item as its id, an
+enum as its case name). The card then shows the `card` of the
+`AssistantReply` the action returns; an action that returns no card leaves it
+as it was:
+
+```dart
+@AssistantAction(title: 'Show Recipe Card', runs: Runs.withFlutter)
+Future<AssistantReply<void>> showRecipeCard(Recipe recipe) async =>
+    AssistantReply(dialog: '${recipe.name} takes ${recipe.minutes} minutes.', card: recipeCard(recipe));
+
+// What the button runs; hidden from Shortcuts' list.
+@AssistantAction(title: 'Toggle on Shopping List', runs: Runs.withFlutter, isDiscoverable: false)
+Future<AssistantReply<void>> toggleShoppingList(Recipe recipe) async {
+  ... // add it, or take it off
+  return AssistantReply(card: recipeCard(recipe));    // the card after the press
+}
+
+AssistantCard recipeCard(Recipe recipe) => AssistantCard(
+      title: recipe.name,
+      rows: [AssistantCardRow('On shopping list', onList(recipe) ? 'Yes' : 'No')],
+      buttons: [
+        AssistantCardButton(onList(recipe) ? 'Remove from list' : 'Add to list',
+            action: 'toggleShoppingList', args: {'recipe': recipe.id}, systemImage: 'cart'),
+      ],
+    );
+```
+
+A button whose `action` isn't in the registry throws an `ArgumentError` when
+the card is sent. With `@AssistantBackground()` a press runs Dart without
+opening the app on iOS, like other live actions; without it, iOS brings the
+app forward if Flutter isn't running. Below iOS / macOS 26 the same card
+shows without its buttons.
+
+How it works: the generated plugin has a `SnippetIntent`
+(`AssistantCardSnippetIntent`) holding the card, and an
+`AssistantCardButtonIntent` for its buttons (`Button(intent:)`). The intent
+returns the snippet intent from 26 (`.result(snippetIntent:)`) and the plain
+`AssistantCardView` before, so its result type no longer states
+`ShowsSnippetView` unless the deployment target is 26 (then
+`ShowsSnippetIntent`). After a press Siri performs the snippet intent again,
+which shows the newest card the button's action replied with
+(`AssistantCardStore`, the last 20 cards). Toggles (`Toggle(intent:)`) aren't
+supported; use a button whose title says the state.
 
 Queued intents (`Runs.deferred`, inbox creates, updates and deletes, and
 queued calls) run after Siri has answered, so they can confirm and use

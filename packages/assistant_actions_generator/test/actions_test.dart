@@ -450,15 +450,17 @@ void main() {
       ]);
       final swift = SwiftWriter(app).write();
       final pick = block(swift, 'public struct PickAction');
-      expect(pick, contains('some IntentResult & ReturnsValue<RecipeEntity> & ProvidesDialog & ShowsSnippetView'));
+      expect(pick, contains('some IntentResult & ReturnsValue<RecipeEntity> & ProvidesDialog {'));
       expect(pick, contains('let reply = AssistantReply(json: try await callDart("pick", args: args))'));
       expect(pick, contains('let candidates = try await RecipeEntityQuery().entities(for: reply.ids)'));
       expect(pick, contains('guard let value = try await assistantChoose(among: candidates, prompt: reply.prompt) else {'),
           reason: 'AssistantReply.choose asks which item');
       expect(pick, contains('return .result(value: value, dialog: IntentDialog(stringLiteral: reply.dialog ?? "Done."), '
           'view: AssistantCardView(reply.card))'));
+      expect(pick, contains('return .result(value: value, dialog: IntentDialog(stringLiteral: reply.dialog ?? "Done."), '
+          'snippetIntent: AssistantCardSnippetIntent(reply.card))'));
       final count = block(swift, 'public struct CountAction');
-      expect(count, contains('ReturnsValue<Int> & ProvidesDialog & ShowsSnippetView'));
+      expect(count, contains('ReturnsValue<Int> & ProvidesDialog {'));
       expect(count, contains('guard let value = AssistantValues.int(reply.value) else {'));
       final dart = writeDart(app);
       expect(dart, contains('final reply = await a0.pick();\n      return AssistantReply.encodeValue(reply, reply.value?.id);'));
@@ -468,7 +470,7 @@ void main() {
     test('an AssistantReply<void> keeps its dialog and card only', () {
       final swift = SwiftWriter(_app(actions: [_action('show', reply: true)])).write();
       final show = block(swift, 'public struct ShowAction');
-      expect(show, contains('some IntentResult & ProvidesDialog & ShowsSnippetView {'));
+      expect(show, contains('some IntentResult & ProvidesDialog {'));
       expect(show, isNot(contains('ReturnsValue')));
       expect(writeDart(_app(actions: [_action('show', reply: true)])), contains('return AssistantReply.encode(await a0.show());'));
     });

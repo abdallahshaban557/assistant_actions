@@ -34,18 +34,43 @@ Future<void> removeFromShoppingList(Recipe recipe) async {
 }
 
 /// Level 1, live, with a result card: Siri says the reply's dialog and shows
-/// its card.
+/// its card. From iOS / macOS 26 the card's button adds the recipe to the
+/// shopping list (or takes it off) without leaving Siri.
 @AssistantAction(title: 'Show Recipe Card', runs: Runs.withFlutter)
-Future<AssistantReply<void>> showRecipeCard(Recipe recipe) async {
+Future<AssistantReply<void>> showRecipeCard(Recipe recipe) async => AssistantReply(
+      dialog: '${recipe.name} takes ${recipe.minutes} minutes.',
+      card: _recipeCard(recipe),
+    );
+
+/// What the recipe card's button runs: the card it replies with replaces the
+/// one Siri shows. Not in Shortcuts' list (`isDiscoverable: false`).
+@AssistantAction(title: 'Toggle on Shopping List', runs: Runs.withFlutter, isDiscoverable: false)
+Future<AssistantReply<void>> toggleShoppingList(Recipe recipe) async {
+  final store = Store.instance;
+  if (!store.shopping.any((item) => item.startsWith('${recipe.name} ×'))) {
+    store.shopping.add('${recipe.name} × 2');
+  } else {
+    store.shopping.removeWhere((item) => item.startsWith('${recipe.name} ×'));
+  }
+  store.changed();
+  return AssistantReply(card: _recipeCard(recipe));
+}
+
+AssistantCard _recipeCard(Recipe recipe) {
   final onList = Store.instance.shopping.any((item) => item.startsWith('${recipe.name} ×'));
-  return AssistantReply(
-    dialog: '${recipe.name} takes ${recipe.minutes} minutes.',
-    card: AssistantCard(
-      title: recipe.name,
-      subtitle: '${recipe.minutes} min',
-      rows: [AssistantCardRow('On shopping list', onList ? 'Yes' : 'No')],
-      systemImage: 'fork.knife',
-    ),
+  return AssistantCard(
+    title: recipe.name,
+    subtitle: '${recipe.minutes} min',
+    rows: [AssistantCardRow('On shopping list', onList ? 'Yes' : 'No')],
+    systemImage: 'fork.knife',
+    buttons: [
+      AssistantCardButton(
+        onList ? 'Remove from list' : 'Add to list',
+        action: 'toggleShoppingList',
+        args: {'recipe': recipe.id},
+        systemImage: onList ? 'cart.badge.minus' : 'cart.badge.plus',
+      ),
+    ],
   );
 }
 

@@ -453,7 +453,7 @@ Future<bool> _processSwift(String swift, String platform, String out, {String? d
     stub,
     for (final f in ['AssistantValues', 'AssistantInbox', 'AssistantSnapshot', 'AssistantQuery', 'AssistantSpotlight',
       'AssistantMatch', 'AssistantComparison', 'AssistantRichValues', 'AssistantHostCalls', 'AssistantReply',
-      'AssistantDialog', 'AssistantInteraction', 'AssistantCardView', 'AssistantLiveCall', 'AssistantLiveIntents',
+      'AssistantDialog', 'AssistantInteraction', 'AssistantCardView', 'AssistantCardStore', 'AssistantLiveCall', 'AssistantLiveIntents',
       'AssistantFileIDs', 'AssistantUndo', 'AssistantContext', 'AssistantVisualIntelligence'])
       p.join(sources, '$f.swift'),
   ];

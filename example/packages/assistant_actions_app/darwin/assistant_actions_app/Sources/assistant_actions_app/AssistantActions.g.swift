@@ -192,7 +192,7 @@ public struct ShowRecipeCardAction: AppIntent, ForegroundContinuableIntent {
   public init() {}
 
   @MainActor
-  public func perform() async throws -> some IntentResult & ProvidesDialog & ShowsSnippetView {
+  public func perform() async throws -> some IntentResult & ProvidesDialog {
     let args: [String: Any] = [
       "recipe": recipe.id,
     ]
@@ -208,7 +208,11 @@ public struct ShowRecipeCardAction: AppIntent, ForegroundContinuableIntent {
       }
     #endif
     let reply = AssistantReply(json: try await callDart("showRecipeCard", args: args))
-    return .result(dialog: IntentDialog(stringLiteral: reply.dialog ?? "Done."), view: AssistantCardView(reply.card))
+    if #available(iOS 26.0, macOS 26.0, *) {
+      return .result(dialog: IntentDialog(stringLiteral: reply.dialog ?? "Done."), snippetIntent: AssistantCardSnippetIntent(reply.card))
+    } else {
+      return .result(dialog: IntentDialog(stringLiteral: reply.dialog ?? "Done."), view: AssistantCardView(reply.card))
+    }
   }
 }
 
@@ -217,6 +221,53 @@ extension ShowRecipeCardAction: ProgressReportingIntent {}
 #if compiler(>=6.4)
 @available(iOS 26.4, macOS 26.4, *)
 extension ShowRecipeCardAction: CancellableIntent {}
+#endif
+
+/// `toggleShoppingList` in Dart (runs with Flutter).
+public struct ToggleShoppingListAction: AppIntent, ForegroundContinuableIntent {
+  public static let title: LocalizedStringResource = "Toggle on Shopping List"
+  public static let isDiscoverable = false
+
+  #if os(iOS)
+  @available(iOS 26.0, *)
+  public static var supportedModes: IntentModes { [.background, .foreground(.dynamic)] }
+  #endif
+
+  @Parameter(title: "Recipe")
+  public var recipe: RecipeEntity
+
+  public init() {}
+
+  @MainActor
+  public func perform() async throws -> some IntentResult & ProvidesDialog {
+    let args: [String: Any] = [
+      "recipe": recipe.id,
+    ]
+    #if os(iOS)
+      // Dart answers in the background (on a headless engine if the app has none);
+      // the app comes forward only if that fails.
+      if !(await AssistantBackground.shared.prepare()), UIApplication.shared.applicationState != .active {
+        if #available(iOS 26.0, *) {
+          try await continueInForeground()
+        } else {
+          try await requestToContinueInForeground()
+        }
+      }
+    #endif
+    let reply = AssistantReply(json: try await callDart("toggleShoppingList", args: args))
+    if #available(iOS 26.0, macOS 26.0, *) {
+      return .result(dialog: IntentDialog(stringLiteral: reply.dialog ?? "Done."), snippetIntent: AssistantCardSnippetIntent(reply.card))
+    } else {
+      return .result(dialog: IntentDialog(stringLiteral: reply.dialog ?? "Done."), view: AssistantCardView(reply.card))
+    }
+  }
+}
+
+extension ToggleShoppingListAction: ProgressReportingIntent {}
+
+#if compiler(>=6.4)
+@available(iOS 26.4, macOS 26.4, *)
+extension ToggleShoppingListAction: CancellableIntent {}
 #endif
 
 /// `pickRecipe` in Dart (runs with Flutter).
@@ -234,7 +285,7 @@ public struct PickRecipeAction: AppIntent, ForegroundContinuableIntent {
   public init() {}
 
   @MainActor
-  public func perform() async throws -> some IntentResult & ReturnsValue<RecipeEntity> & ProvidesDialog & ShowsSnippetView {
+  public func perform() async throws -> some IntentResult & ReturnsValue<RecipeEntity> & ProvidesDialog {
     let args: [String: Any] = [
       "meal": AssistantValues.encode(meal),
     ]
@@ -253,7 +304,11 @@ public struct PickRecipeAction: AppIntent, ForegroundContinuableIntent {
     let reply = AssistantReply(json: try await callDart("pickRecipe", args: args))
     let candidates = try await RecipeEntityQuery().entities(for: reply.ids)
     guard let value = try await assistantChoose(among: candidates, prompt: reply.prompt) else { throw AssistantActionError.failed("pickRecipe returned nothing Siri can use") }
-    return .result(value: value, dialog: IntentDialog(stringLiteral: reply.dialog ?? "Done."), view: AssistantCardView(reply.card))
+    if #available(iOS 26.0, macOS 26.0, *) {
+      return .result(value: value, dialog: IntentDialog(stringLiteral: reply.dialog ?? "Done."), snippetIntent: AssistantCardSnippetIntent(reply.card))
+    } else {
+      return .result(value: value, dialog: IntentDialog(stringLiteral: reply.dialog ?? "Done."), view: AssistantCardView(reply.card))
+    }
   }
 }
 
@@ -1993,7 +2048,7 @@ public struct CameraStartCaptureIntent: ForegroundContinuableIntent {
   public var timerDuration: CameraCaptureDurationEnum?
 
   @MainActor
-  public func perform() async throws -> some IntentResult & ProvidesDialog & ShowsSnippetView {
+  public func perform() async throws -> some IntentResult & ProvidesDialog {
     let args: [String: Any] = [
       "captureMode": AssistantValues.encode(captureMode),
       "device": AssistantValues.encode(device),
@@ -2007,7 +2062,11 @@ public struct CameraStartCaptureIntent: ForegroundContinuableIntent {
       NSApplication.shared.activate()
     #endif
     let reply = AssistantReply(json: try await callDart("camera.startCapture", args: args))
-    return .result(dialog: IntentDialog(stringLiteral: reply.dialog ?? "Done."), view: AssistantCardView(reply.card))
+    if #available(iOS 26.0, macOS 26.0, *) {
+      return .result(dialog: IntentDialog(stringLiteral: reply.dialog ?? "Done."), snippetIntent: AssistantCardSnippetIntent(reply.card))
+    } else {
+      return .result(dialog: IntentDialog(stringLiteral: reply.dialog ?? "Done."), view: AssistantCardView(reply.card))
+    }
   }
 }
 
@@ -2418,6 +2477,16 @@ extension ShowRecipeCardAction: PredictableIntent {
   }
 }
 
+extension ToggleShoppingListAction: PredictableIntent {
+  public static var predictionConfiguration: some IntentPredictionConfiguration {
+    IntentPrediction(parameters: \.$recipe) { recipe in
+      DisplayRepresentation(
+        title: "Toggle on Shopping List",
+        subtitle: "\(AssistantValues.text([recipe.title], separator: ", "))")
+    }
+  }
+}
+
 extension PickRecipeAction: PredictableIntent {
   public static var predictionConfiguration: some IntentPredictionConfiguration {
     IntentPrediction(parameters: \.$meal) { meal in
@@ -2652,6 +2721,12 @@ public final class AssistantActionsAppHostCalls: NSObject, AssistantHostCallsPro
       intent.recipe = recipeValue
       IntentDonationManager.shared.donate(intent: intent)
       return true
+    case "toggleShoppingList":
+      guard let recipeValue = AssistantValues.string(values["recipe"]).flatMap({ id in AssistantSnapshot.records("Recipe").first(where: { $0.id == id }) }).map(RecipeEntity.init(record:)) else { return false }
+      let intent = ToggleShoppingListAction()
+      intent.recipe = recipeValue
+      IntentDonationManager.shared.donate(intent: intent)
+      return true
     case "pickRecipe":
       let intent = PickRecipeAction()
       if let value = AssistantValues.string(values["meal"]).flatMap(MealEnum.init(rawValue:)) { intent.meal = value }
@@ -2703,4 +2778,90 @@ public final class AssistantActionsAppHostCalls: NSObject, AssistantHostCallsPro
     }
   }
 }
+
+/// The result card of a Dart `AssistantReply`, as an interactive snippet: Siri
+/// performs it to show the card, and again after one of its buttons ran.
+@available(iOS 26.0, macOS 26.0, *)
+public struct AssistantCardSnippetIntent: SnippetIntent {
+  public static let title: LocalizedStringResource = "Result Card"
+  public static let isDiscoverable = false
+
+  /// The card as Dart sent it (`AssistantCard.json`).
+  @Parameter(title: "Card")
+  public var card: String
+
+  /// Which card this is, for `AssistantCardStore`.
+  @Parameter(title: "Card ID")
+  public var id: String
+
+  public init() {}
+
+  public init(_ card: AssistantCard?) {
+    self.card = card?.json ?? ""
+    id = UUID().uuidString
+  }
+
+  @MainActor
+  public func perform() async throws -> some IntentResult & ShowsSnippetView {
+    let card = AssistantCardStore.card(id, initial: card)
+    return .result(view: AssistantCardView(card) { AssistantCardButtonIntent($0, card: id) })
+  }
+}
+
+/// A result card's button: runs its Dart action, and keeps the card the
+/// action replies with for the snippet to show.
+@available(iOS 26.0, macOS 26.0, *)
+public struct AssistantCardButtonIntent: AppIntent {
+  public static let title: LocalizedStringResource = "Result Card Button"
+  public static let isDiscoverable = false
+
+  #if os(iOS)
+  public static let supportedModes: IntentModes = [.background, .foreground(.dynamic)]
+  #endif
+  #if os(macOS)
+  public static let supportedModes: IntentModes = .foreground(.dynamic)
+  #endif
+
+  /// The Dart action's id.
+  @Parameter(title: "Action")
+  public var action: String
+
+  /// Its arguments, as JSON text.
+  @Parameter(title: "Arguments")
+  public var args: String
+
+  /// The card's id.
+  @Parameter(title: "Card ID")
+  public var card: String
+
+  public init() {}
+
+  public init(_ button: AssistantCard.Button, card: String) {
+    action = button.action
+    args = button.args
+    self.card = card
+  }
+
+  @MainActor
+  public func perform() async throws -> some IntentResult {
+    #if os(iOS)
+      // Dart answers in the background (on a headless engine if the app has none);
+      // the app comes forward only if that fails.
+      if !(await AssistantBackground.shared.prepare()), UIApplication.shared.applicationState != .active {
+        try await continueInForeground()
+      }
+    #endif
+    let reply = try await callDart(action, args: AssistantCardStore.args(args))
+    AssistantCardStore.update(card, reply: reply)
+    return .result()
+  }
+}
+
+@available(iOS 26.0, macOS 26.0, *)
+extension AssistantCardButtonIntent: ProgressReportingIntent {}
+
+#if compiler(>=6.4)
+@available(iOS 26.4, macOS 26.4, *)
+extension AssistantCardButtonIntent: CancellableIntent {}
+#endif
 

@@ -307,6 +307,11 @@ AssistantActionsRegistry assistantActionsRegistry({
       if (_recipe == null) return null;
       return AssistantReply.encode(await a0.showRecipeCard(_recipe));
     },
+    'toggleShoppingList': (args) async {
+      final _recipe = args['recipe'] is String ? await findRecipe(args['recipe'] as String) : null;
+      if (_recipe == null) return null;
+      return AssistantReply.encode(await a0.toggleShoppingList(_recipe));
+    },
     'pickRecipe': (args) async {
       final _meal = AssistantValue.enumeration(Meal.values, args['meal']) ?? Meal.dinner;
       final reply = await a0.pickRecipe(meal: _meal);
@@ -603,6 +608,10 @@ abstract final class AssistantDonations {
   /// The user ran `showRecipeCard` ("Show Recipe Card") in the app.
   static Future<bool> showRecipeCard(a1.Recipe recipe) =>
       AssistantActions.donateAction('showRecipeCard', {'recipe': recipe.id});
+
+  /// The user ran `toggleShoppingList` ("Toggle on Shopping List") in the app.
+  static Future<bool> toggleShoppingList(a1.Recipe recipe) =>
+      AssistantActions.donateAction('toggleShoppingList', {'recipe': recipe.id});
 
   /// The user ran `pickRecipe` ("Pick a Recipe") in the app.
   static Future<bool> pickRecipe({Meal meal = Meal.dinner}) =>

@@ -209,9 +209,12 @@ void main() {
       final swift = SwiftWriter(app).write();
       expect(swift, contains('import SwiftUI\n'));
       final start = _block(swift, 'struct CameraStartCaptureIntent');
-      expect(start, contains('func perform() async throws -> some IntentResult & ProvidesDialog & ShowsSnippetView {'));
+      // The intent runs below iOS 26: there the card is a view, from 26 a snippet intent.
+      expect(start, contains('func perform() async throws -> some IntentResult & ProvidesDialog {'));
       expect(start, contains('let reply = AssistantReply(json: try await callDart("camera.startCapture", args: args))'));
-      expect(start, contains('return .result(dialog: IntentDialog(stringLiteral: reply.dialog ?? "Camera on."), view: AssistantCardView(reply.card))'));
+      expect(start, contains('      return .result(dialog: IntentDialog(stringLiteral: reply.dialog ?? "Camera on."), snippetIntent: AssistantCardSnippetIntent(reply.card))\n'));
+      expect(start, contains('      return .result(dialog: IntentDialog(stringLiteral: reply.dialog ?? "Camera on."), view: AssistantCardView(reply.card))\n'));
+      expect(swift, contains('public struct AssistantCardSnippetIntent: SnippetIntent {'));
       final dart = writeDart(app);
       expect(dart, contains('Future<AssistantReply<void>> startCapture({required Mode captureMode, Lens? device, Delay? timerDuration});'));
       expect(dart, contains("      return AssistantReply.encode(await camera.startCapture(captureMode: AssistantValue.enumeration(Mode.values, args['captureMode'])"));
@@ -225,13 +228,13 @@ void main() {
       }, 'Tab', const Interactions(replies: {'createTab'}, dialogs: {'createTab': 'Opened {result}.'}));
       final app = _app(entities: [tab]);
       final create = _block(SwiftWriter(app).write(), 'struct TabCreateTabIntent');
-      expect(create, contains('func perform() async throws -> some ReturnsValue<TabEntity> & ProvidesDialog & ShowsSnippetView {'));
+      expect(create, contains('func perform() async throws -> some ReturnsValue<TabEntity> & ProvidesDialog {'));
       expect(create, contains('let candidates = try await TabEntityQuery().entities(for: reply.ids)'));
       expect(create, contains('guard let value = try await assistantChoose(among: candidates, prompt: reply.prompt) else {'));
       expect(
           create,
           contains('return .result(value: value, dialog: IntentDialog(stringLiteral: reply.dialog ?? "Opened \\(value.name)."), '
-              'view: AssistantCardView(reply.card))'));
+              'snippetIntent: AssistantCardSnippetIntent(reply.card))'));
       final dart = writeDart(app);
       expect(dart, contains('Future<AssistantReply<String>> createTab({Uri? url, required bool isPrivate});'));
       expect(dart, contains('AssistantReply.choose'), reason: 'documented on the method');
@@ -244,7 +247,8 @@ void main() {
       }, 'JournalItem', const Interactions(replies: {'createAudioEntry'}));
       final app = _app(entities: [journal]);
       final record = _block(SwiftWriter(app).write(), 'struct JournalItemCreateAudioEntryIntent');
-      expect(record, contains('some IntentResult & ProvidesDialog & ShowsSnippetView {'));
+      expect(record, contains('some IntentResult & ProvidesDialog & ShowsSnippetIntent {'));
+      expect(record, contains('    return .result(dialog: IntentDialog(stringLiteral: reply.dialog ?? "Done."), snippetIntent: AssistantCardSnippetIntent(reply.card))\n  }'));
       expect(record, contains('let reply = AssistantReply(json: try await callDart("JournalItem.startAudioEntry", args: [:]))'));
       final dart = writeDart(app);
       expect(dart, contains('Future<AssistantReply<void>> startAudioEntry();'));
@@ -263,8 +267,16 @@ void main() {
       );
       final app = AppModel(appName: 'Mira', actions: [action], entities: const [], schemaEntities: const []);
       final swift = _block(SwiftWriter(app).write(), 'public struct ShowRecipeAction');
-      expect(swift, contains('some IntentResult & ProvidesDialog & ShowsSnippetView {'));
-      expect(swift, contains('return .result(dialog: IntentDialog(stringLiteral: reply.dialog ?? "Done."), view: AssistantCardView(reply.card))'));
+      // Below iOS / macOS 26 the card is a static view; from 26 a snippet
+      // intent, so its buttons work (an opaque type with limited availability).
+      expect(swift, contains('some IntentResult & ProvidesDialog {'));
+      expect(
+          swift,
+          contains('    if #available(iOS 26.0, macOS 26.0, *) {\n'
+              '      return .result(dialog: IntentDialog(stringLiteral: reply.dialog ?? "Done."), snippetIntent: AssistantCardSnippetIntent(reply.card))\n'
+              '    } else {\n'
+              '      return .result(dialog: IntentDialog(stringLiteral: reply.dialog ?? "Done."), view: AssistantCardView(reply.card))\n'
+              '    }\n'));
       expect(writeDart(app), contains('      return AssistantReply.encode(await a0.showRecipe());'));
     });
   });

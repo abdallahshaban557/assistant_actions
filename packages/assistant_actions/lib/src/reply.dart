@@ -4,6 +4,7 @@ library;
 import 'dart:convert';
 
 import 'registry.dart' show AssistantValue;
+import 'runtime.dart' show AssistantActions;
 
 /// What a live action or intent handler tells Siri: what to say, a result
 /// card to show, and the [value] the intent returns.
@@ -70,7 +71,7 @@ class AssistantReply<T> {
 }
 
 /// A result card Siri shows after an action or intent: a title, a subtitle,
-/// a few label and value rows, and an optional image.
+/// a few label and value rows, an optional image, and buttons.
 ///
 /// ```dart
 /// AssistantCard(
@@ -78,10 +79,18 @@ class AssistantReply<T> {
 ///   subtitle: '20 min',
 ///   rows: [AssistantCardRow('Serves', '4')],
 ///   systemImage: 'fork.knife',
+///   buttons: [AssistantCardButton('Add to list', action: 'toggleShoppingList', args: {'recipe': 'pancakes'})],
 /// )
 /// ```
 class AssistantCard {
-  const AssistantCard({required this.title, this.subtitle, this.rows = const [], this.imagePath, this.systemImage});
+  const AssistantCard({
+    required this.title,
+    this.subtitle,
+    this.rows = const [],
+    this.imagePath,
+    this.systemImage,
+    this.buttons = const [],
+  });
 
   final String title;
   final String? subtitle;
@@ -96,12 +105,18 @@ class AssistantCard {
   /// An SF Symbol name, shown when there's no [imagePath].
   final String? systemImage;
 
+  /// Buttons under the rows that run an action in Dart and update the card
+  /// (interactive snippets, iOS 26 / macOS 26). Earlier, the card shows
+  /// without them. Keep it to one or two.
+  final List<AssistantCardButton> buttons;
+
   Map<String, Object?> toJson() => {
         'title': title,
         if (subtitle != null) 'subtitle': subtitle,
         if (rows.isNotEmpty) 'rows': [for (final r in rows) [r.label, r.value]],
         if (imagePath != null) 'imagePath': imagePath,
         if (systemImage != null) 'systemImage': systemImage,
+        if (buttons.isNotEmpty) 'buttons': [for (final b in buttons) b.toJson()],
       };
 }
 
@@ -111,4 +126,60 @@ class AssistantCardRow {
 
   final String label;
   final String value;
+}
+
+/// A button on an [AssistantCard]: pressing it runs [action] in Dart with
+/// [args], without leaving Siri, and the card then shows the `card` of the
+/// `AssistantReply` the action returns (or stays as it was).
+///
+/// [action] is the id of an `@AssistantAction` function (its name) or of a
+/// schema intent (such as `Countdown.pauseTimer`): a key of the generated
+/// registry's `actions`. [args] are its parameters by name, encoded as Swift
+/// would send them: an item as its id, an enum as its case name.
+///
+/// ```dart
+/// @AssistantAction(title: 'Toggle on List', runs: Runs.withFlutter, isDiscoverable: false)
+/// Future<AssistantReply<void>> toggleOnList(Recipe recipe) async {
+///   ...
+///   return AssistantReply(card: recipeCard(recipe));   // the card after the press
+/// }
+///
+/// AssistantCardButton('Add to list', action: 'toggleOnList', args: {'recipe': recipe.id}, systemImage: 'cart')
+/// ```
+///
+/// Needs iOS 26 or macOS 26 (`SnippetIntent`); earlier, cards show without
+/// buttons. With `@AssistantBackground()`, a press runs Dart without opening
+/// the app on iOS, like other live actions.
+class AssistantCardButton {
+  const AssistantCardButton(this.title,
+      {required this.action, this.args = const {}, this.systemImage, this.destructive = false});
+
+  final String title;
+
+  /// The id of the action the button runs.
+  final String action;
+
+  /// The action's parameters by name.
+  final Map<String, Object?> args;
+
+  /// An SF Symbol shown before [title].
+  final String? systemImage;
+
+  /// Shows the button as destructive (in red).
+  final bool destructive;
+
+  /// Throws an [ArgumentError] when the app has no action [action].
+  Map<String, Object?> toJson() {
+    if (AssistantActions.hasAction(action) == false) {
+      throw ArgumentError.value(action, 'action',
+          'Card button "$title" runs no known action. Use the id of an @AssistantAction function or a schema intent');
+    }
+    return {
+      'title': title,
+      'action': action,
+      'args': {for (final MapEntry(:key, :value) in args.entries) key: AssistantValue.encodeAny(value)},
+      if (systemImage != null) 'systemImage': systemImage,
+      if (destructive) 'destructive': true,
+    };
+  }
 }

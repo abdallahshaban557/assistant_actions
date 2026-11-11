@@ -12,6 +12,7 @@ part 'swift_writer_background.dart';
 part 'swift_writer_files.dart';
 part 'swift_writer_modern.dart';
 part 'swift_writer_intelligence.dart';
+part 'swift_writer_cards.dart';
 
 /// Writes `AssistantActions.g.swift`, compiled into the generated
 /// `assistant_actions_app` plugin.
@@ -22,6 +23,9 @@ class SwiftWriter {
   final _out = StringBuffer();
   /// Frameworks the schema types need: GeoToolbox for `PlaceDescriptor`, ….
   final _imports = <String>{};
+
+  /// Whether an intent shows a Dart card (`swift_writer_cards.dart`).
+  bool _cards = false;
 
   /// Schema id → the app class adopting it.
   late final Map<String, SchemaEntityModel> _adopted = {for (final s in app.schemaEntities) s.schema.id: s};
@@ -54,6 +58,7 @@ class SwiftWriter {
     _entityConformances();
     _backgroundEntrypoint();
     _intelligence();
+    _cardIntents();
     body.write(_publicize(_out.toString()));
 
     return [
@@ -1213,10 +1218,10 @@ $availability
 @AppIntent(schema: .${intent.id})
 struct $name${_continuable(modes, ': ')} {
 ${_modesMember(modes)}  @MainActor
-  func perform() async throws -> some ${_resultType('IntentResult', dialog: reply || dialog != null, snippet: reply)} {
+  func perform() async throws -> some ${_resultType('IntentResult', dialog: reply || dialog != null, snippet: reply, floor: floor)} {
 ${_confirmLines(intent, IntentKind.record, ix)}$foreground
 ${reply ? '''    let reply = AssistantReply(json: try await $call)
-    return ${_resultOf(dialog: 'reply.dialog ?? ${dialog ?? '"Done."'}', snippet: true)}''' : '''    _ = try await $call
+${_replyReturn(dialog: 'reply.dialog ?? ${dialog ?? '"Done."'}', floor: floor).trimRight()}''' : '''    _ = try await $call
     return ${_resultOf(dialog: dialog)}'''}
   }
 }
@@ -1303,7 +1308,7 @@ ${_continuableExtension(name, modes, availability)}${_liveConformances(name, flo
     if (intent.parameters.isNotEmpty) _out.writeln();
     _out
       ..writeln('  @MainActor')
-      ..writeln('  func perform() async throws -> some ${_resultType(returns, dialog: reply || dialog != null, snippet: reply)} {')
+      ..writeln('  func perform() async throws -> some ${_resultType(returns, dialog: reply || dialog != null, snippet: reply, floor: floor)} {')
       ..writeln(args.isEmpty ? '    let args: [String: Any] = [:]' : '    let args: [String: Any] = [\n${args.join('\n')}\n    ]')
       ..write(_confirmLines(intent, IntentKind.call, ix));
     // Undo calls `<id>.undo` with the same arguments, and the result ids.
@@ -1325,6 +1330,7 @@ ${_continuableExtension(name, modes, availability)}${_liveConformances(name, flo
     }
     if (live && reply) {
       _replyResult(intent, id, method, result, resultType, unionType, dialog,
+          floor: floor,
           undo: undo(switch (callResult(intent)) {
             CallResult.entity => 'reply.ids.first ?? NSNull()',
             CallResult.entities => 'reply.ids',

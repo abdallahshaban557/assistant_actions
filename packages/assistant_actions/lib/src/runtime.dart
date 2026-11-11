@@ -29,6 +29,11 @@ abstract final class AssistantActions {
 
   static bool get _supported => !kIsWeb && (Platform.isIOS || Platform.isMacOS);
 
+  /// Whether the registry has action [id] (for `AssistantCardButton`); null
+  /// before [start].
+  @internal
+  static bool? hasAction(String id) => _registry?.actions.containsKey(id);
+
   /// Applies what Siri queued while the app wasn't running, then starts
   /// answering live actions. Call once, after `WidgetsFlutterBinding.ensureInitialized()`.
   ///

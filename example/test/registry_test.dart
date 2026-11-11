@@ -173,6 +173,33 @@ void main() {
     expect(store.shopping, isEmpty);
   });
 
+  test("a recipe card's button toggles it on the shopping list and replies with the new card", () async {
+    store.shopping.clear();
+    final card = (jsonDecode((await AssistantActions.perform('showRecipeCard', '{"recipe":"pancakes"}'))!) as Map)['card'];
+    expect((card as Map)['buttons'], [
+      {
+        'title': 'Add to list',
+        'action': 'toggleShoppingList',
+        'args': {'recipe': 'pancakes'},
+        'systemImage': 'cart.badge.plus',
+      },
+    ]);
+    // What the generated AssistantCardButtonIntent sends when it's pressed.
+    final pressed = jsonDecode((await AssistantActions.perform('toggleShoppingList', '{"recipe":"pancakes"}'))!) as Map;
+    expect(store.shopping, ['Pancakes × 2']);
+    expect((pressed['card'] as Map)['rows'], [
+      ['On shopping list', 'Yes'],
+    ]);
+    expect(((pressed['card'] as Map)['buttons'] as List).single['title'], 'Remove from list');
+    await AssistantActions.perform('toggleShoppingList', '{"recipe":"pancakes"}');
+    expect(store.shopping, isEmpty);
+  });
+
+  test('a card button must run a known action', () {
+    expect(() => const AssistantCardButton('Nope', action: 'missing').toJson(), throwsArgumentError);
+    expect(const AssistantCardButton('Yes', action: 'toggleShoppingList').toJson()['action'], 'toggleShoppingList');
+  });
+
   test('system.open and searchInApp show things in the app', () async {
     await AssistantActions.perform('system.open.TaskItem', '{"id":"t1"}');
     expect(store.onScreen, 'task t1');

@@ -140,7 +140,8 @@ void main() {
     final swift = SwiftWriter(_app([action])).write();
     expect(swift, contains('if !AssistantBridge.shared.isReady && UIApplication.shared.applicationState != .active'));
     expect(swift, contains('let reply = AssistantReply(json: try await callDart("stopRecording", args: args))'));
-    expect(swift, contains('ProvidesDialog & ShowsSnippetView'));
+    expect(swift, contains('some IntentResult & ProvidesDialog {'));
+    expect(swift, contains('      return .result(dialog: IntentDialog(stringLiteral: reply.dialog ?? "Done."), snippetIntent: AssistantCardSnippetIntent(reply.card))'));
     expect(swift, contains('extension StopRecordingAction: LiveActivityIntent {}'));
   });
 }

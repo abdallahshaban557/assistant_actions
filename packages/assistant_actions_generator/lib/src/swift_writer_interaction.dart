@@ -2,21 +2,19 @@ part of 'swift_writer.dart';
 
 /// Siri conversations in the generated intents: confirmations, spoken
 /// results (`ProvidesDialog`) and Dart replies with result cards
-/// (`ShowsSnippetView`) or items to choose from.
+/// (`swift_writer_cards.dart`) or items to choose from.
 extension _Interaction on SwiftWriter {
-  /// `base & ProvidesDialog & ShowsSnippetView`, as needed.
-  String _resultType(String base, {required bool dialog, bool snippet = false}) =>
-      [base, if (dialog) 'ProvidesDialog', if (snippet) 'ShowsSnippetView'].join(' & ');
+  /// `base & ProvidesDialog`, as needed, and with a Dart card ([snippet]) the
+  /// snippet protocol of an intent available from [floor] (`_replySnippet`).
+  String _resultType(String base, {required bool dialog, bool snippet = false, Map<String, num>? floor}) =>
+      [base, if (dialog) 'ProvidesDialog', if (snippet) ?_replySnippet(floor)].join(' & ');
 
-  /// `.result(value: …, dialog: …, view: …)`. [dialog] is a Swift `String`.
-  String _resultOf({String? value, String? dialog, bool snippet = false}) {
-    if (snippet) _imports.add('SwiftUI');
-    return '.result(${[
-      if (value != null) 'value: $value',
-      if (dialog != null) 'dialog: IntentDialog(stringLiteral: $dialog)',
-      if (snippet) 'view: AssistantCardView(reply.card)',
-    ].join(', ')})';
-  }
+  /// `.result(value: …, dialog: …)`. [dialog] is a Swift `String`. Results
+  /// with a Dart card are `_replyReturn`.
+  String _resultOf({String? value, String? dialog}) => '.result(${[
+        if (value != null) 'value: $value',
+        if (dialog != null) 'dialog: IntentDialog(stringLiteral: $dialog)',
+      ].join(', ')})';
 
   /// A Swift string literal for a `dialogs` or `confirm` [template] of
   /// [intent], reading its parameters (as `self.<name>`) and, as
@@ -71,9 +69,10 @@ extension _Interaction on SwiftWriter {
 
   /// The end of a live call whose Dart handler returns an `AssistantReply`:
   /// its value (asking which item when Dart sent several), what it says
-  /// (else the `dialogs` template [dialog], else "Done.") and its card.
+  /// (else the `dialogs` template [dialog], else "Done.") and its card. The
+  /// intent is available from [floor].
   void _replyResult(IntentSchema intent, String id, String method, String? result, String? resultType,
-      String? unionType, String? dialog, {String undo = ''}) {
+      String? unionType, String? dialog, {String undo = '', Map<String, num>? floor}) {
     final says = 'reply.dialog ?? ${dialog ?? '"Done."'}';
     _out
       ..writeln('    let reply = AssistantReply(json: try await callDart("$id", args: args))')
@@ -86,23 +85,23 @@ extension _Interaction on SwiftWriter {
           ..writeln('    guard let value = try await assistantChoose(among: candidates, prompt: reply.prompt) else {')
           ..writeln('      throw AssistantActionError.failed("$method returned no ${SwiftWriter._escape(result!)} item")')
           ..writeln('    }')
-          ..writeln('    return ${_resultOf(value: 'value', dialog: says, snippet: true)}');
+          ..write(_replyReturn(value: 'value', dialog: says, floor: floor));
       case CallResult.entities:
         _out
           ..writeln('    let value = ${_lookup(resultType!, result, 'AssistantValues.strings(reply.value) ?? []')}')
-          ..writeln('    return ${_resultOf(value: 'value', dialog: says, snippet: true)}');
+          ..write(_replyReturn(value: 'value', dialog: says, floor: floor));
       case CallResult.union:
         _out
           ..writeln('    guard let value = $unionType.decode(reply.value) else {')
           ..writeln('      throw AssistantActionError.failed("$method returned nothing Siri can use")')
           ..writeln('    }')
-          ..writeln('    return ${_resultOf(value: 'value', dialog: says, snippet: true)}');
+          ..write(_replyReturn(value: 'value', dialog: says, floor: floor));
       case CallResult.unions:
         _out
           ..writeln('    let value = (AssistantValues.items(reply.value) ?? []).compactMap($unionType.decode)')
-          ..writeln('    return ${_resultOf(value: 'value', dialog: says, snippet: true)}');
+          ..write(_replyReturn(value: 'value', dialog: says, floor: floor));
       default:
-        _out.writeln('    return ${_resultOf(dialog: says, snippet: true)}');
+        _out.write(_replyReturn(dialog: says, floor: floor));
     }
   }
 }

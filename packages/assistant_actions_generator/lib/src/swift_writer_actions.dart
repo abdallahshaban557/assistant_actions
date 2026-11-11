@@ -83,7 +83,7 @@ extension _Actions on SwiftWriter {
       ..writeln('  public init() {}')
       ..writeln()
       ..writeln('  @MainActor')
-      ..writeln('  public func perform() async throws -> some ${_resultType(base, dialog: true, snippet: reply)} {')
+      ..writeln('  public func perform() async throws -> some ${_resultType(base, dialog: true, snippet: reply, floor: floor)} {')
       ..writeln(a.params.isEmpty ? '    let args: [String: Any] = [:]' : '    let args: [String: Any] = [');
     for (final p in a.params) {
       _out.writeln('      "${p.name}": ${_encodeParam(p)},');
@@ -110,7 +110,7 @@ extension _Actions on SwiftWriter {
       if (reply) {
         _out.writeln('    let reply = AssistantReply(json: try await callDart("${a.id}", args: args))');
         if (result != null) _out.write(_decodeResult(result, a, source: 'reply.value', reply: true));
-        _out.writeln('    return ${_resultOf(value: result == null ? null : 'value', dialog: 'reply.dialog ?? $dialog', snippet: true)}');
+        _out.write(_replyReturn(value: result == null ? null : 'value', dialog: 'reply.dialog ?? $dialog', floor: floor));
       } else {
         _out.writeln('    let reply = try await callDart("${a.id}", args: args)');
         if (result == null) {
