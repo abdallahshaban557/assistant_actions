@@ -32,7 +32,13 @@ class BrowserClearHistoryTimeFrame extends SchemaEnumCases {
 ///
 /// `dialogs` and `confirm` give, by intent name, what Siri says when one
 /// finishes and what it asks first.
-/// `replies` lets live intents' handlers return an `AssistantReply`.
+/// `replies` lets live intents' handlers return an `AssistantReply`, and
+/// `cardButtons` lets their cards have buttons below iOS / macOS 26 targets.
+/// `summaries` gives, by intent name, the sentence Shortcuts shows it as.
+///
+/// `requiresUnlock` keeps Siri from running its intents on a locked device;
+/// `systemImage` is an SF Symbol shown with every item (an `@EntityImage()`
+/// field gives each item its own).
 class BrowserTab extends SchemaEntity {
   const BrowserTab({
     this.createTab = false,
@@ -43,7 +49,11 @@ class BrowserTab extends SchemaEntity {
     super.dialogs,
     super.confirm,
     super.replies,
+    super.cardButtons,
+    super.summaries,
     super.url,
+    super.requiresUnlock,
+    super.systemImage,
     super.visualSearch,
   }) : super('browser.tab');
 
@@ -124,8 +134,13 @@ class FixedBrowserTab extends SchemaContainer {
 ///
 /// Map fields with [BrowserTabGroupField] and turn on the schema intents the app
 /// supports. Each one becomes a method on the generated handler.
+///
+/// `requiresUnlock` keeps Siri from running its intents on a locked device;
+/// `systemImage` is an SF Symbol shown with every item (an `@EntityImage()`
+/// field gives each item its own).
 class BrowserTabGroup extends SchemaEntity {
-  const BrowserTabGroup({super.url, super.visualSearch}) : super('browser.tabGroup');
+  const BrowserTabGroup({super.url, super.requiresUnlock, super.systemImage, super.visualSearch})
+      : super('browser.tabGroup');
 }
 
 /// Marks members of `browser.tabGroup`.
@@ -159,8 +174,14 @@ class FixedBrowserTabGroup extends SchemaContainer {
 ///
 /// Map fields with [BrowserReadingListItemField] and turn on the schema intents the app
 /// supports. Each one becomes a method on the generated handler.
+///
+/// `requiresUnlock` keeps Siri from running its intents on a locked device;
+/// `systemImage` is an SF Symbol shown with every item (an `@EntityImage()`
+/// field gives each item its own).
 class BrowserReadingListItem extends SchemaEntity {
-  const BrowserReadingListItem({super.url, super.visualSearch}) : super('browser.readingListItem');
+  const BrowserReadingListItem(
+      {super.url, super.requiresUnlock, super.systemImage, super.visualSearch})
+      : super('browser.readingListItem');
 }
 
 /// Marks members of `browser.readingListItem`.
@@ -194,7 +215,13 @@ abstract final class BrowserReadingListItemField {
 ///
 /// `dialogs` and `confirm` give, by intent name, what Siri says when one
 /// finishes and what it asks first (deletes ask by default; see `confirmDeletes`).
-/// `replies` lets live intents' handlers return an `AssistantReply`.
+/// `replies` lets live intents' handlers return an `AssistantReply`, and
+/// `cardButtons` lets their cards have buttons below iOS / macOS 26 targets.
+/// `summaries` gives, by intent name, the sentence Shortcuts shows it as.
+///
+/// `requiresUnlock` keeps Siri from running its intents on a locked device;
+/// `systemImage` is an SF Symbol shown with every item (an `@EntityImage()`
+/// field gives each item its own).
 class BrowserBookmark extends SchemaEntity {
   const BrowserBookmark({
     this.bookmarkTab = false,
@@ -205,7 +232,11 @@ class BrowserBookmark extends SchemaEntity {
     super.confirm,
     super.confirmDeletes,
     super.replies,
+    super.cardButtons,
+    super.summaries,
     super.url,
+    super.requiresUnlock,
+    super.systemImage,
     super.visualSearch,
   }) : super('browser.bookmark');
 
@@ -263,7 +294,13 @@ abstract final class BrowserBookmarkField {
 ///
 /// `dialogs` and `confirm` give, by intent name, what Siri says when one
 /// finishes and what it asks first.
-/// `replies` lets live intents' handlers return an `AssistantReply`.
+/// `replies` lets live intents' handlers return an `AssistantReply`, and
+/// `cardButtons` lets their cards have buttons below iOS / macOS 26 targets.
+/// `summaries` gives, by intent name, the sentence Shortcuts shows it as.
+///
+/// `requiresUnlock` keeps Siri from running its intents on a locked device;
+/// `systemImage` is an SF Symbol shown with every item (an `@EntityImage()`
+/// field gives each item its own).
 class BrowserWindow extends SchemaEntity {
   const BrowserWindow({
     this.createWindow = false,
@@ -271,7 +308,11 @@ class BrowserWindow extends SchemaEntity {
     super.dialogs,
     super.confirm,
     super.replies,
+    super.cardButtons,
+    super.summaries,
     super.url,
+    super.requiresUnlock,
+    super.systemImage,
     super.visualSearch,
   }) : super('browser.window');
 
@@ -326,11 +367,15 @@ class FixedBrowserWindow extends SchemaContainer {
 ///
 /// `dialogs` and `confirm` give, by intent name, what Siri says when one
 /// finishes and what it asks first.
+/// `summaries` gives the sentence Shortcuts shows each as; `requiresUnlock`
+/// keeps Siri from running them on a locked device.
 class BrowserIntents extends SchemaIntents {
   const BrowserIntents({
     this.clearHistory = false,
     super.dialogs,
     super.confirm,
+    super.summaries,
+    super.requiresUnlock,
   }) : super('browser');
 
   /// Handle `browser.clearHistory` ("Clear History"): calls

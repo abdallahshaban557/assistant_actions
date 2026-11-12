@@ -25,7 +25,8 @@
       "opensApp": true,
       "protocols": [
         "open"
-      ]
+      ],
+      "authenticationPolicy": 2
     },
     "searchInApp": {
       "title": "Search",
@@ -47,7 +48,8 @@
       "opensApp": true,
       "protocols": [
         "search"
-      ]
+      ],
+      "authenticationPolicy": 2
     }
   },
   "skipped": {

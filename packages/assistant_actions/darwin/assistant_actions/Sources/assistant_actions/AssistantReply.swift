@@ -38,14 +38,37 @@ public struct AssistantCard: Equatable, Sendable {
     public let value: String
   }
 
+  /// A button that runs Dart action [action] with [args] (JSON text) and
+  /// updates the card (`AssistantCardStore`), from iOS 26 / macOS 26.
+  public struct Button: Equatable, Sendable {
+    public let title: String
+    public let action: String
+    public let args: String
+    public let systemImage: String?
+    public let destructive: Bool
+  }
+
   public let title: String
   public let subtitle: String?
   public let rows: [Row]
   public let imagePath: String?
   public let systemImage: String?
+  public let buttons: [Button]
+
+  /// The card as JSON text, as Dart sent it: what a generated
+  /// `SnippetIntent` keeps to show it again.
+  public let json: String
+
+  /// Reads JSON text, such as [json].
+  public init?(text: String) {
+    self.init(json: try? JSONSerialization.jsonObject(with: Data(text.utf8)))
+  }
 
   public init?(json: Any?) {
-    guard let object = json as? [String: Any], let title = object["title"] as? String else { return nil }
+    guard let object = json as? [String: Any], let title = object["title"] as? String,
+      let data = try? JSONSerialization.data(withJSONObject: object, options: [.sortedKeys])
+    else { return nil }
+    self.json = String(decoding: data, as: UTF8.self)
     self.title = title
     subtitle = object["subtitle"] as? String
     rows = (object["rows"] as? [Any] ?? []).compactMap { row in
@@ -55,5 +78,16 @@ public struct AssistantCard: Equatable, Sendable {
     }
     imagePath = object["imagePath"] as? String
     systemImage = object["systemImage"] as? String
+    buttons = (object["buttons"] as? [Any] ?? []).compactMap { button in
+      guard let button = button as? [String: Any], let title = button["title"] as? String,
+        let action = button["action"] as? String
+      else { return nil }
+      let args = (button["args"] as? [String: Any])
+        .flatMap { try? JSONSerialization.data(withJSONObject: $0, options: [.sortedKeys]) }
+        .map { String(decoding: $0, as: UTF8.self) }
+      return Button(
+        title: title, action: action, args: args ?? "{}", systemImage: button["systemImage"] as? String,
+        destructive: button["destructive"] as? Bool ?? false)
+    }
   }
 }

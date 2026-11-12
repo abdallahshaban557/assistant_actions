@@ -22,6 +22,11 @@ import '../src/values.dart';
 ///
 /// `dialogs` and `confirm` give, by intent name, what Siri says when one
 /// finishes and what it asks first.
+/// `summaries` gives, by intent name, the sentence Shortcuts shows it as.
+///
+/// `requiresUnlock` keeps Siri from running its intents on a locked device;
+/// `systemImage` is an SF Symbol shown with every item (an `@EntityImage()`
+/// field gives each item its own).
 ///
 /// Syncable (`SyncableEntity`), like Apple's own: keep each `@EntityId()`
 /// stable across launches and devices. Opt out with `@AssistantSyncable(false)`.
@@ -33,7 +38,10 @@ class NotesNote extends SchemaEntity {
     this.appendText = false,
     super.dialogs,
     super.confirm,
+    super.summaries,
     super.url,
+    super.requiresUnlock,
+    super.systemImage,
     super.visualSearch,
   }) : super('notes.note');
 
@@ -106,8 +114,13 @@ abstract final class NotesNoteField {
 ///
 /// Map fields with [NotesAccountField] and turn on the schema intents the app
 /// supports. Each one becomes a method on the generated handler.
+///
+/// `requiresUnlock` keeps Siri from running its intents on a locked device;
+/// `systemImage` is an SF Symbol shown with every item (an `@EntityImage()`
+/// field gives each item its own).
 class NotesAccount extends SchemaEntity {
-  const NotesAccount({super.url, super.visualSearch}) : super('notes.account');
+  const NotesAccount({super.url, super.requiresUnlock, super.systemImage, super.visualSearch})
+      : super('notes.account');
 }
 
 /// Marks members of `notes.account`.
@@ -142,12 +155,18 @@ class FixedNotesAccount extends SchemaContainer {
 /// Map fields with [NotesFolderField] and turn on the schema intents the app
 /// supports. Each one becomes a method on the generated handler.
 ///
+/// `requiresUnlock` keeps Siri from running its intents on a locked device;
+/// `systemImage` is an SF Symbol shown with every item (an `@EntityImage()`
+/// field gives each item its own).
+///
 /// Syncable (`SyncableEntity`), like Apple's own: keep each `@EntityId()`
 /// stable across launches and devices. Opt out with `@AssistantSyncable(false)`.
 class NotesFolder extends SchemaEntity {
   const NotesFolder({
     this.account,
     super.url,
+    super.requiresUnlock,
+    super.systemImage,
     super.visualSearch,
   }) : super('notes.folder');
 

@@ -21,7 +21,9 @@ The `build_runner` generator for
 It checks what Apple's metadata step would reject at build time instead:
 phrases without `{app}` or naming parameters that aren't entities or enums,
 more than 10 App Shortcuts, hidden actions as shortcuts, unsupported parameter
-and result types, and shortcuts for intents a class doesn't turn on.
+and result types, shortcuts for intents a class doesn't turn on, Shortcuts
+`summary` sentences naming parameters an intent doesn't have, and unlock
+policies below what Apple's schema for an intent requires (which it raises).
 
 ```bash
 flutter pub add assistant_actions dev:build_runner dev:assistant_actions_generator

@@ -290,7 +290,8 @@
       "result": {
         "kind": "entity",
         "ref": "notes.note"
-      }
+      },
+      "authenticationPolicy": 1
     },
     "appendText": {
       "title": "Append Text to Note",
@@ -321,7 +322,8 @@
       "result": {
         "kind": "entity",
         "ref": "notes.note"
-      }
+      },
+      "authenticationPolicy": 1
     }
   }
 }

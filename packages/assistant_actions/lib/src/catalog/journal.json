@@ -138,7 +138,8 @@
       "result": {
         "kind": "entity",
         "ref": "journal.entry"
-      }
+      },
+      "authenticationPolicy": 2
     },
     "createAudioEntry": {
       "title": "Create Audio Entry",
@@ -150,7 +151,8 @@
       "parameters": [],
       "protocols": [
         "audioStarting"
-      ]
+      ],
+      "authenticationPolicy": 2
     },
     "updateEntry": {
       "title": "Update Journal",
@@ -227,7 +229,8 @@
           },
           "description": "Current location to add to the entry."
         }
-      ]
+      ],
+      "authenticationPolicy": 2
     },
     "deleteEntry": {
       "title": "Delete Journal Entries",
@@ -252,7 +255,8 @@
       ],
       "protocols": [
         "delete"
-      ]
+      ],
+      "authenticationPolicy": 2
     }
   },
   "queries": {

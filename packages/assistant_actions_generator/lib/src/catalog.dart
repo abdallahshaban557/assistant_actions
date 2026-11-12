@@ -217,6 +217,7 @@ class IntentSchema {
     this.result,
     this.opensApp = false,
     this.protocols = const [],
+    this.authenticationPolicy = 0,
   });
 
   factory IntentSchema.fromJson(String id, Map<String, Object?> json) => IntentSchema(
@@ -230,6 +231,7 @@ class IntentSchema {
         result: json['result'] == null ? null : SchemaType.fromJson((json['result'] as Map).cast()),
         opensApp: json['opensApp'] as bool? ?? false,
         protocols: (json['protocols'] as List?)?.cast<String>() ?? const [],
+        authenticationPolicy: (json['authenticationPolicy'] as num?)?.toInt() ?? 0,
       );
 
   /// `reminders.createReminder`.
@@ -248,6 +250,12 @@ class IntentSchema {
   /// System intent protocols the schema adopts (`_systemProtocols`), such as
   /// `audioStarting` for `AudioRecordingIntent` or `search`.
   final List<String> protocols;
+
+  /// The least `IntentAuthenticationPolicy` Apple's schema allows an intent
+  /// that sets one (`_authenticationPolicy`): 0 `alwaysAllowed`, 1
+  /// `requiresAuthentication`, 2 `requiresLocalDeviceAuthentication`.
+  /// `system.open` and the journal intents are 2.
+  final int authenticationPolicy;
 
   /// Starts an audio recording (`AudioRecordingIntent`).
   bool get recordsAudio => protocols.contains('audioStarting');
@@ -274,6 +282,7 @@ class IntentSchema {
         if (result != null) 'result': result!.toJson(),
         if (opensApp) 'opensApp': true,
         if (protocols.isNotEmpty) 'protocols': protocols,
+        if (authenticationPolicy != 0) 'authenticationPolicy': authenticationPolicy,
       };
 }
 

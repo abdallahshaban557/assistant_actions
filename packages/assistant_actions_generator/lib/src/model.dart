@@ -1,9 +1,11 @@
 import 'catalog.dart';
 import 'interaction.dart';
 import 'deployment.dart';
+import 'polish.dart';
 import 'schema_calls.dart';
 
 export 'deployment.dart' show DeploymentTarget;
+export 'polish.dart' show UnlockModel;
 
 /// A Dart value type the generator can pass between Swift and Dart.
 enum ValueKind {
@@ -200,11 +202,24 @@ class EntityModel {
     this.syncable = false,
     this.url,
     this.visualSearch = false,
+    this.unlock,
+    this.systemImage,
+    this.image,
   });
 
   final String className;
   final Uri library;
   final String title;
+
+  /// `requiresUnlock:`, if set.
+  final UnlockModel? unlock;
+
+  /// `systemImage:`: an SF Symbol for every item.
+  final String? systemImage;
+
+  /// The `@EntityImage()` field (a `String` or `Uri`), published with the
+  /// item but not one of [fields].
+  final FieldModel? image;
 
   /// `@AssistantSyncable()`: a `SyncableEntity`.
   final bool syncable;
@@ -314,7 +329,10 @@ class AppEnumModel {
 }
 
 class AppEnumCase {
-  const AppEnumCase({required this.name, required this.title, this.synonyms = const []});
+  const AppEnumCase({required this.name, required this.title, this.synonyms = const [], this.systemImage});
+
+  /// `@CaseTitle(systemImage:)`: an SF Symbol.
+  final String? systemImage;
 
   /// The Dart case name, which is also the Swift raw value.
   final String name;
@@ -370,12 +388,25 @@ class ActionModel {
     this.isDiscoverable = true,
     this.opensApp = false,
     this.longRunning = false,
+    this.unlock,
+    this.summary,
+    this.cardButtons = false,
   });
 
   final String functionName;
 
+  /// `requiresUnlock:`, if set.
+  final UnlockModel? unlock;
+
+  /// `summary:`: the Shortcuts sentence, with `{param}` placeholders.
+  final String? summary;
+
   /// `longRunning: true`: a `LongRunningIntent`.
   final bool longRunning;
+
+  /// `cardButtons: true`: below a deployment target of 26 the reply's card
+  /// is still interactive from 26 (`swift_writer_cards.dart`).
+  final bool cardButtons;
   final Uri library;
   final String title;
   final String? description;
@@ -445,9 +476,13 @@ class SnapshotActionModel {
     this.shortcut,
     this.searchKeywords = const [],
     this.isDiscoverable = true,
+    this.unlock,
   });
 
   final String name;
+
+  /// `requiresUnlock:`, if set.
+  final UnlockModel? unlock;
   final String title;
   final String? description;
   final ShortcutModel? shortcut;
@@ -515,11 +550,27 @@ class SchemaEntityModel {
     this.queries = const [],
     this.url,
     this.visualSearch = false,
+    this.unlock,
+    this.systemImage,
+    this.image,
+    this.summaries = const {},
   });
 
   final String className;
   final Uri library;
   final DomainCatalog catalog;
+
+  /// `requiresUnlock:`, if set.
+  final UnlockModel? unlock;
+
+  /// `systemImage:`: an SF Symbol for every item.
+  final String? systemImage;
+
+  /// The `@EntityImage()` field, published with the item.
+  final FieldModel? image;
+
+  /// Intent name → its Shortcuts sentence (`summaries:`).
+  final Map<String, String> summaries;
 
   /// `@AssistantSyncable(…)`, if the class has one.
   final bool? syncableOverride;
@@ -611,9 +662,17 @@ class SchemaDomainModel {
     this.interactions = Interactions.none,
     this.undoable = false,
     this.longRunning = false,
+    this.unlock,
+    this.summaries = const {},
   });
 
   final String className;
+
+  /// `requiresUnlock:`, if set.
+  final UnlockModel? unlock;
+
+  /// Intent name → its Shortcuts sentence (`summaries:`).
+  final Map<String, String> summaries;
 
   /// Dialogs, confirmations and replies from the annotation.
   final Interactions interactions;
@@ -668,7 +727,11 @@ class AppModel {
     this.shortcutTileColor,
     this.background,
     this.deployment = DeploymentTarget.minimum,
+    this.unlock = UnlockModel.notRequired,
   });
+
+  /// `@AssistantActionsApp(requiresUnlock:)`: the default for every intent.
+  final UnlockModel unlock;
 
   /// The `@AssistantBackground()` registry function, when the app lets Siri
   /// run Dart on a headless engine (iOS).

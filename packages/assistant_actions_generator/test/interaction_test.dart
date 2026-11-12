@@ -244,11 +244,27 @@ void main() {
       }, 'JournalItem', const Interactions(replies: {'createAudioEntry'}));
       final app = _app(entities: [journal]);
       final record = _block(SwiftWriter(app).write(), 'struct JournalItemCreateAudioEntryIntent');
-      expect(record, contains('some IntentResult & ProvidesDialog & ShowsSnippetView {'));
+      // journal.entry needs iOS 26, so its card is always a snippet intent (with buttons).
+      expect(record, contains('some IntentResult & ProvidesDialog & ShowsSnippetIntent {'));
+      expect(record, contains('    return .result(dialog: IntentDialog(stringLiteral: reply.dialog ?? "Done."), snippetIntent: AssistantCardSnippetIntent(reply.card))'));
       expect(record, contains('let reply = AssistantReply(json: try await callDart("JournalItem.startAudioEntry", args: [:]))'));
       final dart = writeDart(app);
       expect(dart, contains('Future<AssistantReply<void>> startAudioEntry();'));
       expect(dart, contains('      return AssistantReply.encode(await journalItem.startAudioEntry());'));
+    });
+
+    test('cardButtons opts a schema intent in to an interactive card below 26', () {
+      final app = _camera(const Interactions(replies: {'startCapture'}, cardButtons: {'startCapture'}));
+      final start = _block(SwiftWriter(app).write(), 'struct CameraStartCaptureIntent');
+      expect(start, contains('func perform() async throws -> some IntentResult & ProvidesDialog {'));
+      expect(
+          start,
+          contains('    if #available(iOS 26.0, macOS 26.0, *) {\n'
+              '      return .result(dialog: IntentDialog(stringLiteral: reply.dialog ?? "Done."), snippetIntent: AssistantCardSnippetIntent(reply.card))\n'
+              '    } else {\n'
+              '      return .result(dialog: IntentDialog(stringLiteral: reply.dialog ?? "Done."), view: AssistantCardView(reply.card))\n'
+              '    }'));
+      expect(SwiftWriter(app).write(), contains('public struct AssistantCardSnippetIntent: SnippetIntent {'));
     });
 
     test('a live plain action can return an AssistantReply', () {
@@ -314,6 +330,18 @@ void main() {
       }, 'Countdown');
       expect(checkInteractions(const Interactions(replies: {'pauseTimer'}), timer.intents, '@ClockTimer'),
           contains('clock.pauseTimer is queued'));
+    });
+
+    test('cardButtons only on intents that are turned on and reply', () {
+      expect(check(const Interactions(cardButtons: {'createList'})),
+          contains('cardButtons names createList, which is not an intent turned on here'));
+      final camera = _load('camera');
+      String? cameraCheck(Interactions ix) => checkInteractions(
+          ix, [for (final i in camera.domainIntents) (i, IntentKind.call)], '@CameraIntents');
+      expect(cameraCheck(const Interactions(cardButtons: {'startCapture'})),
+          '@CameraIntents: cardButtons names startCapture, which is not in replies: only intents whose handler '
+              'returns an AssistantReply have a card. Add it to replies too.');
+      expect(cameraCheck(const Interactions(replies: {'startCapture'}, cardButtons: {'startCapture'})), isNull);
     });
 
     test('system.open takes none yet', () {

@@ -341,7 +341,8 @@ Listing an intent in `replies` changes its method's return type to
 `AssistantReply<T>`, where `T` is what it returned before: the item's id
 (`String`), ids (`List<String>`), an `AssistantUnion`, or `void`. Put the id
 in `value`. The card is a generic SwiftUI view in the runtime
-(`ShowsSnippetView`, iOS 17 / macOS 14 and later).
+(`AssistantCardView`): a snippet view, and from iOS / macOS 26 an
+interactive snippet that can have buttons (below).
 
 **Choosing between items.** For an intent that returns one item, return
 `AssistantReply.choose(ids, prompt: 'Which tab?')` when several match: Siri
@@ -350,9 +351,170 @@ later; earlier, the first is taken), and that item is the intent's result.
 Dart isn't called again with the choice, so use it where the result *is* the
 answer (finding or opening an item), not to pick what to change.
 
+**Buttons on cards.** From iOS 26 / macOS 26 a card can be an interactive
+snippet, and its `buttons` run Dart without leaving Siri. A button names the
+action it runs, by id (an `@AssistantAction` function's name, or a schema
+intent's such as `Countdown.pauseTimer`: a key of the generated registry's
+`actions`), and its arguments the way Swift sends them (an item as its id, an
+enum as its case name). The card then shows the `card` of the
+`AssistantReply` the action returns; an action that returns no card leaves it
+as it was:
+
+```dart
+@AssistantAction(title: 'Show Recipe Card', runs: Runs.withFlutter, cardButtons: true)
+Future<AssistantReply<void>> showRecipeCard(Recipe recipe) async =>
+    AssistantReply(dialog: '${recipe.name} takes ${recipe.minutes} minutes.', card: recipeCard(recipe));
+
+// What the button runs; hidden from Shortcuts' list.
+@AssistantAction(title: 'Toggle on Shopping List', runs: Runs.withFlutter, isDiscoverable: false, cardButtons: true)
+Future<AssistantReply<void>> toggleShoppingList(Recipe recipe) async {
+  ... // add it, or take it off
+  return AssistantReply(card: recipeCard(recipe));    // the card after the press
+}
+
+AssistantCard recipeCard(Recipe recipe) => AssistantCard(
+      title: recipe.name,
+      rows: [AssistantCardRow('On shopping list', onList(recipe) ? 'Yes' : 'No')],
+      buttons: [
+        AssistantCardButton(onList(recipe) ? 'Remove from list' : 'Add to list',
+            action: 'toggleShoppingList', args: {'recipe': recipe.id}, systemImage: 'cart'),
+      ],
+    );
+```
+
+Which cards show their buttons:
+
+- **Deployment target iOS 26 and macOS 26** (or an intent that itself needs
+  26, such as `journal.entry`'s): every card, always.
+- **Below that**, only intents that opt in: `cardButtons: true` on
+  `@AssistantAction`, or `cardButtons: {'pauseTimer'}` (intent names, also
+  listed in `replies`) on a schema annotation. They show buttons on iOS /
+  macOS 26 and later, and the same card without them before.
+- **Every other intent** shows its card without buttons. Dart doesn't know
+  the deployment target, so this isn't an error: the buttons are just left
+  out.
+
+Opting in changes the intent's result type: it returns the snippet intent
+from 26 (`.result(snippetIntent:)`) and the plain `AssistantCardView` before,
+so the type no longer states `ShowsSnippetView` (Shortcuts' metadata then
+lists a dialog but no snippet). Intents that don't opt in keep exactly the
+output they had.
+
+A button whose `action` isn't in the registry throws an `ArgumentError` when
+the card is sent. With `@AssistantBackground()` a press runs Dart without
+opening the app on iOS, like other live actions; without it, iOS brings the
+app forward if Flutter isn't running.
+
+How it works: the generated plugin has a `SnippetIntent`
+(`AssistantCardSnippetIntent`) holding the card, and an
+`AssistantCardButtonIntent` for its buttons (`Button(intent:)`); Apple only
+registers intents of the app's own module. After a press Siri performs the snippet intent again,
+which shows the newest card the button's action replied with
+(`AssistantCardStore`, the last 20 cards). Toggles (`Toggle(intent:)`) aren't
+supported; use a button whose title says the state.
+
 Queued intents (`Runs.deferred`, inbox creates, updates and deletes, and
 queued calls) run after Siri has answered, so they can confirm and use
 `dialogs` but can't reply from Dart; the generator says so.
+
+### Locked devices
+
+By default (Apple's), Siri runs an app's intents from a locked phone. For an
+app with private data, say a journal or a task list, ask for an unlock first
+with `requiresUnlock` (App Intents' `authenticationPolicy`):
+
+```dart
+@AssistantActionsApp(name: 'Journal', requiresUnlock: Unlock.required)
+library;
+
+@AssistantAction(title: 'Weather', requiresUnlock: Unlock.notRequired)   // opts back out
+Future<String> weather() async { ... }
+
+@JournalEntry(createEntry: true, requiresUnlock: Unlock.onThisDevice)
+class JournalItem { ... }
+```
+
+* `Unlock.notRequired` runs on a locked device (`.alwaysAllowed`);
+  `Unlock.required` asks the user to unlock first (`.requiresAuthentication`);
+  `Unlock.onThisDevice` asks for an unlock on the device that runs it
+  (`.requiresLocalDeviceAuthentication`), so a request from a HomePod or a
+  paired Apple Watch can't run it while the phone is locked.
+* `@AssistantActionsApp(requiresUnlock:)` is the default for every intent.
+  `@AssistantEntity`, the schema entity annotations and the `…Intents`
+  annotations override it for the intents about their items: schema intents,
+  `system.open` (or the deep link that replaces it) and snapshot answers.
+  `@AssistantAction(requiresUnlock:)` overrides it for one action; an action
+  that sets nothing needs at least what the entities it takes or returns ask
+  for.
+* Apple's schemas set a minimum for intents that ask for an unlock:
+  `system.open`, `system.searchInApp` and the `journal.*` intents (among
+  others) need `onThisDevice`, so `Unlock.required` becomes `onThisDevice`
+  there. Apple's metadata processor rejects anything less.
+* Focus filters run when the system changes Focus, not at the user's
+  request, so they have no policy.
+
+**What it doesn't cover.** Entity queries have no authentication policy in
+App Intents: on a locked device Siri can still look published items up by
+title, for example to resolve "open my Monday entry" before it asks for the
+unlock, and Spotlight keeps the indexed titles. An intent that requires an
+unlock never runs, speaks a snapshot answer or opens an item until the user
+unlocks, but don't publish anything as an item title that must stay secret
+on the lock screen. Apple offers no setting for queries; leave such items
+unpublished, or give them neutral titles.
+
+### Shortcuts sentences
+
+Shortcuts shows an action as its parameters, one field each. A `summary`
+shows it as a sentence instead, with the values in place:
+
+```dart
+@AssistantAction(title: 'Add to Shopping List', summary: 'Add {recipe} to the shopping list', ...)
+Future<void> addToShoppingList(Recipe recipe, {int? servings}) async { ... }
+```
+
+`{name}` is the parameter `name` (each at most once); parameters the sentence
+leaves out (`servings`) are listed under it, so they stay editable. Schema
+intents already have Apple's sentence ("Add *title* to *list*"); `summaries`
+replaces it, by intent name:
+
+```dart
+@RemindersReminder(createReminder: true, summaries: {'createReminder': 'Add {title} to my tasks, due {dueDate}'}, ...)
+```
+
+The generator checks the names. Conditional sentences (`When` / `Switch`)
+aren't supported.
+
+### Item images
+
+Siri, Spotlight and Shortcuts show items as text unless they have an image.
+`systemImage` gives every item of a type an SF Symbol; mark a field or getter
+`@EntityImage()` to give each item its own:
+
+```dart
+@AssistantEntity(title: 'Recipe', systemImage: 'fork.knife')
+class Recipe {
+  ...
+  @EntityImage()
+  final String? photoPath;     // an absolute path, a file: URL or an https: URL
+}
+
+@AssistantEnum(title: 'Meal')
+enum Meal { @CaseTitle('Breakfast', systemImage: 'sunrise') breakfast, dinner }
+```
+
+The same `systemImage:` and `@EntityImage()` work on schema entity classes.
+The image (a `String` or `Uri`) is published with the item. Items without one
+show the `systemImage`, if any.
+
+* **Local files** are read in the app's process whenever Siri or Shortcuts
+  shows the item, and handed over as image data, so a file in the app's own
+  sandbox (Documents, Application Support, a cache) works even though the
+  system draws it in another process. Spotlight gets the same bytes as the
+  item's thumbnail when the item is indexed. Keep these thumbnail-sized: a
+  large photo is read every time.
+* **Remote URLs** (`https:`) are passed to the system to load
+  (`DisplayRepresentation.Image(url:)`) where it supports it. Spotlight has
+  no thumbnail for them; it shows the app's icon.
 
 ## Beyond Siri: Focus, Live Activities, controls, the Action button
 

@@ -63,7 +63,8 @@
       "opensApp": true,
       "protocols": [
         "open"
-      ]
+      ],
+      "authenticationPolicy": 2
     },
     "moveFiles": {
       "title": "Move Items to Folder",
@@ -94,7 +95,8 @@
           },
           "description": "Folder where the files will be moved."
         }
-      ]
+      ],
+      "authenticationPolicy": 1
     },
     "createFolder": {
       "title": "Create Folder",
@@ -128,7 +130,8 @@
       "result": {
         "kind": "entity",
         "ref": "files.file"
-      }
+      },
+      "authenticationPolicy": 1
     },
     "renameFile": {
       "title": "Rename Item",
@@ -155,7 +158,8 @@
           },
           "description": "New name for the file or folder."
         }
-      ]
+      ],
+      "authenticationPolicy": 1
     },
     "deleteFiles": {
       "title": "Delete Items",
@@ -180,7 +184,8 @@
       ],
       "protocols": [
         "delete"
-      ]
+      ],
+      "authenticationPolicy": 1
     }
   },
   "skipped": {

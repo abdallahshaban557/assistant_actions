@@ -3,15 +3,18 @@ import 'package:source_gen/source_gen.dart';
 import 'catalog.dart';
 import 'interaction.dart';
 import 'model.dart';
+import 'polish.dart';
 import 'schema_calls.dart';
 
 part 'swift_writer_actions.dart';
+part 'swift_writer_polish.dart';
 part 'swift_writer_interaction.dart';
 part 'swift_writer_surfaces.dart';
 part 'swift_writer_background.dart';
 part 'swift_writer_files.dart';
 part 'swift_writer_modern.dart';
 part 'swift_writer_intelligence.dart';
+part 'swift_writer_cards.dart';
 
 /// Writes `AssistantActions.g.swift`, compiled into the generated
 /// `assistant_actions_app` plugin.
@@ -22,6 +25,9 @@ class SwiftWriter {
   final _out = StringBuffer();
   /// Frameworks the schema types need: GeoToolbox for `PlaceDescriptor`, ….
   final _imports = <String>{};
+
+  /// Whether an intent shows a Dart card (`swift_writer_cards.dart`).
+  bool _cards = false;
 
   /// Schema id → the app class adopting it.
   late final Map<String, SchemaEntityModel> _adopted = {for (final s in app.schemaEntities) s.schema.id: s};
@@ -51,9 +57,11 @@ class SwiftWriter {
     }
     if (app.schemaEntities.isNotEmpty || app.schemaDomains.isNotEmpty || _actionSchemaTypes.isNotEmpty) _schemas();
     _spotlight();
+    _imageHelpers();
     _entityConformances();
     _backgroundEntrypoint();
     _intelligence();
+    _cardIntents();
     body.write(_publicize(_out.toString()));
 
     return [
@@ -110,16 +118,19 @@ public struct $name: AppEntity {
   @Property(title: "Title")
   public var title: String
   public let subtitle: String?
-${[for (final q in fields) '  @Property(title: "${_escape(q.title)}")\n  public var ${q.member}: ${q.swiftType}\n'].join()}
+${_imageDeclaration(e.image, access: 'public ')}${[for (final q in fields) '  @Property(title: "${_escape(q.title)}")\n  public var ${q.member}: ${q.swiftType}\n'].join()}
   public var displayRepresentation: DisplayRepresentation {
-    if let subtitle { return DisplayRepresentation(title: "\\(title)", subtitle: "\\(subtitle)") }
-    return DisplayRepresentation(title: "\\(title)")
+${switch (_displayImage(e.systemImage, e.image)) {
+      final image? => '    DisplayRepresentation(title: "\\(title)", subtitle: subtitle.map { "\\(\$0)" }, image: $image)',
+      null => '    if let subtitle { return DisplayRepresentation(title: "\\(title)", subtitle: "\\(subtitle)") }\n'
+          '    return DisplayRepresentation(title: "\\(title)")',
+    }}
   }
 
   init(record: AssistantRecord) {
     id = record.id
     subtitle = record.subtitle
-    // `@Property` members last: setting one needs every stored property set.
+${_imageInit(e.image)}    // `@Property` members last: setting one needs every stored property set.
     title = record.title
 ${[for (final f in e.fields)
       if (fields.any((q) => q.member == f.name)) '    ${f.name} = AssistantValues.${f.type.swiftDecoder}(record.fields["${f.name}"])\n'].join()}  }
@@ -270,7 +281,8 @@ ${_propertyQuery(name, [const _Queryable('title', 'Title', 'string', optional: f
       ..writeln('/// `${a.name}` in Dart: answered from the published `${a.collection}` snapshot, without Flutter.')
       ..writeln('public struct ${a.swiftName}: AppIntent {')
       ..writeln('  public static let title: LocalizedStringResource = "${_escape(a.title)}"')
-      ..write(_describe(a.title, a.description, a.searchKeywords, a.isDiscoverable));
+      ..write(_describe(a.title, a.description, a.searchKeywords, a.isDiscoverable))
+      ..write(_unlockMember(_snapshotUnlock(a), access: 'public '));
     _out.writeln('''
 
   public init() {}
@@ -323,7 +335,7 @@ extension ${e.swiftName}: IndexedEntity {
     attributes.title = title
     attributes.displayName = title
     attributes.contentDescription = subtitle
-    return attributes
+${_spotlightImage(e.image)}    return attributes
   }
 }
 ''');
@@ -342,6 +354,7 @@ extension ${e.swiftName}: IndexedEntity {
         if (value != null) _out.writeln('    attributes.$key = $value');
       }
       _out
+        ..write(_spotlightImage(s.image))
         ..writeln('    return attributes')
         ..writeln('  }')
         ..writeln('}')
@@ -971,7 +984,8 @@ struct ${name}Query: EntityStringQuery {
       ..writeln('  static let defaultQuery = ${name}Query()')
       ..write(_fileStatics(s))
       ..writeln()
-      ..writeln(_idMembers(s));
+      ..writeln(_idMembers(s))
+      ..write(_imageDeclaration(s.image));
     final queryables = _schemaQueryables(s);
     for (final p in schema.properties) {
       // Queryable members need a title for Apple's metadata.
@@ -981,14 +995,16 @@ struct ${name}Query: EntityStringQuery {
     _out
       ..writeln()
       ..writeln('  var displayRepresentation: DisplayRepresentation {'
-          ' DisplayRepresentation(title: "\\(${s.isFile && schema.titleProperty == null ? _fileTitle() : _titleExpr(schema, '')})") }')
+          ' DisplayRepresentation(title: "\\(${s.isFile && schema.titleProperty == null ? _fileTitle() : _titleExpr(schema, '')})"'
+          '${switch (_displayImage(s.systemImage, s.image)) { final image? => ', image: $image', null => '' }}) }')
       ..writeln()
       ..writeln('  init(record: AssistantRecord) { self.init(record: record, resolve: true) }')
       ..writeln()
       ..writeln('  /// [resolve] looks referenced items up in the snapshot. They get')
       ..writeln('  /// `resolve: false`, so references only go one level deep and cycles end.')
       ..writeln('  init(record: AssistantRecord, resolve: Bool) {')
-      ..writeln(_initID(s));
+      ..writeln(_initID(s))
+      ..write(_imageInit(s.image));
     for (final p in schema.properties) {
       final field = s.mapping[p.name];
       final value = field != null
@@ -1072,7 +1088,8 @@ ${queryables.isEmpty ? '' : '\n${_propertyQuery(name, queryables, 'all()')}'}}
       ..writeln('/// `${intent.id}` → ${kind.name}s `${s.className}` items through the inbox.')
       ..writeln(_availability(floor))
       ..writeln('@AppIntent(schema: .${intent.id})')
-      ..writeln('struct $structName {');
+      ..writeln('struct $structName {')
+      ..write(_intentPolish(s, intent));
     for (final p in intent.parameters) {
       _out.writeln('  var ${p.name}: ${_swiftType(p.type)}');
     }
@@ -1212,11 +1229,11 @@ ${queryables.isEmpty ? '' : '\n${_propertyQuery(name, queryables, 'all()')}'}}
 $availability
 @AppIntent(schema: .${intent.id})
 struct $name${_continuable(modes, ': ')} {
-${_modesMember(modes)}  @MainActor
-  func perform() async throws -> some ${_resultType('IntentResult', dialog: reply || dialog != null, snippet: reply)} {
+${_modesMember(modes)}${_intentPolish(s, intent)}  @MainActor
+  func perform() async throws -> some ${_resultType('IntentResult', dialog: reply || dialog != null, snippet: reply, floor: floor, interactive: ix.hasCardButtons(intent))} {
 ${_confirmLines(intent, IntentKind.record, ix)}$foreground
 ${reply ? '''    let reply = AssistantReply(json: try await $call)
-    return ${_resultOf(dialog: 'reply.dialog ?? ${dialog ?? '"Done."'}', snippet: true)}''' : '''    _ = try await $call
+${_replyReturn(dialog: 'reply.dialog ?? ${dialog ?? '"Done."'}', floor: floor, interactive: ix.hasCardButtons(intent)).trimRight()}''' : '''    _ = try await $call
     return ${_resultOf(dialog: dialog)}'''}
   }
 }
@@ -1297,13 +1314,15 @@ ${_continuableExtension(name, modes, availability)}${_liveConformances(name, flo
       ..writeln('@AppIntent(schema: .${intent.id})')
       ..writeln('struct $name${live ? _continuable(modes, ': ') : ''} {');
     if (live) _out.write(_modesMember(modes));
+    _out.write(_intentPolish(owner, intent));
     for (final p in intent.parameters) {
       _out.writeln('  var ${swiftName(p.name)}: ${_swiftType(p.type)}');
     }
     if (intent.parameters.isNotEmpty) _out.writeln();
     _out
       ..writeln('  @MainActor')
-      ..writeln('  func perform() async throws -> some ${_resultType(returns, dialog: reply || dialog != null, snippet: reply)} {')
+      ..writeln('  func perform() async throws -> some '
+          '${_resultType(returns, dialog: reply || dialog != null, snippet: reply, floor: floor, interactive: ix.hasCardButtons(intent))} {')
       ..writeln(args.isEmpty ? '    let args: [String: Any] = [:]' : '    let args: [String: Any] = [\n${args.join('\n')}\n    ]')
       ..write(_confirmLines(intent, IntentKind.call, ix));
     // Undo calls `<id>.undo` with the same arguments, and the result ids.
@@ -1325,6 +1344,8 @@ ${_continuableExtension(name, modes, availability)}${_liveConformances(name, flo
     }
     if (live && reply) {
       _replyResult(intent, id, method, result, resultType, unionType, dialog,
+          floor: floor,
+          interactive: ix.hasCardButtons(intent),
           undo: undo(switch (callResult(intent)) {
             CallResult.entity => 'reply.ids.first ?? NSNull()',
             CallResult.entities => 'reply.ids',
@@ -1399,7 +1420,7 @@ ${_continuableExtension(name, modes, availability)}${_liveConformances(name, flo
 ${_availability(floor)}
 @AppIntent(schema: .system.open)
 struct $name${_continuable(modes, ': ')} {
-${_modesMember(modes)}  var target: $swift
+${_modesMember(modes)}${_unlockMember(_entityUnlock(className).forSchema(intent))}  var target: $swift
 
   @MainActor
   func perform() async throws -> some IntentResult {

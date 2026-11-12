@@ -439,7 +439,8 @@
           },
           "description": "A person to share ETA with."
         }
-      ]
+      ],
+      "authenticationPolicy": 1
     },
     "startNavigation": {
       "title": "Start Navigation",
@@ -519,7 +520,8 @@
           },
           "description": "A person to stop share ETA with."
         }
-      ]
+      ],
+      "authenticationPolicy": 1
     },
     "updateNavigationWaypoints": {
       "title": "Update Navigation Waypoints",

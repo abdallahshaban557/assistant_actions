@@ -331,7 +331,8 @@
       "opensApp": true,
       "protocols": [
         "open"
-      ]
+      ],
+      "authenticationPolicy": 2
     },
     "navigatePage": {
       "title": "Navigate Page",
@@ -360,7 +361,8 @@
           "description": "Book to navigate in."
         }
       ],
-      "opensApp": true
+      "opensApp": true,
+      "authenticationPolicy": 2
     },
     "updateFontSize": {
       "title": "Update Book Font Size",
@@ -389,7 +391,8 @@
           "description": "Font size to update to."
         }
       ],
-      "opensApp": true
+      "opensApp": true,
+      "authenticationPolicy": 2
     },
     "updateLineSpacing": {
       "title": "Update Book Line Spacing",
@@ -418,7 +421,8 @@
           "description": "Line spacing to update to."
         }
       ],
-      "opensApp": true
+      "opensApp": true,
+      "authenticationPolicy": 2
     },
     "updateCharacterSpacing": {
       "title": "Update Book Character Spacing",
@@ -447,7 +451,8 @@
           "description": "Character spacing to update to."
         }
       ],
-      "opensApp": true
+      "opensApp": true,
+      "authenticationPolicy": 2
     },
     "updateWordSpacing": {
       "title": "Update Book Word Spacing",
@@ -476,7 +481,8 @@
           "description": "Word spacing to update to."
         }
       ],
-      "opensApp": true
+      "opensApp": true,
+      "authenticationPolicy": 2
     },
     "updateSettings": {
       "title": "Update Book Settings",
@@ -554,7 +560,8 @@
           "description": "Whether to allow multiple columns."
         }
       ],
-      "opensApp": true
+      "opensApp": true,
+      "authenticationPolicy": 2
     }
   },
   "skipped": {

@@ -112,7 +112,8 @@
           },
           "description": "Template with which to create the document."
         }
-      ]
+      ],
+      "authenticationPolicy": 2
     },
     "open": {
       "title": "Open Document",
@@ -135,7 +136,8 @@
       "opensApp": true,
       "protocols": [
         "open"
-      ]
+      ],
+      "authenticationPolicy": 2
     },
     "createPage": {
       "title": "Create Page",
@@ -165,7 +167,8 @@
           },
           "description": "Template to use for the new page (optional)."
         }
-      ]
+      ],
+      "authenticationPolicy": 2
     },
     "openPage": {
       "title": "Open Page",
@@ -188,7 +191,8 @@
       "opensApp": true,
       "protocols": [
         "open"
-      ]
+      ],
+      "authenticationPolicy": 2
     },
     "addTextBoxToPage": {
       "title": "Add Text Box to Page",
@@ -215,7 +219,8 @@
           },
           "description": "Page to add the textbox to."
         }
-      ]
+      ],
+      "authenticationPolicy": 2
     },
     "addVideoToPage": {
       "title": "Add Video to Page",
@@ -242,7 +247,8 @@
           },
           "description": "Page to add the video to."
         }
-      ]
+      ],
+      "authenticationPolicy": 2
     },
     "addImageToPage": {
       "title": "Add Image to Page",
@@ -269,7 +275,8 @@
           },
           "description": "Page to add the image to."
         }
-      ]
+      ],
+      "authenticationPolicy": 2
     },
     "addAudioToPage": {
       "title": "Add Audio to Page",
@@ -296,7 +303,8 @@
           },
           "description": "Page to add the audio to."
         }
-      ]
+      ],
+      "authenticationPolicy": 2
     },
     "addWebVideoToPage": {
       "title": "Add Web Video to Page",
@@ -323,7 +331,8 @@
           },
           "description": "Page to add the web video to."
         }
-      ]
+      ],
+      "authenticationPolicy": 2
     }
   }
 }

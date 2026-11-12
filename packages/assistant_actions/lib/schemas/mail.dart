@@ -25,8 +25,13 @@ class MailCategory extends SchemaEnumCases {
 ///
 /// Map fields with [MailAccountField] and turn on the schema intents the app
 /// supports. Each one becomes a method on the generated handler.
+///
+/// `requiresUnlock` keeps Siri from running its intents on a locked device;
+/// `systemImage` is an SF Symbol shown with every item (an `@EntityImage()`
+/// field gives each item its own).
 class MailAccount extends SchemaEntity {
-  const MailAccount({super.url, super.visualSearch}) : super('mail.account');
+  const MailAccount({super.url, super.requiresUnlock, super.systemImage, super.visualSearch})
+      : super('mail.account');
 }
 
 /// Marks members of `mail.account`.
@@ -68,10 +73,16 @@ class FixedMailAccount extends SchemaContainer {
 ///
 /// Map fields with [MailMailboxField] and turn on the schema intents the app
 /// supports. Each one becomes a method on the generated handler.
+///
+/// `requiresUnlock` keeps Siri from running its intents on a locked device;
+/// `systemImage` is an SF Symbol shown with every item (an `@EntityImage()`
+/// field gives each item its own).
 class MailMailbox extends SchemaEntity {
   const MailMailbox({
     required this.account,
     super.url,
+    super.requiresUnlock,
+    super.systemImage,
     super.visualSearch,
   }) : super('mail.mailbox');
 
@@ -122,7 +133,13 @@ class FixedMailMailbox extends SchemaContainer {
 ///
 /// `dialogs` and `confirm` give, by intent name, what Siri says when one
 /// finishes and what it asks first (deletes ask by default; see `confirmDeletes`).
-/// `replies` lets live intents' handlers return an `AssistantReply`.
+/// `replies` lets live intents' handlers return an `AssistantReply`, and
+/// `cardButtons` lets their cards have buttons below iOS / macOS 26 targets.
+/// `summaries` gives, by intent name, the sentence Shortcuts shows it as.
+///
+/// `requiresUnlock` keeps Siri from running its intents on a locked device;
+/// `systemImage` is an SF Symbol shown with every item (an `@EntityImage()`
+/// field gives each item its own).
 class MailDraft extends SchemaEntity {
   const MailDraft({
     required this.account,
@@ -136,7 +153,11 @@ class MailDraft extends SchemaEntity {
     super.confirm,
     super.confirmDeletes,
     super.replies,
+    super.cardButtons,
+    super.summaries,
     super.url,
+    super.requiresUnlock,
+    super.systemImage,
     super.visualSearch,
   }) : super('mail.draft');
 
@@ -243,7 +264,13 @@ class FixedMailDraft extends SchemaContainer {
 ///
 /// `dialogs` and `confirm` give, by intent name, what Siri says when one
 /// finishes and what it asks first (deletes ask by default; see `confirmDeletes`).
-/// `replies` lets live intents' handlers return an `AssistantReply`.
+/// `replies` lets live intents' handlers return an `AssistantReply`, and
+/// `cardButtons` lets their cards have buttons below iOS / macOS 26 targets.
+/// `summaries` gives, by intent name, the sentence Shortcuts shows it as.
+///
+/// `requiresUnlock` keeps Siri from running its intents on a locked device;
+/// `systemImage` is an SF Symbol shown with every item (an `@EntityImage()`
+/// field gives each item its own).
 class MailMessage extends SchemaEntity {
   const MailMessage({
     required this.account,
@@ -258,7 +285,11 @@ class MailMessage extends SchemaEntity {
     super.confirm,
     super.confirmDeletes,
     super.replies,
+    super.cardButtons,
+    super.summaries,
     super.url,
+    super.requiresUnlock,
+    super.systemImage,
     super.visualSearch,
   }) : super('mail.message');
 
@@ -404,8 +435,13 @@ abstract final class MailMessageField {
 ///
 /// Map fields with [MailThreadField] and turn on the schema intents the app
 /// supports. Each one becomes a method on the generated handler.
+///
+/// `requiresUnlock` keeps Siri from running its intents on a locked device;
+/// `systemImage` is an SF Symbol shown with every item (an `@EntityImage()`
+/// field gives each item its own).
 class MailThread extends SchemaEntity {
-  const MailThread({super.url, super.visualSearch}) : super('mail.thread');
+  const MailThread({super.url, super.requiresUnlock, super.systemImage, super.visualSearch})
+      : super('mail.thread');
 }
 
 /// Marks members of `mail.thread`.

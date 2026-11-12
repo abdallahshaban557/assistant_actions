@@ -30,8 +30,13 @@ enum RemindersLocationTriggerEvent {
 ///
 /// Map fields with [RemindersGroupField] and turn on the schema intents the app
 /// supports. Each one becomes a method on the generated handler.
+///
+/// `requiresUnlock` keeps Siri from running its intents on a locked device;
+/// `systemImage` is an SF Symbol shown with every item (an `@EntityImage()`
+/// field gives each item its own).
 class RemindersGroup extends SchemaEntity {
-  const RemindersGroup({super.url, super.visualSearch}) : super('reminders.group');
+  const RemindersGroup({super.url, super.requiresUnlock, super.systemImage, super.visualSearch})
+      : super('reminders.group');
 }
 
 /// Marks members of `reminders.group`.
@@ -75,6 +80,11 @@ class FixedRemindersGroup extends SchemaContainer {
 ///
 /// `dialogs` and `confirm` give, by intent name, what Siri says when one
 /// finishes and what it asks first.
+/// `summaries` gives, by intent name, the sentence Shortcuts shows it as.
+///
+/// `requiresUnlock` keeps Siri from running its intents on a locked device;
+/// `systemImage` is an SF Symbol shown with every item (an `@EntityImage()`
+/// field gives each item its own).
 ///
 /// Syncable (`SyncableEntity`), like Apple's own: keep each `@EntityId()`
 /// stable across launches and devices. Opt out with `@AssistantSyncable(false)`.
@@ -83,7 +93,10 @@ class RemindersList extends SchemaEntity {
     this.createList = false,
     super.dialogs,
     super.confirm,
+    super.summaries,
     super.url,
+    super.requiresUnlock,
+    super.systemImage,
     super.visualSearch,
   }) : super('reminders.list');
 
@@ -131,6 +144,11 @@ class FixedRemindersList extends SchemaContainer {
 ///
 /// `dialogs` and `confirm` give, by intent name, what Siri says when one
 /// finishes and what it asks first (deletes ask by default; see `confirmDeletes`).
+/// `summaries` gives, by intent name, the sentence Shortcuts shows it as.
+///
+/// `requiresUnlock` keeps Siri from running its intents on a locked device;
+/// `systemImage` is an SF Symbol shown with every item (an `@EntityImage()`
+/// field gives each item its own).
 class RemindersReminder extends SchemaEntity {
   const RemindersReminder({
     required this.list,
@@ -140,7 +158,10 @@ class RemindersReminder extends SchemaEntity {
     super.dialogs,
     super.confirm,
     super.confirmDeletes,
+    super.summaries,
     super.url,
+    super.requiresUnlock,
+    super.systemImage,
     super.visualSearch,
   }) : super('reminders.reminder');
 
@@ -229,13 +250,21 @@ abstract final class RemindersReminderField {
 ///
 /// `dialogs` and `confirm` give, by intent name, what Siri says when one
 /// finishes and what it asks first.
+/// `summaries` gives, by intent name, the sentence Shortcuts shows it as.
+///
+/// `requiresUnlock` keeps Siri from running its intents on a locked device;
+/// `systemImage` is an SF Symbol shown with every item (an `@EntityImage()`
+/// field gives each item its own).
 class RemindersSection extends SchemaEntity {
   const RemindersSection({
     required this.list,
     this.createSection = false,
     super.dialogs,
     super.confirm,
+    super.summaries,
     super.url,
+    super.requiresUnlock,
+    super.systemImage,
     super.visualSearch,
   }) : super('reminders.section');
 
@@ -286,8 +315,13 @@ class FixedRemindersSection extends SchemaContainer {
 ///
 /// Map fields with [RemindersLocationTriggerField] and turn on the schema intents the app
 /// supports. Each one becomes a method on the generated handler.
+///
+/// `requiresUnlock` keeps Siri from running its intents on a locked device;
+/// `systemImage` is an SF Symbol shown with every item (an `@EntityImage()`
+/// field gives each item its own).
 class RemindersLocationTrigger extends SchemaEntity {
-  const RemindersLocationTrigger({super.url, super.visualSearch})
+  const RemindersLocationTrigger(
+      {super.url, super.requiresUnlock, super.systemImage, super.visualSearch})
       : super('reminders.locationTrigger');
 }
 

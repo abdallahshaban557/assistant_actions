@@ -102,6 +102,17 @@ void main() {
     });
   });
 
+  test('intents run on a locked device unless an annotation says otherwise', () {
+    expect(const AssistantActionsApp(name: 'App').requiresUnlock, Unlock.notRequired);
+    expect(const AssistantAction(title: 'Go').requiresUnlock, isNull, reason: 'null inherits');
+    expect(const AssistantEntity(title: 'Item').requiresUnlock, isNull);
+    expect(const AssistantAction(title: 'Go', summary: 'Go {there}').summary, 'Go {there}');
+    expect(const AssistantEntity(title: 'Item', systemImage: 'book').systemImage, 'book');
+    expect(const CaseTitle('Snack', systemImage: 'moon').systemImage, 'moon');
+    // Apple's order, least restrictive first: the generator relies on it.
+    expect(Unlock.values, [Unlock.notRequired, Unlock.required, Unlock.onThisDevice]);
+  });
+
   test('AssistantValue decodes what Swift sends', () {
     expect(AssistantValue.date(1.5), DateTime.fromMillisecondsSinceEpoch(1500));
     expect(AssistantValue.integer(3.0), 3);
@@ -243,6 +254,35 @@ void main() {
           }),
           host: _FakeHost([]));
       expect(jsonDecode((await AssistantActions.perform('show', '{"name":"Mira"}'))!), {'dialog': 'Hi Mira.'});
+    });
+
+    test('card buttons name the action they run and its arguments', () async {
+      await AssistantActions.start(AssistantActionsRegistry(actions: {'toggle': (args) async => null}),
+          host: _FakeHost([]));
+      final card = AssistantCard(title: 'Pancakes', buttons: [
+        AssistantCardButton('Add', action: 'toggle', args: {
+          'recipe': 'p1',
+          'when': DateTime.fromMillisecondsSinceEpoch(1500),
+          'meal': _Meal.dinner,
+        }, systemImage: 'cart'),
+        const AssistantCardButton('Remove', action: 'toggle', destructive: true),
+      ]);
+      expect(jsonDecode(AssistantReply.encode(AssistantReply<void>(card: card))), {
+        'card': {
+          'title': 'Pancakes',
+          'buttons': [
+            {
+              'title': 'Add',
+              'action': 'toggle',
+              'args': {'recipe': 'p1', 'when': 1.5, 'meal': 'dinner'},
+              'systemImage': 'cart',
+            },
+            {'title': 'Remove', 'action': 'toggle', 'args': <String, Object?>{}, 'destructive': true},
+          ],
+        },
+      });
+      expect(() => const AssistantCardButton('Nope', action: 'missing').toJson(),
+          throwsA(isA<ArgumentError>().having((e) => e.message, 'message', contains('Card button "Nope"'))));
     });
   });
 
@@ -394,6 +434,8 @@ class _BackgroundHost extends _FakeHost implements AssistantHostCalls {
 }
 
 enum _Case { a, b, this$ }
+
+enum _Meal { dinner }
 
 class _CallingHost extends _FakeHost implements AssistantHostCalls {
   _CallingHost({this.reply}) : super([]);

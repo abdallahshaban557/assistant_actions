@@ -471,7 +471,8 @@
       "result": {
         "kind": "entity",
         "ref": "reminders.section"
-      }
+      },
+      "authenticationPolicy": 2
     },
     "deleteReminders": {
       "title": "Delete Reminders",
@@ -496,7 +497,8 @@
       ],
       "protocols": [
         "delete"
-      ]
+      ],
+      "authenticationPolicy": 1
     },
     "updateReminder": {
       "title": "Update Reminder",

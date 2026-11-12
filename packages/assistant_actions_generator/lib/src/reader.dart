@@ -10,16 +10,18 @@ import 'package:source_gen/source_gen.dart';
 import 'catalog.dart';
 import 'interaction.dart';
 import 'model.dart';
+import 'polish.dart';
 import 'schema_calls.dart';
 
 part 'reader_actions.dart';
 part 'reader_surfaces.dart';
+part 'reader_polish.dart';
 
 const _package = 'assistant_actions';
 
 /// The `api` this generator needs in assistant_actions'
 /// `lib/src/catalog/generator_api.json`.
-const _runtimeApi = 12;
+const _runtimeApi = 13;
 
 /// Reads the app's annotations from the definitions library and everything
 /// it imports from the app's own package.
@@ -138,6 +140,7 @@ class ModelReader {
       shortcutTileColor: _tileColor(app),
       background: background,
       deployment: deployment,
+      unlock: _unlock(app) ?? UnlockModel.notRequired,
     );
   }
 
@@ -313,7 +316,7 @@ class ModelReader {
         : 0;
     if (api < _runtimeApi) {
       throw InvalidGenerationSourceError(
-          'This version of assistant_actions_generator needs assistant_actions 0.0.19 or later. '
+          'This version of assistant_actions_generator needs assistant_actions 0.0.20 or later. '
           'Run `flutter pub upgrade assistant_actions`.',
           element: library);
     }
@@ -360,6 +363,7 @@ class ModelReader {
       }
     }
     final subtitle = _markedMember(cls, 'DisplaySubtitle');
+    final image = _imageField(cls);
     return EntityModel(
       className: cls.displayName,
       library: cls.library.uri,
@@ -370,9 +374,12 @@ class ModelReader {
       syncable: _syncable(cls) ?? false,
       url: _url(annotation, cls),
       visualSearch: annotation.peek('visualSearch')?.boolValue ?? false,
+      unlock: _unlock(annotation),
+      systemImage: _systemImage(annotation, cls),
+      image: image,
       fields: [
         for (final f in cls.fields)
-          if (!f.isStatic && f.isOriginDeclaration && f.displayName != id.$1.displayName)
+          if (!f.isStatic && f.isOriginDeclaration && f.displayName != id.$1.displayName && f.displayName != image?.name)
             if (_valueType(f.type) case final type?) FieldModel(f.displayName, type),
       ],
     );
@@ -489,6 +496,10 @@ class ModelReader {
       queries: queries,
       url: _url(annotation, cls),
       visualSearch: annotation.peek('visualSearch')?.boolValue ?? false,
+      unlock: _unlock(annotation),
+      systemImage: _systemImage(annotation, cls),
+      image: _imageField(cls),
+      summaries: _summaries(annotation, intents, '@${pascal(schema.domain)}${pascal(schema.name)}', cls),
     );
   }
 
@@ -589,6 +600,9 @@ class ModelReader {
           annotation, [for (final i in intents) (i, IntentKind.call)], '@${pascal(domain)}Intents', cls),
       undoable: _annotation(cls, 'AssistantUndoable') != null,
       longRunning: _annotation(cls, 'AssistantLongRunning') != null,
+      unlock: _unlock(annotation),
+      summaries: _summaries(
+          annotation, [for (final i in intents) (i, IntentKind.call)], '@${pascal(domain)}Intents', cls),
     );
   }
 
@@ -605,6 +619,7 @@ class ModelReader {
       confirm: templates('confirm'),
       confirmDeletes: annotation.peek('confirmDeletes')?.boolValue ?? true,
       replies: {for (final r in annotation.peek('replies')?.setValue ?? const <Never>{}) r.toStringValue()!},
+      cardButtons: {for (final r in annotation.peek('cardButtons')?.setValue ?? const <Never>{}) r.toStringValue()!},
     );
     if (checkInteractions(interactions, intents, name) case final problem?) {
       throw InvalidGenerationSourceError(problem, element: element);
@@ -637,6 +652,9 @@ class ModelReader {
     }
     if (annotation.peek('liveActivity')?.boolValue ?? false) {
       throw error('liveActivity is for functions; a SnapshotAnswer answers in Swift without Dart.');
+    }
+    if (annotation.peek('summary')?.stringValue != null) {
+      throw error('summary is for functions: a SnapshotAnswer has no parameters for Shortcuts to show.');
     }
     final target = type.typeArguments.single;
     final name = target is InterfaceType ? target.element.displayName : null;
@@ -700,6 +718,7 @@ class ModelReader {
       dialog: dialog,
       empty: answer.read('empty').stringValue,
       separator: answer.read('separator').stringValue,
+      unlock: _unlock(annotation),
     );
   }
 

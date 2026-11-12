@@ -117,9 +117,17 @@ String generateSchemaLibrary(DomainCatalog catalog) {
         ..writeln('/// `dialogs` and `confirm` give, by intent name, what Siri says when one')
         ..writeln('/// finishes and what it asks first${intents.any((e) => e.$2 == IntentKind.delete) ? ' (deletes ask by default; see `confirmDeletes`)' : ''}.');
       if (intents.any((e) => canReply(e.$1, e.$2))) {
-        out.writeln('/// `replies` lets live intents\' handlers return an `AssistantReply`.');
+        out
+          ..writeln('/// `replies` lets live intents\' handlers return an `AssistantReply`, and')
+          ..writeln('/// `cardButtons` lets their cards have buttons below iOS / macOS 26 targets.');
       }
+      out.writeln('/// `summaries` gives, by intent name, the sentence Shortcuts shows it as.');
     }
+    out
+      ..writeln('///')
+      ..writeln('/// `requiresUnlock` keeps Siri from running its intents on a locked device;')
+      ..writeln('/// `systemImage` is an SF Symbol shown with every item (an `@EntityImage()`')
+      ..writeln('/// field gives each item its own).');
     if (entity.isFile) {
       out
         ..writeln('///')
@@ -148,9 +156,12 @@ String generateSchemaLibrary(DomainCatalog catalog) {
       // Siri conversation options (`SchemaEntity`), for entities with intents.
       if (intents.isNotEmpty) ...['super.dialogs,', 'super.confirm,'],
       if (intents.any((e) => e.$2 == IntentKind.delete)) 'super.confirmDeletes,',
-      if (intents.any((e) => canReply(e.$1, e.$2))) 'super.replies,',
+      if (intents.any((e) => canReply(e.$1, e.$2))) ...['super.replies,', 'super.cardButtons,'],
+      if (intents.isNotEmpty) 'super.summaries,',
       for (final q in imports) 'this.${q.name} = false,',
       'super.url,',
+      'super.requiresUnlock,',
+      'super.systemImage,',
       // A trailing comma keeps long lists one per line; short ones stay on one.
       containers.isEmpty && intents.isEmpty && imports.isEmpty ? 'super.visualSearch' : 'super.visualSearch,',
     ];
@@ -280,14 +291,23 @@ String generateSchemaLibrary(DomainCatalog catalog) {
       ..writeln('///')
       ..writeln('/// `dialogs` and `confirm` give, by intent name, what Siri says when one')
       ..writeln('/// finishes and what it asks first.');
-    if (domainIntents.any((i) => i.isLive)) out.writeln("/// `replies` lets live intents' handlers return an `AssistantReply`.");
+    if (domainIntents.any((i) => i.isLive)) {
+      out
+        ..writeln("/// `replies` lets live intents' handlers return an `AssistantReply`, and")
+        ..writeln('/// `cardButtons` lets their cards have buttons below iOS / macOS 26 targets.');
+    }
+    out
+      ..writeln('/// `summaries` gives the sentence Shortcuts shows each as; `requiresUnlock`')
+      ..writeln('/// keeps Siri from running them on a locked device.');
     out
       ..writeln('class $name extends SchemaIntents {')
       ..writeln('  const $name({${[
         for (final i in domainIntents) 'this.${i.name} = false,',
         'super.dialogs,',
         'super.confirm,',
-        if (domainIntents.any((i) => i.isLive)) 'super.replies,',
+        if (domainIntents.any((i) => i.isLive)) ...['super.replies,', 'super.cardButtons,'],
+        'super.summaries,',
+        'super.requiresUnlock,',
       ].join(' ')}})')
       ..writeln("      : super('$domain');")
       ..writeln();

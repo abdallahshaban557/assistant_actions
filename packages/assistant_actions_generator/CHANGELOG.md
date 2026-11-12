@@ -1,3 +1,23 @@
+## 0.0.17
+
+* Generates `authenticationPolicy` from `requiresUnlock`, raised to Apple's
+  schema minimum where needed (`system.open`, `journal.*` and others need
+  `.requiresLocalDeviceAuthentication`). Without it the output is unchanged.
+* Generates `parameterSummary`, listing parameters the sentence leaves out
+  under it, and `DisplayRepresentation` images for entities and App Enum
+  cases, with Spotlight thumbnails for local files.
+* Reply intents show their card through a generated
+  `AssistantCardSnippetIntent` (`SnippetIntent`, with
+  `AssistantCardButtonIntent` for its buttons) when the deployment target or
+  the intent's own floor is iOS / macOS 26 (`ShowsSnippetIntent`). Below
+  that, intents that opt in with `cardButtons` use it from 26 and the plain
+  card view before; other intents' output is unchanged.
+* Build-time checks for summary placeholders, `summaries` and `cardButtons`
+  intent names, SF Symbol names and `@EntityImage()` types.
+* `tool/validate_schemas.dart` adopts every schema with unlock policies,
+  summaries, images and card buttons.
+* Needs assistant_actions 0.0.20.
+
 ## 0.0.16
 
 * Every generated entity is `Transferable`: as text, a file entity also as

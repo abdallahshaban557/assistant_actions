@@ -31,7 +31,7 @@ public enum MealEnum: String, AppEnum {
     .breakfast: "Breakfast",
     .lunch: "Lunch",
     .dinner: "Dinner",
-    .snack: DisplayRepresentation(title: "Late-night snack", synonyms: ["snack", "midnight snack"]),
+    .snack: DisplayRepresentation(title: "Late-night snack", image: .init(systemName: "moon.stars"), synonyms: ["snack", "midnight snack"]),
   ]
 }
 
@@ -48,8 +48,7 @@ public struct RecipeEntity: AppEntity {
   public var minutes: Int?
 
   public var displayRepresentation: DisplayRepresentation {
-    if let subtitle { return DisplayRepresentation(title: "\(title)", subtitle: "\(subtitle)") }
-    return DisplayRepresentation(title: "\(title)")
+    DisplayRepresentation(title: "\(title)", subtitle: subtitle.map { "\($0)" }, image: .init(systemName: "fork.knife"))
   }
 
   init(record: AssistantRecord) {
@@ -135,6 +134,11 @@ public struct RecipeEntityQuery: EntityStringQuery, EnumerableEntityQuery, Entit
 public struct AddToShoppingListAction: AppIntent {
   public static let title: LocalizedStringResource = "Add to Shopping List"
   public static let description = IntentDescription("Adds a recipe’s ingredients to the shopping list.")
+  public static var parameterSummary: some ParameterSummary {
+    Summary("Add \(\.$recipe) to the shopping list") {
+      \.$servings
+    }
+  }
 
   @Parameter(title: "Recipe")
   public var recipe: RecipeEntity
@@ -192,7 +196,7 @@ public struct ShowRecipeCardAction: AppIntent, ForegroundContinuableIntent {
   public init() {}
 
   @MainActor
-  public func perform() async throws -> some IntentResult & ProvidesDialog & ShowsSnippetView {
+  public func perform() async throws -> some IntentResult & ProvidesDialog {
     let args: [String: Any] = [
       "recipe": recipe.id,
     ]
@@ -208,7 +212,11 @@ public struct ShowRecipeCardAction: AppIntent, ForegroundContinuableIntent {
       }
     #endif
     let reply = AssistantReply(json: try await callDart("showRecipeCard", args: args))
-    return .result(dialog: IntentDialog(stringLiteral: reply.dialog ?? "Done."), view: AssistantCardView(reply.card))
+    if #available(iOS 26.0, macOS 26.0, *) {
+      return .result(dialog: IntentDialog(stringLiteral: reply.dialog ?? "Done."), snippetIntent: AssistantCardSnippetIntent(reply.card))
+    } else {
+      return .result(dialog: IntentDialog(stringLiteral: reply.dialog ?? "Done."), view: AssistantCardView(reply.card))
+    }
   }
 }
 
@@ -217,6 +225,53 @@ extension ShowRecipeCardAction: ProgressReportingIntent {}
 #if compiler(>=6.4)
 @available(iOS 26.4, macOS 26.4, *)
 extension ShowRecipeCardAction: CancellableIntent {}
+#endif
+
+/// `toggleShoppingList` in Dart (runs with Flutter).
+public struct ToggleShoppingListAction: AppIntent, ForegroundContinuableIntent {
+  public static let title: LocalizedStringResource = "Toggle on Shopping List"
+  public static let isDiscoverable = false
+
+  #if os(iOS)
+  @available(iOS 26.0, *)
+  public static var supportedModes: IntentModes { [.background, .foreground(.dynamic)] }
+  #endif
+
+  @Parameter(title: "Recipe")
+  public var recipe: RecipeEntity
+
+  public init() {}
+
+  @MainActor
+  public func perform() async throws -> some IntentResult & ProvidesDialog {
+    let args: [String: Any] = [
+      "recipe": recipe.id,
+    ]
+    #if os(iOS)
+      // Dart answers in the background (on a headless engine if the app has none);
+      // the app comes forward only if that fails.
+      if !(await AssistantBackground.shared.prepare()), UIApplication.shared.applicationState != .active {
+        if #available(iOS 26.0, *) {
+          try await continueInForeground()
+        } else {
+          try await requestToContinueInForeground()
+        }
+      }
+    #endif
+    let reply = AssistantReply(json: try await callDart("toggleShoppingList", args: args))
+    if #available(iOS 26.0, macOS 26.0, *) {
+      return .result(dialog: IntentDialog(stringLiteral: reply.dialog ?? "Done."), snippetIntent: AssistantCardSnippetIntent(reply.card))
+    } else {
+      return .result(dialog: IntentDialog(stringLiteral: reply.dialog ?? "Done."), view: AssistantCardView(reply.card))
+    }
+  }
+}
+
+extension ToggleShoppingListAction: ProgressReportingIntent {}
+
+#if compiler(>=6.4)
+@available(iOS 26.4, macOS 26.4, *)
+extension ToggleShoppingListAction: CancellableIntent {}
 #endif
 
 /// `pickRecipe` in Dart (runs with Flutter).
@@ -305,6 +360,9 @@ extension CountOpenTasksAction: CancellableIntent {}
 public struct PlanMealAction: AppIntent {
   public static let title: LocalizedStringResource = "Plan a Meal"
   public static let description = IntentDescription("Adds a recipe to the meal plan.", searchKeywords: ["menu", "meal plan"])
+  public static var parameterSummary: some ParameterSummary {
+    Summary("Plan \(\.$recipe) for \(\.$meal)")
+  }
 
   @Parameter(title: "Recipe")
   public var recipe: RecipeEntity
@@ -704,7 +762,7 @@ public struct TaskItemEntity {
   public var list: RemindersListEntity
   public var locationTrigger: RemindersLocationTriggerEntity?
 
-  public var displayRepresentation: DisplayRepresentation { DisplayRepresentation(title: "\(title)") }
+  public var displayRepresentation: DisplayRepresentation { DisplayRepresentation(title: "\(title)", image: .init(systemName: "checklist")) }
 
   public init(record: AssistantRecord) { self.init(record: record, resolve: true) }
 
@@ -1059,6 +1117,7 @@ struct JournalItemEntity {
   static let defaultQuery = JournalItemEntityQuery()
 
   let id: String
+  let assistantImage: String?
   @Property(title: "Title")
   var title: String?
   @Property(title: "Message")
@@ -1068,7 +1127,7 @@ struct JournalItemEntity {
   var entryDate: Date?
   var location: PlaceDescriptor?
 
-  var displayRepresentation: DisplayRepresentation { DisplayRepresentation(title: "\((title ?? ""))") }
+  var displayRepresentation: DisplayRepresentation { DisplayRepresentation(title: "\((title ?? ""))", image: assistantDisplayImage(assistantImage, systemName: "book.closed")) }
 
   init(record: AssistantRecord) { self.init(record: record, resolve: true) }
 
@@ -1076,6 +1135,7 @@ struct JournalItemEntity {
   /// `resolve: false`, so references only go one level deep and cycles end.
   init(record: AssistantRecord, resolve: Bool) {
     id = record.id
+    assistantImage = AssistantValues.string(record.fields["cover"])
     title = AssistantValues.string(record.fields["title"])
     message = AssistantValues.attributed(record.fields["text"])
     mediaItems = (AssistantValues.items(record.fields["media"]) ?? []).compactMap { AssistantValues.file($0) }
@@ -1358,6 +1418,20 @@ struct DocItemEntityQuery: EntityStringQuery, EnumerableEntityQuery, EntityPrope
 @AppIntent(schema: .reminders.createReminder)
 public struct TaskItemCreateReminderIntent {
   public init() {}
+  public static var parameterSummary: some ParameterSummary {
+    Summary("Add \(\.$title) to my tasks, due \(\.$dueDate)") {
+      \.$list
+      \.$note
+      \.$isFlagged
+      \.$images
+      \.$tags
+      \.$urls
+      \.$recurrence
+      \.$locationTrigger
+      \.$section
+    }
+  }
+
   public var title: String
   public var list: RemindersListEntity?
   public var note: AttributedString?
@@ -1541,6 +1615,8 @@ struct MemoryItemAppendTextIntent {
 @available(iOS 26.0, macOS 26.0, *)
 @AppIntent(schema: .journal.createEntry)
 struct JournalItemCreateEntryIntent {
+  static let authenticationPolicy: IntentAuthenticationPolicy = .requiresLocalDeviceAuthentication
+
   var message: AttributedString
   var title: String?
   var location: PlaceDescriptor?
@@ -1565,6 +1641,8 @@ struct JournalItemCreateEntryIntent {
 @available(iOS 26.0, macOS 26.0, *)
 @AppIntent(schema: .journal.createAudioEntry)
 struct JournalItemCreateAudioEntryIntent: ForegroundContinuableIntent {
+  static let authenticationPolicy: IntentAuthenticationPolicy = .requiresLocalDeviceAuthentication
+
   @MainActor
   func perform() async throws -> some IntentResult {
     #if os(iOS)
@@ -1593,6 +1671,8 @@ extension JournalItemCreateAudioEntryIntent: CancellableIntent {}
 @available(iOS 26.0, macOS 26.0, *)
 @AppIntent(schema: .journal.updateEntry)
 struct JournalItemUpdateEntryIntent {
+  static let authenticationPolicy: IntentAuthenticationPolicy = .requiresLocalDeviceAuthentication
+
   var target: JournalItemEntity
   var title: String?
   var message: AttributedString?
@@ -1658,6 +1738,8 @@ struct JournalItemUpdateEntryIntent {
 @available(iOS 26.0, macOS 26.0, *)
 @AppIntent(schema: .journal.deleteEntry)
 struct JournalItemDeleteEntryIntent {
+  static let authenticationPolicy: IntentAuthenticationPolicy = .requiresLocalDeviceAuthentication
+
   var entities: [JournalItemEntity]
 
   @MainActor
@@ -1913,6 +1995,7 @@ struct OpenMemoryItemIntent: ForegroundContinuableIntent {
 @available(iOS 27.0, macOS 27.0, *)
 @AppIntent(schema: .system.open)
 struct OpenJournalItemIntent: ForegroundContinuableIntent {
+  static let authenticationPolicy: IntentAuthenticationPolicy = .requiresLocalDeviceAuthentication
   var target: JournalItemEntity
 
   @MainActor
@@ -2103,6 +2186,7 @@ extension JournalItemEntity: IndexedEntity {
     attributes.title = title
     attributes.textContent = message.map { String($0.characters) }
     attributes.contentCreationDate = entryDate
+    attributes.thumbnailData = assistantImageData(assistantImage)
     return attributes
   }
 }
@@ -2195,6 +2279,27 @@ public final class AssistantActionsAppSpotlight: NSObject, AssistantSpotlightInd
       try await index.indexAppEntities(entities)
     }
   }
+}
+
+/// An `@EntityImage()` that is a local file (an absolute path or a `file:`
+/// URL), read here in the app's process, so Siri, Shortcuts and Spotlight,
+/// which draw in other processes, can show a file in the app's sandbox.
+private func assistantImageData(_ value: String?) -> Data? {
+  guard let value, !value.isEmpty else { return nil }
+  guard let url = value.hasPrefix("/") ? URL(fileURLWithPath: value) : URL(string: value), url.isFileURL else {
+    return nil
+  }
+  return try? Data(contentsOf: url)
+}
+
+/// What Siri and Shortcuts show with an item: its `@EntityImage()` (a local
+/// file's bytes, or a remote URL the system loads), else the type's SF Symbol.
+private func assistantDisplayImage(_ value: String?, systemName: String?) -> DisplayRepresentation.Image? {
+  if let data = assistantImageData(value) { return .init(data: data) }
+  if let value, let url = URL(string: value), ["https", "http"].contains(url.scheme?.lowercased() ?? "") {
+    return .init(url: url)
+  }
+  return systemName.map { .init(systemName: $0) }
 }
 
 /// Spotlight asks for `RecipeEntity` items to be indexed again, after it loses them.
@@ -2413,6 +2518,16 @@ extension ShowRecipeCardAction: PredictableIntent {
     IntentPrediction(parameters: \.$recipe) { recipe in
       DisplayRepresentation(
         title: "Show Recipe Card",
+        subtitle: "\(AssistantValues.text([recipe.title], separator: ", "))")
+    }
+  }
+}
+
+extension ToggleShoppingListAction: PredictableIntent {
+  public static var predictionConfiguration: some IntentPredictionConfiguration {
+    IntentPrediction(parameters: \.$recipe) { recipe in
+      DisplayRepresentation(
+        title: "Toggle on Shopping List",
         subtitle: "\(AssistantValues.text([recipe.title], separator: ", "))")
     }
   }
@@ -2652,6 +2767,12 @@ public final class AssistantActionsAppHostCalls: NSObject, AssistantHostCallsPro
       intent.recipe = recipeValue
       IntentDonationManager.shared.donate(intent: intent)
       return true
+    case "toggleShoppingList":
+      guard let recipeValue = AssistantValues.string(values["recipe"]).flatMap({ id in AssistantSnapshot.records("Recipe").first(where: { $0.id == id }) }).map(RecipeEntity.init(record:)) else { return false }
+      let intent = ToggleShoppingListAction()
+      intent.recipe = recipeValue
+      IntentDonationManager.shared.donate(intent: intent)
+      return true
     case "pickRecipe":
       let intent = PickRecipeAction()
       if let value = AssistantValues.string(values["meal"]).flatMap(MealEnum.init(rawValue:)) { intent.meal = value }
@@ -2703,4 +2824,90 @@ public final class AssistantActionsAppHostCalls: NSObject, AssistantHostCallsPro
     }
   }
 }
+
+/// The result card of a Dart `AssistantReply`, as an interactive snippet: Siri
+/// performs it to show the card, and again after one of its buttons ran.
+@available(iOS 26.0, macOS 26.0, *)
+public struct AssistantCardSnippetIntent: SnippetIntent {
+  public static let title: LocalizedStringResource = "Result Card"
+  public static let isDiscoverable = false
+
+  /// The card as Dart sent it (`AssistantCard.json`).
+  @Parameter(title: "Card")
+  public var card: String
+
+  /// Which card this is, for `AssistantCardStore`.
+  @Parameter(title: "Card ID")
+  public var id: String
+
+  public init() {}
+
+  public init(_ card: AssistantCard?) {
+    self.card = card?.json ?? ""
+    id = UUID().uuidString
+  }
+
+  @MainActor
+  public func perform() async throws -> some IntentResult & ShowsSnippetView {
+    let card = AssistantCardStore.card(id, initial: card)
+    return .result(view: AssistantCardView(card) { AssistantCardButtonIntent($0, card: id) })
+  }
+}
+
+/// A result card's button: runs its Dart action, and keeps the card the
+/// action replies with for the snippet to show.
+@available(iOS 26.0, macOS 26.0, *)
+public struct AssistantCardButtonIntent: AppIntent {
+  public static let title: LocalizedStringResource = "Result Card Button"
+  public static let isDiscoverable = false
+
+  #if os(iOS)
+  public static let supportedModes: IntentModes = [.background, .foreground(.dynamic)]
+  #endif
+  #if os(macOS)
+  public static let supportedModes: IntentModes = .foreground(.dynamic)
+  #endif
+
+  /// The Dart action's id.
+  @Parameter(title: "Action")
+  public var action: String
+
+  /// Its arguments, as JSON text.
+  @Parameter(title: "Arguments")
+  public var args: String
+
+  /// The card's id.
+  @Parameter(title: "Card ID")
+  public var card: String
+
+  public init() {}
+
+  public init(_ button: AssistantCard.Button, card: String) {
+    action = button.action
+    args = button.args
+    self.card = card
+  }
+
+  @MainActor
+  public func perform() async throws -> some IntentResult {
+    #if os(iOS)
+      // Dart answers in the background (on a headless engine if the app has none);
+      // the app comes forward only if that fails.
+      if !(await AssistantBackground.shared.prepare()), UIApplication.shared.applicationState != .active {
+        try await continueInForeground()
+      }
+    #endif
+    let reply = try await callDart(action, args: AssistantCardStore.args(args))
+    AssistantCardStore.update(card, reply: reply)
+    return .result()
+  }
+}
+
+@available(iOS 26.0, macOS 26.0, *)
+extension AssistantCardButtonIntent: ProgressReportingIntent {}
+
+#if compiler(>=6.4)
+@available(iOS 26.4, macOS 26.4, *)
+extension AssistantCardButtonIntent: CancellableIntent {}
+#endif
 

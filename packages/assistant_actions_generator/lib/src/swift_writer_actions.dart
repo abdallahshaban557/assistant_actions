@@ -26,10 +26,11 @@ extension _Actions on SwiftWriter {
       ..writeln('  public static let caseDisplayRepresentations: [$name: DisplayRepresentation] = [');
     for (final c in e.cases) {
       final title = '"${SwiftWriter._escape(c.title)}"';
-      _out.writeln(c.synonyms.isEmpty
+      final image = c.systemImage == null ? '' : ', image: .init(systemName: "${SwiftWriter._escape(c.systemImage!)}")';
+      _out.writeln(c.synonyms.isEmpty && image.isEmpty
           ? '    .${swiftName(c.name)}: $title,'
-          : '    .${swiftName(c.name)}: DisplayRepresentation(title: $title, '
-              'synonyms: [${c.synonyms.map((s) => '"${SwiftWriter._escape(s)}"').join(', ')}]),');
+          : '    .${swiftName(c.name)}: DisplayRepresentation(title: $title$image'
+              '${c.synonyms.isEmpty ? '' : ', synonyms: [${c.synonyms.map((s) => '"${SwiftWriter._escape(s)}"').join(', ')}]'}),');
     }
     _out
       ..writeln('  ]')
@@ -67,6 +68,8 @@ extension _Actions on SwiftWriter {
       ..writeln('public struct ${a.swiftName}: AppIntent${foreground ? _continuable(modes, ', ') : ''} {')
       ..writeln('  public static let title: LocalizedStringResource = "${SwiftWriter._escape(a.title)}"')
       ..write(_describe(a.title, a.description, a.searchKeywords, a.isDiscoverable))
+      ..write(_unlockMember(_actionUnlock(a), access: 'public '))
+      ..write(_summaryMember(a.summary, [for (final p in a.params) p.name], access: 'public '))
       ..writeln();
     if (foreground) _out.write(_modesMember(modes, access: 'public '));
     for (final p in a.params) {
@@ -83,7 +86,7 @@ extension _Actions on SwiftWriter {
       ..writeln('  public init() {}')
       ..writeln()
       ..writeln('  @MainActor')
-      ..writeln('  public func perform() async throws -> some ${_resultType(base, dialog: true, snippet: reply)} {')
+      ..writeln('  public func perform() async throws -> some ${_resultType(base, dialog: true, snippet: reply, floor: floor, interactive: a.cardButtons)} {')
       ..writeln(a.params.isEmpty ? '    let args: [String: Any] = [:]' : '    let args: [String: Any] = [');
     for (final p in a.params) {
       _out.writeln('      "${p.name}": ${_encodeParam(p)},');
@@ -110,7 +113,11 @@ extension _Actions on SwiftWriter {
       if (reply) {
         _out.writeln('    let reply = AssistantReply(json: try await callDart("${a.id}", args: args))');
         if (result != null) _out.write(_decodeResult(result, a, source: 'reply.value', reply: true));
-        _out.writeln('    return ${_resultOf(value: result == null ? null : 'value', dialog: 'reply.dialog ?? $dialog', snippet: true)}');
+        _out.write(_replyReturn(
+            value: result == null ? null : 'value',
+            dialog: 'reply.dialog ?? $dialog',
+            floor: floor,
+            interactive: a.cardButtons));
       } else {
         _out.writeln('    let reply = try await callDart("${a.id}", args: args)');
         if (result == null) {

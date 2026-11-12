@@ -188,7 +188,8 @@
         "kind": "entity",
         "ref": "browser.tab"
       },
-      "opensApp": true
+      "opensApp": true,
+      "authenticationPolicy": 2
     },
     "switchTab": {
       "title": "Switch Tab",
@@ -211,7 +212,8 @@
       "opensApp": true,
       "protocols": [
         "open"
-      ]
+      ],
+      "authenticationPolicy": 2
     },
     "closeTabs": {
       "title": "Close Tabs",
@@ -233,7 +235,8 @@
           },
           "description": "Tabs to close."
         }
-      ]
+      ],
+      "authenticationPolicy": 2
     },
     "createWindow": {
       "title": "Create Window",
@@ -256,7 +259,8 @@
         "kind": "entity",
         "ref": "browser.window"
       },
-      "opensApp": true
+      "opensApp": true,
+      "authenticationPolicy": 2
     },
     "closeWindows": {
       "title": "Close Windows",
@@ -278,7 +282,8 @@
           },
           "description": "Windows to close."
         }
-      ]
+      ],
+      "authenticationPolicy": 2
     },
     "bookmarkTab": {
       "title": "Bookmark Tab",
@@ -313,7 +318,8 @@
         "kind": "entity",
         "ref": "browser.bookmark"
       },
-      "opensApp": true
+      "opensApp": true,
+      "authenticationPolicy": 2
     },
     "bookmarkURL": {
       "title": "Bookmark URL",
@@ -347,7 +353,8 @@
         "kind": "entity",
         "ref": "browser.bookmark"
       },
-      "opensApp": true
+      "opensApp": true,
+      "authenticationPolicy": 2
     },
     "openBookmark": {
       "title": "Open Bookmark",
@@ -382,7 +389,8 @@
       "opensApp": true,
       "protocols": [
         "open"
-      ]
+      ],
+      "authenticationPolicy": 2
     },
     "deleteBookmarks": {
       "title": "Delete Bookmarks",
@@ -407,7 +415,8 @@
       ],
       "protocols": [
         "delete"
-      ]
+      ],
+      "authenticationPolicy": 2
     },
     "findOnPage": {
       "title": "Find on Page",
@@ -435,7 +444,8 @@
           "description": "The tab to find the phrase on."
         }
       ],
-      "opensApp": true
+      "opensApp": true,
+      "authenticationPolicy": 2
     },
     "openURLInTab": {
       "title": "Open Link",
@@ -463,7 +473,8 @@
           "description": "Tabs to load URL in."
         }
       ],
-      "opensApp": true
+      "opensApp": true,
+      "authenticationPolicy": 2
     },
     "clearHistory": {
       "title": "Clear History",
@@ -482,7 +493,8 @@
           },
           "description": "Time frame of history to clear."
         }
-      ]
+      ],
+      "authenticationPolicy": 2
     }
   },
   "skipped": {

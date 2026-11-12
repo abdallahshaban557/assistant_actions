@@ -22,7 +22,8 @@
           "description": "Semantic content to be saved."
         }
       ],
-      "opensApp": true
+      "opensApp": true,
+      "authenticationPolicy": 2
     }
   },
   "skipped": {

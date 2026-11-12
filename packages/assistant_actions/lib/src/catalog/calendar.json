@@ -455,7 +455,8 @@
           },
           "description": "If the event is recurring, specifies whether to delete a single occurrence or multiple."
         }
-      ]
+      ],
+      "authenticationPolicy": 1
     },
     "updateEvent": {
       "title": "Update Event",
@@ -595,7 +596,8 @@
       "result": {
         "kind": "entity",
         "ref": "calendar.event"
-      }
+      },
+      "authenticationPolicy": 1
     }
   },
   "queries": {

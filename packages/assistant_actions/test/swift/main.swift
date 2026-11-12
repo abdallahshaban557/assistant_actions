@@ -186,6 +186,39 @@ let empty = AssistantReply(json: nil)
 check("\(empty.ids.count) \(empty.dialog ?? "nil") \(empty.value == nil)", "0 nil true", "an empty reply")
 check(AssistantReply(json: #"{"value":null}"#).value == nil ? "nil" : "value", "nil", "a null value is none")
 
+// Interactive cards: buttons, and the cards their presses update.
+let buttoned = AssistantReply(json: #"""
+  {"card":{"title":"Pancakes","buttons":[{"title":"Add","action":"toggle","args":{"recipe":"p1"},"systemImage":"cart"},
+   {"title":"Delete","action":"remove","destructive":true},{"action":"no title"}]}}
+  """#).card
+check(buttoned.map { $0.buttons.map { "\($0.title)>\($0.action)" }.joined(separator: ",") } ?? "nil", "Add>toggle,Delete>remove",
+  "card buttons run actions; ones without a title are dropped")
+check(buttoned?.buttons.first?.args ?? "nil", #"{"recipe":"p1"}"#, "button args are JSON text")
+check(buttoned?.buttons.last?.args ?? "nil", "{}", "buttons without args send none")
+check("\(buttoned?.buttons.first?.systemImage ?? "nil") \(buttoned?.buttons.last?.destructive ?? false)", "cart true",
+  "buttons take an SF Symbol and can be destructive")
+check(AssistantCardStore.args(buttoned?.buttons.first?.args ?? "")["recipe"] as? String ?? "nil", "p1",
+  "button args become call arguments")
+check(AssistantCard(text: buttoned?.json ?? "") == buttoned ? "same" : "different", "same", "cards round-trip as JSON")
+check(AssistantCard(text: "nope") == nil ? "nil" : "card", "nil", "bad card JSON is no card")
+let cardID = "test-\(UUID().uuidString)"
+check(AssistantCardStore.card(cardID, initial: #"{"title":"Before"}"#)?.title ?? "nil", "Before",
+  "a card shows as it was made until a button updates it")
+AssistantCardStore.update(cardID, reply: "Done.")
+check(AssistantCardStore.card(cardID, initial: #"{"title":"Before"}"#)?.title ?? "nil", "Before",
+  "a reply that isn't an AssistantReply leaves the card")
+AssistantCardStore.update(cardID, reply: #"{"dialog":"Done."}"#)
+check(AssistantCardStore.card(cardID, initial: #"{"title":"Before"}"#)?.title ?? "nil", "Before",
+  "a reply without a card leaves the card")
+AssistantCardStore.update(cardID, reply: #"{"card":{"title":"After"}}"#)
+check(AssistantCardStore.card(cardID, initial: #"{"title":"Before"}"#)?.title ?? "nil", "After",
+  "a reply's card replaces the card")
+for i in 0..<25 { AssistantCardStore.update("\(cardID)-\(i)", reply: #"{"card":{"title":"Other"}}"#) }
+check(AssistantCardStore.card(cardID, initial: #"{"title":"Before"}"#)?.title ?? "nil", "Before",
+  "only the newest cards are kept")
+check(AssistantCardStore.card("\(cardID)-24", initial: "")?.title ?? "nil", "Other", "the newest card is kept")
+UserDefaults.standard.removeObject(forKey: AssistantCardStore.key)
+
 // Dialogs: parameters read aloud in dialogs and confirmations.
 enum Delay: String { case threeSeconds }
 check(AssistantDialog.text("Milk"), "Milk", "text reads as is")

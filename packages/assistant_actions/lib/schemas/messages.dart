@@ -50,8 +50,14 @@ class MessagesCustomReaction extends SchemaEnumCases {
 ///
 /// Map fields with [MessagesConversationField] and turn on the schema intents the app
 /// supports. Each one becomes a method on the generated handler.
+///
+/// `requiresUnlock` keeps Siri from running its intents on a locked device;
+/// `systemImage` is an SF Symbol shown with every item (an `@EntityImage()`
+/// field gives each item its own).
 class MessagesConversation extends SchemaEntity {
-  const MessagesConversation({super.url, super.visualSearch}) : super('messages.conversation');
+  const MessagesConversation(
+      {super.url, super.requiresUnlock, super.systemImage, super.visualSearch})
+      : super('messages.conversation');
 }
 
 /// Marks members of `messages.conversation`.
@@ -114,8 +120,13 @@ abstract final class MessagesConversationField {
 ///
 /// Map fields with [MessagesCustomAttachmentField] and turn on the schema intents the app
 /// supports. Each one becomes a method on the generated handler.
+///
+/// `requiresUnlock` keeps Siri from running its intents on a locked device;
+/// `systemImage` is an SF Symbol shown with every item (an `@EntityImage()`
+/// field gives each item its own).
 class MessagesCustomAttachment extends SchemaEntity {
-  const MessagesCustomAttachment({super.url, super.visualSearch})
+  const MessagesCustomAttachment(
+      {super.url, super.requiresUnlock, super.systemImage, super.visualSearch})
       : super('messages.customAttachment');
 }
 
@@ -157,7 +168,13 @@ class FixedMessagesCustomAttachment extends SchemaContainer {
 ///
 /// `dialogs` and `confirm` give, by intent name, what Siri says when one
 /// finishes and what it asks first.
-/// `replies` lets live intents' handlers return an `AssistantReply`.
+/// `replies` lets live intents' handlers return an `AssistantReply`, and
+/// `cardButtons` lets their cards have buttons below iOS / macOS 26 targets.
+/// `summaries` gives, by intent name, the sentence Shortcuts shows it as.
+///
+/// `requiresUnlock` keeps Siri from running its intents on a locked device;
+/// `systemImage` is an SF Symbol shown with every item (an `@EntityImage()`
+/// field gives each item its own).
 ///
 /// Syncable (`SyncableEntity`), like Apple's own: keep each `@EntityId()`
 /// stable across launches and devices. Opt out with `@AssistantSyncable(false)`.
@@ -171,7 +188,11 @@ class MessagesMessage extends SchemaEntity {
     super.dialogs,
     super.confirm,
     super.replies,
+    super.cardButtons,
+    super.summaries,
     super.url,
+    super.requiresUnlock,
+    super.systemImage,
     super.visualSearch,
   }) : super('messages.message');
 
@@ -330,9 +351,15 @@ abstract final class MessagesMessageField {
 /// Map fields with [MessagesMessagePersonField] and turn on the schema intents the app
 /// supports. Each one becomes a method on the generated handler.
 ///
+/// `requiresUnlock` keeps Siri from running its intents on a locked device;
+/// `systemImage` is an SF Symbol shown with every item (an `@EntityImage()`
+/// field gives each item its own).
+///
 /// Apple Intelligence can hand an item's `person` to other apps as a `person` (`messages.messagePersonTransferable`), when that member is mapped.
 class MessagesMessagePerson extends SchemaEntity {
-  const MessagesMessagePerson({super.url, super.visualSearch}) : super('messages.messagePerson');
+  const MessagesMessagePerson(
+      {super.url, super.requiresUnlock, super.systemImage, super.visualSearch})
+      : super('messages.messagePerson');
 }
 
 /// Marks members of `messages.messagePerson`.

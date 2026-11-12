@@ -453,7 +453,8 @@
       "result": {
         "kind": "entity",
         "ref": "mail.draft"
-      }
+      },
+      "authenticationPolicy": 1
     },
     "updateDraft": {
       "title": "Update Draft",
@@ -562,7 +563,8 @@
           },
           "description": "Attachments of the email message."
         }
-      ]
+      ],
+      "authenticationPolicy": 1
     },
     "saveDraft": {
       "title": "Save Draft",
@@ -582,7 +584,8 @@
           "description": "Email draft to save."
         }
       ],
-      "opensApp": true
+      "opensApp": true,
+      "authenticationPolicy": 1
     },
     "deleteDraft": {
       "title": "Delete Drafts",
@@ -607,7 +610,8 @@
       ],
       "protocols": [
         "delete"
-      ]
+      ],
+      "authenticationPolicy": 1
     },
     "sendDraft": {
       "title": "Send Draft",
@@ -637,7 +641,8 @@
           },
           "description": "Date to send the email message."
         }
-      ]
+      ],
+      "authenticationPolicy": 1
     },
     "forwardMail": {
       "title": "Forward Message",
@@ -735,7 +740,8 @@
           "description": "Attachments of the email message."
         }
       ],
-      "opensApp": true
+      "opensApp": true,
+      "authenticationPolicy": 1
     },
     "replyMail": {
       "title": "Reply Message",
@@ -841,7 +847,8 @@
           "description": "Bcc recipients of the email message."
         }
       ],
-      "opensApp": true
+      "opensApp": true,
+      "authenticationPolicy": 1
     },
     "archiveMail": {
       "title": "Archive Messages",
@@ -863,7 +870,8 @@
           },
           "description": "Email messages to archive."
         }
-      ]
+      ],
+      "authenticationPolicy": 1
     },
     "deleteMail": {
       "title": "Delete Messages",
@@ -888,7 +896,8 @@
       ],
       "protocols": [
         "delete"
-      ]
+      ],
+      "authenticationPolicy": 1
     },
     "updateMail": {
       "title": "Update Messages",
@@ -955,7 +964,8 @@
           },
           "description": "Destination mailbox to move email messages to."
         }
-      ]
+      ],
+      "authenticationPolicy": 1
     },
     "openDraft": {
       "title": "Open Draft",
@@ -978,7 +988,8 @@
       "opensApp": true,
       "protocols": [
         "open"
-      ]
+      ],
+      "authenticationPolicy": 2
     },
     "openMessage": {
       "title": "Open Message",
@@ -1001,7 +1012,8 @@
       "opensApp": true,
       "protocols": [
         "open"
-      ]
+      ],
+      "authenticationPolicy": 2
     }
   }
 }
