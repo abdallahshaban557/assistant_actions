@@ -789,7 +789,7 @@ ${_spotlightImage(e.image)}    return attributes
           ? 'AssistantValues.items($value)?.compactMap { $each }'
           : '(AssistantValues.items($value) ?? []).compactMap { $each }';
       if (base.kind != 'set') return list;
-      return t.isOptional ? '$list.map { Set(\$0) }' : 'Set($list)';
+      return t.isOptional ? '($list).map { Set(\$0) }' : 'Set($list)';
     }
     final decoder = switch (t.base.kind) {
       'string' => 'AssistantValues.string($value)',
@@ -1065,6 +1065,17 @@ ${queryables.isEmpty ? '' : '\n${_propertyQuery(name, queryables, 'all()')}'}}
         ),
   ];
 
+  /// The earliest OS for schema [intent] of [kind] on [owner].
+  Map<String, num> _schemaIntentFloor(SchemaEntityModel? owner, IntentSchema intent, IntentKind kind) {
+    final clears = kind == IntentKind.update &&
+        owner != null &&
+        intent.parameters.any(
+            (p) => p.name != 'target' && p.type.isOptional && (owner.mapping[p.name]?.type.nullable ?? false));
+    final clearFloor = clears ? const {'iOS': 18.2, 'macOS': 15.2} : const <String, num>{'iOS': 0, 'macOS': 0};
+    final ownerFloor = owner == null ? const <String, num>{'iOS': 0, 'macOS': 0} : _entityFloor(owner.schema);
+    return _max(_max(_intentFloor(intent), ownerFloor), clearFloor);
+  }
+
   void _schemaIntent(SchemaEntityModel s, IntentSchema intent, IntentKind kind) {
     if (kind == IntentKind.record) return _recordIntent(s, intent);
     if (kind == IntentKind.call) {
@@ -1075,12 +1086,7 @@ ${queryables.isEmpty ? '' : '\n${_propertyQuery(name, queryables, 'all()')}'}}
     final ix = s.interactions;
     final returnsEntity = intent.result?.base.kind == 'entity' && intent.result!.base.ref == s.schema.id;
     final dialog = _schemaDialog(intent, ix, result: kind == IntentKind.create ? 'value' : 'updated');
-    // `valueState` (clearing a field) is iOS 18.2 / macOS 15.2.
-    final clears = kind == IntentKind.update &&
-        intent.parameters.any((p) =>
-            p.name != 'target' && p.type.isOptional && (s.mapping[p.name]?.type.nullable ?? false));
-    final clearFloor = clears ? const {'iOS': 18.2, 'macOS': 15.2} : const <String, num>{'iOS': 0, 'macOS': 0};
-    final floor = _max(_max(_intentFloor(intent), _entityFloor(s.schema)), clearFloor);
+    final floor = _schemaIntentFloor(s, intent, kind);
     final structName = '${s.className}${pascal(intent.name)}Intent';
     final targetID = _dartID(s.schema.id, 'target');
     String undo(String items) => s.undoable ? '\n${_undoLines(floor, intent.title, items)}' : '';
@@ -1387,9 +1393,11 @@ ${_continuableExtension(name, modes, availability)}${_liveConformances(name, flo
       ..writeln('}');
     if (live || undoable) _out.writeln();
     if (live) {
+      final prompting = _schemaPromptingConformance(name, intent, floor);
       _out
         ..write(_continuableExtension(name, modes, _availability(floor)))
         ..write(_liveConformances(name, floor, longRunning: longRunning));
+      if (prompting.isNotEmpty) _out.write('\n$prompting\n');
     }
     if (undoable) _out.write('${live ? '\n' : ''}${_undoConformance(name, floor, intent)}');
     if (framework != null) _out.writeln('#endif');

@@ -8,10 +8,18 @@ import Foundation
 ///
 /// Both protocols are only in the iOS / macOS 27 SDKs (Swift 6.4, Xcode 27),
 /// so with older Xcodes the call is a plain one.
+/// Implemented by generated live intents that register `$<param>` value and
+/// disambiguation prompts on the active [AssistantLiveCall].
+public protocol AssistantPromptingIntent: ProgressReportingIntent {
+  @MainActor func registerPrompts(on call: AssistantLiveCall)
+}
+
 extension ProgressReportingIntent {
   @MainActor
   public func callDart(_ action: String, args: [String: Any]) async throws -> String? {
     let call = AssistantLiveCall(progress: progress)
+    call.bind(to: self)
+    (self as? any AssistantPromptingIntent)?.registerPrompts(on: call)
     let run: () async throws -> String? = {
       try await call.run(action, args: args) { action, args in
         try await AssistantBridge.shared.perform(action, args: args)

@@ -1,9 +1,14 @@
 /// Types the generated `assistant_actions.g.dart` fills in.
 library;
 
+import 'dart:async';
 import 'dart:convert';
 
 import 'values.dart';
+
+/// Decodes an encoded Swift value back into a Dart entity, enum or list for
+/// `AssistantCall.requestValue` and `AssistantCall.disambiguate`.
+typedef ValueDecoder = FutureOr<Object?> Function(Object? raw);
 
 /// Runs one action with the arguments Swift sent and returns what Siri should
 /// say, if anything (or, for an action that returns a value to Shortcuts,
@@ -47,6 +52,7 @@ class AssistantActionsRegistry {
     this.actions = const {},
     this.codecs = const {},
     this.collections = const {},
+    this.decoders = const {},
   });
 
   /// Action id → handler.
@@ -57,6 +63,10 @@ class AssistantActionsRegistry {
 
   /// Collection name → handler for Siri's creates, updates and deletes.
   final Map<String, CollectionHandler> collections;
+
+  /// Dart type → decoder, for mid-call `AssistantCall.requestValue` and
+  /// `AssistantCall.disambiguate`.
+  final Map<Type, ValueDecoder> decoders;
 }
 
 /// A create, update or delete Siri queued for a schema entity collection.

@@ -119,6 +119,7 @@ class AssistantAction {
     this.requiresUnlock,
     this.summary,
     this.cardButtons = false,
+    this.undo,
   });
 
   final String title;
@@ -190,6 +191,11 @@ class AssistantAction {
   /// `name`. Parameters the sentence leaves out are listed under it. Without
   /// it, Shortcuts lists every parameter as a field.
   final String? summary;
+
+  /// Top-level function that undoes this action (`UndoableIntent`, iOS 26 /
+  /// macOS 26), taking the same parameters as the action plus an optional
+  /// named `result` parameter when the action returns a value.
+  final Function? undo;
 }
 
 /// A value an [AssistantAction] returns to Shortcuts, plus what Siri says.

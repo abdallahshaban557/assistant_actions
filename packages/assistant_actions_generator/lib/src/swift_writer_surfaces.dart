@@ -75,16 +75,24 @@ extension _Surfaces on SwiftWriter {
   /// With `@AssistantBackground()`, a `Runs.withFlutter` one starts Dart on the
   /// headless engine instead, like any background action.
   String _liveActivityPerform(ActionModel a, String dialog, Map<String, _Mode> modes) {
+    final floor = _actionFloor(a);
     if (a.runs == RunsModel.deferred) {
+      final undo = a.undo == null ? '' : '\n${_undoLines(floor, a.title, 'AssistantUndo.call("${a.id}", args: args)')}';
       return '''
-${_performOrQueue(a)}
+${_performOrQueue(a)}$undo
     return .result(dialog: IntentDialog(stringLiteral: $dialog))''';
     }
     final call = a.returnsReply
         ? 'let reply = AssistantReply(json: try await callDart("${a.id}", args: args))'
         : 'let reply = try await callDart("${a.id}", args: args)';
+    final undo = a.undo == null
+        ? ''
+        : a.undo!.takesResult && a.returnsString && !a.returnsReply
+            ? '\n    var undoArgs = args\n    undoArgs["result"] = reply ?? NSNull()\n'
+                '${_undoLines(floor, a.title, 'AssistantUndo.call("${a.id}", args: undoArgs)')}'
+            : '\n${_undoLines(floor, a.title, 'AssistantUndo.call("${a.id}", args: args)')}';
     final result = a.returnsReply
-        ? _replyReturn(dialog: 'reply.dialog ?? $dialog', floor: _actionFloor(a), interactive: a.cardButtons).trimRight()
+        ? _replyReturn(dialog: 'reply.dialog ?? $dialog', floor: floor, interactive: a.cardButtons).trimRight()
         : '    return .result(dialog: IntentDialog(stringLiteral: reply ?? $dialog))';
     // Without background execution, iOS comes forward unless Dart already runs.
     final forward = _foregroundLines(modes,
@@ -94,7 +102,7 @@ ${_performOrQueue(a)}
             ? null
             : '      // A Live Activity intent can run in the background; the Flutter engine\n'
                 '      // only starts with a scene, so come forward unless Dart already runs.');
-    return '$forward\n    $call\n$result';
+    return '$forward\n    $call$undo\n$result';
   }
 
   /// `LiveActivityIntent` is iOS-only.

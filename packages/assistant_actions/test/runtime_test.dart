@@ -5,6 +5,7 @@ import 'package:assistant_actions/assistant_actions.dart';
 import 'package:assistant_actions/schemas/journal.dart';
 import 'package:assistant_actions/schemas/notes.dart';
 import 'package:assistant_actions/schemas/reminders.dart';
+import 'package:flutter/services.dart' show PlatformException;
 import 'package:flutter_test/flutter_test.dart';
 
 class _Item {
@@ -68,6 +69,35 @@ void main() {
     );
     expect(await AssistantActions.perform('count', jsonEncode({'n': 3})), 'You have 3.');
     expect(() => AssistantActions.perform('missing', '{}'), throwsArgumentError);
+  });
+
+  test('AssistantError crosses perform as a user-facing PlatformException without wrapping other errors', () async {
+    const err = AssistantError('Sign in to send messages.');
+    expect(err.message, 'Sign in to send messages.');
+    expect('$err', 'Sign in to send messages.');
+    expect(err, const AssistantError('Sign in to send messages.'));
+
+    await AssistantActions.start(
+      AssistantActionsRegistry(actions: {
+        'failCleanly': (args) async => throw const AssistantError('No network connection.'),
+        'crash': (args) async => throw StateError('unexpected'),
+      }),
+      host: _FakeHost([]),
+    );
+    await expectLater(
+      () => AssistantActions.perform('failCleanly', '{}'),
+      throwsA(
+        isA<PlatformException>()
+            .having((e) => e.code, 'code', AssistantError.code)
+            .having((e) => e.message, 'message', 'No network connection.'),
+      ),
+    );
+    await expectLater(() => AssistantActions.perform('crash', '{}'), throwsStateError);
+  });
+
+  test('AssistantAction accepts a const top-level undo function', () {
+    const action = AssistantAction(title: 'Archive', undo: _undoArchive);
+    expect(action.undo, _undoArchive);
   });
 
   test('publish sends the encoded snapshot for the entity collection', () async {
@@ -436,6 +466,8 @@ class _BackgroundHost extends _FakeHost implements AssistantHostCalls {
 enum _Case { a, b, this$ }
 
 enum _Meal { dinner }
+
+Future<void> _undoArchive() async {}
 
 class _CallingHost extends _FakeHost implements AssistantHostCalls {
   _CallingHost({this.reply}) : super([]);

@@ -167,7 +167,133 @@ extension _Modern on SwiftWriter {
   /// the generated code still builds with older Xcodes.
   String _newSdk(String code) => '#if compiler(>=6.4)\n$code\n#endif';
 
+  /// Mid-call Siri parameter prompts (`requestValue` and `requestDisambiguation`)
+  /// for a live plain `@AssistantAction` with parameters.
+  String _actionPromptingConformance(ActionModel a, Map<String, num>? floor) {
+    final out = StringBuffer();
+    if (floor != null) out.writeln(_availability(floor));
+    out
+      ..writeln('extension ${a.swiftName}: AssistantPromptingIntent {')
+      ..writeln('  public func registerPrompts(on call: AssistantLiveCall) {');
+    for (final p in a.params) {
+      final paramVar = '${p.name}Param';
+      out.writeln('    let $paramVar = self.\$${p.name}');
+      if (p.entity case final e?) {
+        out
+          ..writeln('    call.onRequestValue("${p.name}") { prompt in')
+          ..writeln('      let resolved = try await $paramVar.requestValue(prompt.map { IntentDialog(stringLiteral: \$0) })')
+          ..writeln('      return resolved.id')
+          ..writeln('    }')
+          ..writeln('    call.onDisambiguate("${p.name}") { rawChoices, prompt in')
+          ..writeln('      let ids = rawChoices.compactMap(AssistantValues.string)')
+          ..writeln('      let found = try await ${e.swiftName}Query().entities(for: ids)')
+          ..writeln('      let candidates = ids.compactMap { id in found.first { \$0.id == id } }')
+          ..writeln('      guard !candidates.isEmpty else { throw CancellationError() }')
+          ..writeln('      let resolved = try await $paramVar.requestDisambiguation(among: candidates, dialog: prompt.map { IntentDialog(stringLiteral: \$0) })')
+          ..writeln('      return resolved.id')
+          ..writeln('    }');
+      } else {
+        final each = _decodeValue(p.value!.element, r'$0');
+        out
+          ..writeln('    call.onRequestValue("${p.name}") { prompt in')
+          ..writeln('      let resolved = try await $paramVar.requestValue(prompt.map { IntentDialog(stringLiteral: \$0) })')
+          ..writeln('      return AssistantValues.encode(resolved)')
+          ..writeln('    }')
+          ..writeln('    call.onDisambiguate("${p.name}") { rawChoices, prompt in')
+          ..writeln('      let candidates = rawChoices.compactMap { $each }')
+          ..writeln('      guard !candidates.isEmpty else { throw CancellationError() }')
+          ..writeln('      let resolved = try await $paramVar.requestDisambiguation(among: candidates, dialog: prompt.map { IntentDialog(stringLiteral: \$0) })')
+          ..writeln('      return AssistantValues.encode(resolved)')
+          ..writeln('    }');
+      }
+    }
+    out
+      ..writeln('  }')
+      ..writeln('}');
+    return out.toString();
+  }
+
+  /// Mid-call Siri parameter prompts for a live schema `call` intent.
+  String _schemaPromptingConformance(String name, IntentSchema intent, Map<String, num> floor) {
+    final promptable = [
+      for (final p in intent.parameters)
+        if (callArg(p) case final a? when a.element.kind != 'sceneDescriptor')
+          if (a.shape != ArgShape.entity || a.element.ref != null) a,
+    ];
+    if (promptable.isEmpty) return '';
+    final out = StringBuffer()
+      ..writeln(_availability(floor))
+      ..writeln('extension $name: AssistantPromptingIntent {')
+      ..writeln('  func registerPrompts(on call: AssistantLiveCall) {');
+    for (final a in promptable) {
+      final pName = a.member.name;
+      final paramVar = '${pName}Param';
+      out.writeln('    let $paramVar = self.\$$pName');
+      if (a.shape == ArgShape.entity) {
+        final ref = a.element.ref!;
+        final entityName = _adopted[ref]?.swiftName ?? _containerName(ref);
+        out
+          ..writeln('    call.onRequestValue("$pName") { prompt in')
+          ..writeln('      let resolved = try await $paramVar.requestValue(prompt.map { IntentDialog(stringLiteral: \$0) })')
+          ..writeln('      return ${_dartID(ref, 'resolved')}')
+          ..writeln('    }')
+          ..writeln('    call.onDisambiguate("$pName") { rawChoices, prompt in')
+          ..writeln('      let ids = rawChoices.compactMap(AssistantValues.string)')
+          ..writeln('      let found = ${_lookup(entityName, ref, 'ids')}')
+          ..writeln('      let candidates = ids.compactMap { id in found.first { ${_dartID(ref, r'$0')} == id } }')
+          ..writeln('      guard !candidates.isEmpty else { throw CancellationError() }')
+          ..writeln('      let resolved = try await $paramVar.requestDisambiguation(among: candidates, dialog: prompt.map { IntentDialog(stringLiteral: \$0) })')
+          ..writeln('      return ${_dartID(ref, 'resolved')}')
+          ..writeln('    }');
+      } else if (_decodeSchemaScalar(a.element, r'$0') case final each?) {
+        final encoded = a.element.kind == 'stringSearchCriteria' ? 'resolved.term' : 'AssistantValues.encode(resolved)';
+        out
+          ..writeln('    call.onRequestValue("$pName") { prompt in')
+          ..writeln('      let resolved = try await $paramVar.requestValue(prompt.map { IntentDialog(stringLiteral: \$0) })')
+          ..writeln('      return $encoded')
+          ..writeln('    }')
+          ..writeln('    call.onDisambiguate("$pName") { rawChoices, prompt in')
+          ..writeln('      let candidates = rawChoices.compactMap { $each }')
+          ..writeln('      guard !candidates.isEmpty else { throw CancellationError() }')
+          ..writeln('      let resolved = try await $paramVar.requestDisambiguation(among: candidates, dialog: prompt.map { IntentDialog(stringLiteral: \$0) })')
+          ..writeln('      return $encoded')
+          ..writeln('    }');
+      }
+    }
+    out
+      ..writeln('  }')
+      ..writeln('}');
+    return out.toString();
+  }
+
+  /// Swift optional expression decoding one non-entity schema scalar [element] from [raw].
+  String? _decodeSchemaScalar(SchemaType element, String raw) => switch (element.kind) {
+        'string' => 'AssistantValues.string($raw)',
+        'attributedString' => 'AssistantValues.attributed($raw)',
+        'stringSearchCriteria' => 'AssistantValues.string($raw).map(StringSearchCriteria.init(term:))',
+        'bool' => 'AssistantValues.bool($raw)',
+        'int' => 'AssistantValues.int($raw)',
+        'double' => 'AssistantValues.double($raw)',
+        'date' => 'AssistantValues.date($raw)',
+        'dateComponents' => 'AssistantValues.dateComponents($raw)',
+        'url' => 'AssistantValues.url($raw)',
+        'duration' => 'AssistantValues.duration($raw)',
+        'enum' || 'openEnum' => 'AssistantValues.string($raw).flatMap(${_enumName(element.ref!)}.init(rawValue:))',
+        'person' => 'AssistantValues.person($raw)',
+        'placeDescriptor' => 'AssistantValues.place($raw)',
+        'file' => 'AssistantValues.file($raw)',
+        'recurrenceRule' => 'AssistantValues.recurrence($raw)',
+        'union' => '${_unionName(element.ref!)}.decode($raw)',
+        _ => null,
+      };
+
   // ── Undo ──────────────────────────────────────────────────────────────
+
+  /// Plain `@AssistantAction` [name] is an `UndoableIntent` (iOS 26 / macOS 26).
+  String _actionUndoConformance(String name, Map<String, num> floor) => [
+        _availability(SwiftWriter._max(floor, const {'iOS': 26, 'macOS': 26})),
+        'extension $name: UndoableIntent {}',
+      ].join('\n');
 
   /// [name] is an `UndoableIntent` (iOS 26 / macOS 26).
   ///
