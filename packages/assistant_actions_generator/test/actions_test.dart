@@ -1,12 +1,17 @@
 // Plain actions, App Enums, results and App Shortcuts, built from models
-// directly (the reader's checks run in the example app's build).
+// directly (plus full ModelReader + swiftc -typecheck end-to-end tests).
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:analyzer/dart/analysis/analysis_context_collection.dart';
+import 'package:analyzer/dart/analysis/results.dart';
 import 'package:assistant_actions_generator/src/catalog.dart';
 import 'package:assistant_actions_generator/src/dart_writer.dart';
 import 'package:assistant_actions_generator/src/model.dart';
+import 'package:assistant_actions_generator/src/reader.dart';
 import 'package:assistant_actions_generator/src/swift_writer.dart';
+import 'package:build/build.dart';
+import 'package:source_gen/source_gen.dart';
 import 'package:test/test.dart';
 
 DomainCatalog _load(String domain) => DomainCatalog.fromJson(
@@ -529,7 +534,7 @@ void main() {
       expect(donate, contains('    case "share":\n      guard #available(iOS 26.0, macOS 26.0, *) else { return false }'),
           reason: 'PlaceDescriptor is iOS 26, like the action');
       expect(donate, contains(r'guard let recipesValue = AssistantValues.strings(values["recipes"])?.compactMap({ id in '
-          r'AssistantSnapshot.records("Recipe").first(where: { $0.id == id }) }).map({ $0.map(RecipeEntity.init(record:)) })'));
+          r'AssistantSnapshot.records("Recipe").first(where: { $0.id == id }).map(RecipeEntity.init(record:)) })'));
       expect(donate, contains(r'guard let tagsValue = AssistantValues.items(values["tags"])?.compactMap({ AssistantValues.string($0) })'));
       expect(donate, contains(
           r'intent.length = AssistantValues.double(values["length"]).map({ Measurement(value: $0, unit: UnitDuration.seconds) })'));
@@ -560,4 +565,574 @@ void main() {
       expect(writeDart(app), isNot(contains('AssistantDonations')));
     });
   });
+
+  group('schema entity parameters, rich @Param constraints, measurements and DynamicOptionsProvider', () {
+    test('schema entity parameters work on plain actions, shortcuts, predictions and donations (including files.file)', () {
+      final tasks = _tasks();
+      final filesCatalog = _load('files');
+      final doc = SchemaEntityModel(
+        className: 'DocFile',
+        library: _models,
+        catalog: filesCatalog,
+        schema: filesCatalog.entities['files.file']!,
+        idField: 'path',
+        mapping: const {},
+        intents: const [],
+        containers: const {},
+      );
+      final triage = _action(
+        'triageTasks',
+        dialog: 'Triaged {primary}, {optionalTask} and {docs}.',
+        shortcut: const ShortcutModel(
+          phrases: ['Triage {primary} in {app}'],
+          shortTitle: 'Triage',
+          systemImage: 'checklist',
+        ),
+        params: [
+          ParamModel(name: 'primary', title: 'Primary', named: false, schemaEntity: tasks),
+          ParamModel(name: 'optionalTask', title: 'Optional', named: true, schemaEntity: tasks, entityNullable: true),
+          ParamModel(name: 'batch', title: 'Batch', named: true, schemaEntity: tasks, entityList: true),
+          ParamModel(name: 'docs', title: 'Docs', named: true, schemaEntity: doc, entityList: true),
+        ],
+      );
+      final app = _app(actions: [triage], schemaEntities: [tasks, doc]);
+      final swift = SwiftWriter(app).write();
+      final action = block(swift, 'public struct TriageTasksAction');
+      expect(swift, contains('@available(iOS 27.0, macOS 27.0, *)\npublic struct TriageTasksAction'));
+      expect(action, contains('public var primary: TaskItemEntity'));
+      expect(action, contains('public var optionalTask: TaskItemEntity?'));
+      expect(action, contains('public var batch: [TaskItemEntity]'));
+      expect(action, contains('public var docs: [DocFileEntity]'));
+      expect(action, contains('"primary": primary.id,'));
+      expect(action, contains('"optionalTask": AssistantValues.encode(optionalTask?.id),'));
+      expect(action, contains(r'"batch": batch.map(\.id),'));
+      expect(action, contains(r'"docs": docs.map(\.dartID),'));
+      expect(action, contains(r'\(String(localized: primary.displayRepresentation.title))'));
+      expect(swift, contains('public struct TaskItemEntity {'));
+      expect(swift, contains('public struct DocFileEntity {'));
+
+      final shortcuts = writeAppShortcuts(app);
+      expect(shortcuts, contains('final class AssistantActionsAppShortcuts: NSObject'));
+
+      final dart = writeDart(app);
+      expect(dart, contains('required FutureOr<a1.TaskItem?> Function(String id) findTaskItem,'));
+      expect(dart, contains('required FutureOr<a1.DocFile?> Function(String id) findDocFile,'));
+      expect(dart, contains("static Future<bool> triageTasks(a1.TaskItem primary, {a1.TaskItem? optionalTask, "
+          'required List<a1.TaskItem> batch, required List<a1.DocFile> docs}) =>'));
+      expect(dart, contains("'docs': [for (final e in docs) e.path]}"));
+    });
+
+    test('numeric ranges, controlStyle, String.IntentInputOptions and UTType file filters emit valid @Parameter', () {
+      final upload = _action(
+        'uploadReceipt',
+        params: [
+          ParamModel(
+            name: 'copies',
+            title: 'Copies',
+            named: true,
+            value: const ValueType(ValueKind.integer),
+            swiftDefault: '1',
+            defaultDart: '1',
+            min: 1,
+            max: 10,
+            controlStyle: ControlStyleModel.stepper,
+          ),
+          ParamModel(
+            name: 'opacity',
+            title: 'Opacity',
+            named: true,
+            value: const ValueType(ValueKind.decimal),
+            min: 0,
+            max: 1,
+            controlStyle: ControlStyleModel.slider,
+          ),
+          ParamModel(
+            name: 'note',
+            title: 'Note',
+            named: true,
+            value: const ValueType(ValueKind.string),
+            multiline: true,
+            capitalization: CapitalizationModel.sentences,
+            keyboardType: KeyboardTypeModel.url,
+          ),
+          ParamModel(
+            name: 'attachments',
+            title: 'Attachments',
+            named: true,
+            value: const ValueType(ValueKind.file, list: true),
+            supportedContentTypes: const ['public.image', 'com.adobe.pdf'],
+          ),
+        ],
+      );
+      final swift = SwiftWriter(_app(actions: [upload])).write();
+      expect(swift, contains('import UniformTypeIdentifiers\n'));
+      expect(swift, contains('@available(iOS 18.0, macOS 15.0, *)\npublic struct UploadReceiptAction'));
+      final body = block(swift, 'public struct UploadReceiptAction');
+      expect(
+          body,
+          contains('@Parameter(title: "Copies", default: 1, controlStyle: .stepper, inclusiveRange: (1, 10))\n'
+              '  public var copies: Int'));
+      expect(
+          body,
+          contains('@Parameter(title: "Opacity", controlStyle: .slider, inclusiveRange: (0.0, 1.0))\n'
+              '  public var opacity: Double'));
+      expect(
+          body,
+          contains('@Parameter(title: "Note", inputOptions: String.IntentInputOptions('
+              'keyboardType: .URL, capitalizationType: .sentences, multiline: true))\n'
+              '  public var note: String'));
+      expect(
+          body,
+          contains('@Parameter(title: "Attachments", supportedContentTypes: ['
+              'UTType("public.image") ?? .item, UTType("com.adobe.pdf") ?? .item])\n'
+              '  public var attachments: [IntentFile]'));
+    });
+
+    test('currency and all 6 Measurement wrappers work across parameters, results, dialogs, predictions and donations', () {
+      final logWorkout = _action(
+        'logWorkout',
+        dialog: 'Logged {distance} for {cost}.',
+        result: const ResultModel(value: ValueType(ValueKind.currency), wrapped: true),
+        params: [
+          ParamModel(name: 'cost', title: 'Cost', named: true, value: const ValueType(ValueKind.currency)),
+          ParamModel(name: 'distance', title: 'Distance', named: true, value: const ValueType(ValueKind.length)),
+          ParamModel(name: 'weight', title: 'Weight', named: true, value: const ValueType(ValueKind.mass)),
+          ParamModel(name: 'temp', title: 'Temp', named: true, value: const ValueType(ValueKind.temperature)),
+          ParamModel(name: 'water', title: 'Water', named: true, value: const ValueType(ValueKind.volume)),
+          ParamModel(name: 'pace', title: 'Pace', named: true, value: const ValueType(ValueKind.speed)),
+          ParamModel(name: 'burn', title: 'Burn', named: true, value: const ValueType(ValueKind.energy)),
+        ],
+      );
+      final app = _app(actions: [logWorkout]);
+      final swift = SwiftWriter(app).write();
+      final body = block(swift, 'public struct LogWorkoutAction');
+      expect(body, contains('ReturnsValue<IntentCurrencyAmount>'));
+      expect(body, contains('public var cost: IntentCurrencyAmount'));
+      expect(body, contains('public var distance: Measurement<UnitLength>'));
+      expect(body, contains('public var weight: Measurement<UnitMass>'));
+      expect(body, contains('public var temp: Measurement<UnitTemperature>'));
+      expect(body, contains('public var water: Measurement<UnitVolume>'));
+      expect(body, contains('public var pace: Measurement<UnitSpeed>'));
+      expect(body, contains('public var burn: Measurement<UnitEnergy>'));
+      expect(body, contains(r'Logged \(distance.formatted()) for \(cost.amount.formatted(.currency(code: cost.currencyCode))).'));
+      expect(body, contains('guard let value = AssistantValues.currency(result.value) else'));
+
+      final dart = writeDart(app);
+      expect(dart, contains("AssistantValue.currency(args['cost'])"));
+      expect(dart, contains("AssistantValue.length(args['distance'])"));
+      expect(dart, contains("AssistantValue.mass(args['weight'])"));
+      expect(dart, contains("AssistantValue.temperature(args['temp'])"));
+      expect(dart, contains("AssistantValue.volume(args['water'])"));
+      expect(dart, contains("AssistantValue.speed(args['pace'])"));
+      expect(dart, contains("AssistantValue.energy(args['burn'])"));
+      expect(dart, contains("'cost': AssistantValue.encodeCurrency(cost)"));
+      expect(dart, contains("'burn': AssistantValue.encodeEnergy(burn)"));
+    });
+
+    test('DynamicOptionsProvider wires Dart options functions, dependencies, defaultResult and snapshot fallbacks', () {
+      final pick = _action(
+        'pickDish',
+        params: [
+          ParamModel(name: 'cuisine', title: 'Cuisine', named: true, value: const ValueType(ValueKind.string)),
+          ParamModel(
+            name: 'tag',
+            title: 'Tag',
+            named: true,
+            value: const ValueType(ValueKind.string),
+            swiftDefault: '"quick"',
+            defaultDart: "'quick'",
+            options: ParamOptionsModel(
+              functionName: 'suggestTags',
+              library: _lib,
+              dependencies: const [OptionsDependency(name: 'cuisine', named: false)],
+              snapshotCollection: 'Recipe',
+              snapshotField: 'title',
+            ),
+          ),
+          ParamModel(
+            name: 'dish',
+            title: 'Dish',
+            named: true,
+            entity: _recipe,
+            options: ParamOptionsModel(
+              functionName: 'suggestDishes',
+              library: _lib,
+              dependencies: const [OptionsDependency(name: 'cuisine', named: true, nullable: true)],
+            ),
+          ),
+        ],
+      );
+      final app = _app(actions: [pick]);
+      final swift = SwiftWriter(app).write();
+      final action = block(swift, 'public struct PickDishAction');
+      expect(action, contains('@Parameter(title: "Tag", optionsProvider: PickDishActionTagOptionsProvider())\n  public var tag: String'));
+      expect(action, isNot(contains('default: "quick"')), reason: 'default moves onto DynamicOptionsProvider.defaultResult()');
+
+      final tagProvider = block(swift, 'public struct PickDishActionTagOptionsProvider: DynamicOptionsProvider');
+      expect(tagProvider, contains(r'@IntentParameterDependency<PickDishAction>(\.$cuisine)'));
+      expect(tagProvider, contains('public func defaultResult() async -> String? { "quick" }'));
+      expect(tagProvider, contains('if let v = intent?.cuisine { args["cuisine"] = AssistantValues.encode(v) }'));
+      expect(tagProvider, contains('perform("options.pickDish.tag", args: args)'));
+      expect(tagProvider, contains('for record in AssistantSnapshot.records("Recipe")'));
+
+      final dishProvider = block(swift, 'public struct PickDishActionDishOptionsProvider: DynamicOptionsProvider');
+      expect(dishProvider, contains('return AssistantSnapshot.records("Recipe").map(RecipeEntity.init(record:))'));
+
+      // Donating an action requires guard-decoding parameters backed by a DynamicOptionsProvider.
+      final donate = block(swift, '  private static func donateAction(');
+      expect(donate, contains('guard let tagValue = AssistantValues.string(values["tag"]) else { return false }'));
+      expect(donate, contains('intent.tag = tagValue'));
+
+      final dart = writeDart(app);
+      expect(dart, contains("'options.pickDish.tag': (args) async {"));
+      expect(dart, contains('jsonEncode((await a0.suggestTags(_cuisine)).toList())'));
+      expect(dart, contains("'options.pickDish.dish': (args) async {"));
+      expect(dart, contains('[for (final e in await a0.suggestDishes(cuisine: _cuisine)) e.id]'));
+    });
+  });
+
+  group('ModelReader end-to-end & xcrun swiftc -typecheck', () {
+    test('reads all 5 new features from Dart source and typechecks generated Swift against Apple SDK', () async {
+      final (dart, swift, shortcuts) = await _readAndGenerate('''
+import 'package:assistant_actions/assistant_actions.dart';
+import 'package:assistant_actions/schemas/journal.dart';
+
+@AssistantActionsApp(name: 'Mira')
+library;
+
+@AssistantEnum(title: 'Brew Size')
+enum BrewSize {
+  @CaseTitle('Small')
+  small,
+  @CaseTitle('Large')
+  large,
+}
+
+@AssistantEntity(title: 'Recipe')
+class Recipe {
+  const Recipe({required this.id, required this.name, this.featured = false});
+  @EntityId()
+  final String id;
+  @DisplayTitle()
+  final String name;
+  final bool featured;
+}
+
+@JournalEntry()
+class TaskItem {
+  const TaskItem({required this.id, required this.title, required this.text, this.done = false});
+  @EntityId()
+  final String id;
+  @JournalEntryField.title
+  final String? title;
+  @JournalEntryField.message
+  final String text;
+  final bool done;
+}
+
+Future<List<String>> loadTags(String category) async => [category];
+Future<List<TaskItem>> loadOpenTasks({String? category}) async => const [];
+Future<List<Recipe>> loadFeaturedRecipes() async => const [];
+
+@AssistantBackground()
+Future<AssistantActionsRegistry> initBackground() async => throw UnimplementedError();
+
+@AssistantAction(
+  title: 'Smart Brew',
+  runs: Runs.withFlutter,
+  cardButtons: true,
+  summaries: [
+    SummaryWhen('iced', value: true, then: 'Brew iced {category} ({size})', otherwise: 'Brew hot {category} ({size})'),
+  ],
+)
+Future<AssistantReply> smartBrew({
+  required TaskItem task,
+  List<TaskItem> extraTasks = const [],
+  @Param(multiline: true, capitalization: TextCapitalizationMode.sentences, keyboardType: ParamKeyboardType.url)
+  required String category,
+  @Param(options: loadTags, snapshotField: 'Recipe.title')
+  String tag = 'morning',
+  @Param(options: loadOpenTasks)
+  TaskItem? linkedTask,
+  @Param(options: loadFeaturedRecipes, snapshotField: 'featured')
+  Recipe? recipe,
+  @Param(min: 1, max: 5, controlStyle: ParamControlStyle.stepper)
+  int shots = 2,
+  @Param(min: 0.0, max: 1.0, controlStyle: ParamControlStyle.slider)
+  double strength = 0.5,
+  @Param(supportedContentTypes: ['public.image', 'com.adobe.pdf'])
+  AssistantFile? attachment,
+  AssistantCurrency budget = const AssistantCurrency(amount: 4.5, currencyCode: 'USD'),
+  AssistantLength distance = const AssistantLength.kilometers(1.5),
+  AssistantMass beans = const AssistantMass.grams(18),
+  AssistantTemperature waterTemp = const AssistantTemperature.celsius(93),
+  AssistantVolume cupVolume = const AssistantVolume.milliliters(250),
+  AssistantSpeed pourSpeed = const AssistantSpeed(value: 1.2, unit: SpeedUnit.metersPerSecond),
+  AssistantEnergy calories = const AssistantEnergy.kilocalories(15),
+  BrewSize size = BrewSize.small,
+  bool iced = false,
+}) async => const AssistantReply(
+  dialog: 'Brewed.',
+  card: AssistantCard(
+    title: 'Brew Ready',
+    imageUrl: 'https://example.com/coffee.png',
+    toggles: [AssistantCardToggle(label: 'Done', value: false, actionId: 'smartBrew')],
+  ),
+);
+
+@AssistantAction(
+  title: 'Size Switch',
+  runs: Runs.withFlutter,
+  shortcut: AppShortcut(
+    phrases: ['Quick brew {task} in {app}'],
+    shortTitle: 'Quick Brew',
+    systemImage: 'cup.and.saucer',
+  ),
+  summaries: [
+    SummarySwitch(
+      'size',
+      cases: {BrewSize.large: 'Brew a large cup for {task}'},
+      defaultSummary: 'Brew {size} for {task}',
+    ),
+  ],
+)
+Future<AssistantCurrency> quickBrew(TaskItem task, {BrewSize size = BrewSize.small}) async =>
+    const AssistantCurrency(amount: 3.0, currencyCode: 'USD');
+
+@AssistantFocusFilter(title: 'Task Focus', summary: 'Focus on {tasks}')
+Future<void> applyTaskFocus({List<TaskItem> tasks = const []}) async {}
+''');
+
+      expect(dart, contains("const AssistantCurrency(amount: 4.5, currencyCode: 'USD')"));
+      expect(dart, contains('const AssistantLength(value: 1.5, unit: LengthUnit.kilometers)'));
+      expect(dart, contains("'options.smartBrew.tag': (args) async {"));
+      expect(dart, contains("'options.smartBrew.linkedTask': (args) async {"));
+      expect(swift, contains('When(\\.\$iced, .equalTo, true, {'));
+      expect(swift, contains('Switch(\\.\$size) {'));
+      expect(swift, contains('DefaultCase {'));
+      expect(swift, contains('AssistantCardButtonIntent(\$0, card: id)'));
+
+      if (Platform.isMacOS) {
+        _typecheckSwift(swift, shortcuts);
+      }
+    });
+
+    test('ModelReader rejects invalid @Param constraints, option cycles and invalid conditional summaries', () async {
+      Future<void> expectInvalid(String body, String messagePart) async {
+        await expectLater(
+          () => _readAndGenerate('''
+import 'package:assistant_actions/assistant_actions.dart';
+@AssistantActionsApp(name: 'Mira')
+library;
+$body
+'''),
+          throwsA(isA<InvalidGenerationSourceError>().having((e) => e.message, 'message', contains(messagePart))),
+        );
+      }
+
+      await expectInvalid('''
+@AssistantAction(title: 'Bad')
+Future<void> bad(@Param(controlStyle: ParamControlStyle.slider) int count) async {}
+''', 'ParamControlStyle.slider is only supported on double');
+
+      await expectInvalid('''
+@AssistantAction(title: 'Bad')
+Future<void> bad(@Param(min: 10, max: 5) int count) async {}
+''', 'min (10) must be <= max (5)');
+
+      await expectInvalid('''
+@AssistantAction(title: 'Bad')
+Future<void> bad({@Param(min: 1, max: 5) int count = 9}) async {}
+''', 'outside [1, 5]');
+
+      await expectInvalid('''
+@AssistantAction(title: 'Bad')
+Future<void> bad(@Param(multiline: true) int count) async {}
+''', 'only supported on String');
+
+      await expectInvalid('''
+@AssistantAction(title: 'Bad')
+Future<void> bad(@Param(supportedContentTypes: ['public.image']) String path) async {}
+''', 'only supported on AssistantFile');
+
+      await expectInvalid('''
+Future<List<String>> optA(String b) async => [b];
+Future<List<String>> optB(String a) async => [a];
+@AssistantAction(title: 'Bad')
+Future<void> bad(@Param(options: optA) String a, @Param(options: optB) String b) async {}
+''', 'circular @Param(options:) parameter dependency');
+
+      await expectInvalid('''
+@AssistantAction(
+  title: 'Bad',
+  summary: 'Do {x}',
+  summaries: [SummaryWhen('x', comparison: SummaryComparison.hasAnyValue, then: 'Do {x}', otherwise: 'Do')],
+)
+Future<void> bad(String? x) async {}
+''', 'set either summary or SummaryWhen.otherwise, not both');
+
+      await expectInvalid('''
+@AssistantAction(
+  title: 'Bad',
+  summaries: [SummarySwitch('x', cases: {})],
+)
+Future<void> bad(String x) async {}
+''', 'requires an enum parameter');
+    });
+  });
+}
+
+class _FakeBuildStep implements BuildStep {
+  @override
+  Future<bool> canRead(AssetId id) async =>
+      id.package == 'assistant_actions' && File('../assistant_actions/${id.path}').existsSync();
+
+  @override
+  Future<String> readAsString(AssetId id, {Encoding encoding = utf8}) async =>
+      File('../assistant_actions/${id.path}').readAsStringSync(encoding: encoding);
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+Future<(String dart, String swift, String shortcuts)> _readAndGenerate(String source) async {
+  final dir = Directory.systemTemp.createTempSync('assistant_actions_reader_test_');
+  try {
+    final pkgConfig = jsonDecode(File('../assistant_actions/.dart_tool/package_config.json').readAsStringSync())
+        as Map<String, Object?>;
+    final packages = (pkgConfig['packages'] as List).cast<Map<String, Object?>>().map((p) {
+      if (p['name'] == 'assistant_actions') {
+        return {
+          ...p,
+          'rootUri': Directory('../assistant_actions').absolute.uri.toString(),
+        };
+      }
+      return p;
+    }).toList()
+      ..add({
+        'name': 'app',
+        'rootUri': dir.absolute.uri.toString(),
+        'packageUri': 'lib/',
+        'languageVersion': '3.6',
+      });
+    final dartTool = Directory('${dir.path}/.dart_tool')..createSync(recursive: true);
+    File('${dartTool.path}/package_config.json').writeAsStringSync(jsonEncode({...pkgConfig, 'packages': packages}));
+    final libDir = Directory('${dir.path}/lib')..createSync(recursive: true);
+    final entry = File('${libDir.path}/assistant_actions.dart')..writeAsStringSync(source);
+
+    final collection = AnalysisContextCollection(includedPaths: [dir.absolute.path]);
+    final context = collection.contextFor(entry.absolute.path);
+    final resolved = await context.currentSession.getResolvedLibrary(entry.absolute.path);
+    if (resolved is! ResolvedLibraryResult) {
+      throw StateError('Failed to resolve test library: $resolved');
+    }
+    final model = (await ModelReader(_FakeBuildStep()).read(resolved.element))!;
+    return (writeDart(model), SwiftWriter(model).write(), writeAppShortcuts(model));
+  } finally {
+    dir.deleteSync(recursive: true);
+  }
+}
+
+void _typecheckSwift(String generatedSwift, String generatedShortcuts) {
+  final out = Directory.systemTemp.createTempSync('assistant_actions_swiftc_test_');
+  try {
+    final runtimeDir = Directory('../assistant_actions/darwin/assistant_actions/Sources/assistant_actions').absolute.path;
+    const runtimeFiles = [
+      'AssistantValues.swift',
+      'AssistantInbox.swift',
+      'AssistantSnapshot.swift',
+      'AssistantQuery.swift',
+      'AssistantSpotlight.swift',
+      'AssistantMatch.swift',
+      'AssistantComparison.swift',
+      'AssistantRichValues.swift',
+      'AssistantHostCalls.swift',
+      'AssistantReply.swift',
+      'AssistantDialog.swift',
+      'AssistantInteraction.swift',
+      'AssistantCardView.swift',
+      'AssistantCardStore.swift',
+      'AssistantActivityAttributes.swift',
+      'AssistantLiveActivities.swift',
+      'AssistantShortcutParameters.swift',
+      'AssistantBridge.swift',
+      'AssistantApi.g.swift',
+      'AssistantBackground.swift',
+      'AssistantLiveCall.swift',
+      'AssistantLiveIntents.swift',
+      'AssistantFileIDs.swift',
+      'AssistantUndo.swift',
+      'AssistantContext.swift',
+      'AssistantVisualIntelligence.swift',
+    ];
+    final appSwiftFile = File('${out.path}/AssistantActions.g.swift')..writeAsStringSync(generatedSwift);
+    final shortcutsFile = File('${out.path}/AssistantShortcuts.g.swift')..writeAsStringSync(generatedShortcuts);
+
+    for (final (sdk, libTarget, appTarget) in const [
+      ('macosx', 'arm64-apple-macosx14.0', 'arm64-apple-macosx14.4'),
+      ('iphonesimulator', 'arm64-apple-ios17.0-simulator', 'arm64-apple-ios17.4-simulator'),
+    ]) {
+      final sdkOut = Directory('${out.path}/$sdk')..createSync(recursive: true);
+
+      // 1. Emit the assistant_actions runtime swiftmodule.
+      final runtimeRes = Process.runSync('xcrun', [
+        '--sdk',
+        sdk,
+        'swiftc',
+        '-emit-module',
+        '-module-name',
+        'assistant_actions',
+        '-target',
+        libTarget,
+        '-emit-module-path',
+        '${sdkOut.path}/assistant_actions.swiftmodule',
+        for (final f in runtimeFiles) '$runtimeDir/$f',
+      ]);
+      expect(runtimeRes.exitCode, 0, reason: '[$sdk] runtime swiftmodule failed:\n${runtimeRes.stderr}');
+
+      // 2. Typecheck & emit assistant_actions_app swiftmodule from generated AssistantActions.g.swift.
+      final appRes = Process.runSync('xcrun', [
+        '--sdk',
+        sdk,
+        'swiftc',
+        '-emit-module',
+        '-module-name',
+        'assistant_actions_app',
+        '-target',
+        libTarget,
+        '-I',
+        sdkOut.path,
+        '-emit-module-path',
+        '${sdkOut.path}/assistant_actions_app.swiftmodule',
+        appSwiftFile.path,
+      ]);
+      expect(
+        appRes.exitCode,
+        0,
+        reason: '[$sdk] AssistantActions.g.swift failed swiftc:\n${appRes.stderr}\n--- SWIFT ---\n$generatedSwift',
+      );
+
+      // 3. Typecheck generated AssistantShortcuts.g.swift against assistant_actions_app.
+      final shortcutsRes = Process.runSync('xcrun', [
+        '--sdk',
+        sdk,
+        'swiftc',
+        '-typecheck',
+        '-module-name',
+        'Runner',
+        '-target',
+        appTarget,
+        '-I',
+        sdkOut.path,
+        shortcutsFile.path,
+      ]);
+      expect(
+        shortcutsRes.exitCode,
+        0,
+        reason: '[$sdk] AssistantShortcuts.g.swift failed swiftc:\n${shortcutsRes.stderr}\n--- SHORTCUTS ---\n$generatedShortcuts',
+      );
+    }
+  } finally {
+    out.deleteSync(recursive: true);
+  }
 }

@@ -24,9 +24,12 @@ extension _Surfaces on SwiftWriter {
   /// the Dart defaults, which the system uses when the Focus turns off.
   void _focusFilter(ActionModel a) {
     final filter = a.focusFilter!;
+    final floor = _actionFloor(a);
     _out
       ..writeln('/// `${a.functionName}` in Dart: the app\'s Focus filter, run live when Dart is running and')
-      ..writeln('/// queued otherwise.')
+      ..writeln('/// queued otherwise.');
+    if (_above(floor)) _out.writeln(_availability(floor));
+    _out
       ..writeln('public struct ${a.swiftName}: SetFocusFilterIntent {')
       ..writeln('  public static let title: LocalizedStringResource = "${SwiftWriter._escape(a.title)}"');
     if (a.description != null) {
@@ -34,12 +37,7 @@ extension _Surfaces on SwiftWriter {
     }
     _out.writeln();
     for (final p in a.params) {
-      final options = [
-        'title: "${SwiftWriter._escape(p.title)}"',
-        if (p.swiftDefault case final d?) 'default: $d',
-        if (p.prompt case final prompt?) 'requestValueDialog: "${SwiftWriter._escape(prompt)}"',
-      ];
-      _out.writeln('  @Parameter(${options.join(', ')})\n  public var ${swiftName(p.name)}: ${_paramSwift(p)}\n');
+      _out.writeln('  ${_parameterAttr(a, p)}\n  public var ${swiftName(p.name)}: ${_paramSwift(p)}\n');
     }
     final summary = filter.summary == null ? null : _spokenDialog(filter.summary!, a);
     _out
@@ -64,6 +62,7 @@ extension _Surfaces on SwiftWriter {
       ..writeln('  }')
       ..writeln('}')
       ..writeln();
+    _optionsProviders(a, floor);
   }
 
   /// The body of a `liveActivity: true` action's `perform`. It runs in the

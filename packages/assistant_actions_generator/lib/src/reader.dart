@@ -105,7 +105,7 @@ class ModelReader {
           actions.add(await _action(fn, a, entities, schemaEntities));
         }
         if (_annotation(fn, 'AssistantFocusFilter') case final f?) {
-          actions.add(await _focusFilter(fn, f, entities));
+          actions.add(await _focusFilter(fn, f, entities, schemaEntities));
         }
       }
     }
@@ -653,7 +653,8 @@ class ModelReader {
     if (annotation.peek('liveActivity')?.boolValue ?? false) {
       throw error('liveActivity is for functions; a SnapshotAnswer answers in Swift without Dart.');
     }
-    if (annotation.peek('summary')?.stringValue != null) {
+    if (annotation.peek('summary')?.stringValue != null ||
+        (annotation.peek('summaries')?.listValue ?? const []).isNotEmpty) {
       throw error('summary is for functions: a SnapshotAnswer has no parameters for Shortcuts to show.');
     }
     final target = type.typeArguments.single;

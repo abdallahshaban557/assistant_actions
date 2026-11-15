@@ -78,3 +78,70 @@ String? checkSummaries(Map<String, String> summaries, List<(IntentSchema, Intent
 String? systemImageError(String name) => RegExp(r'^[a-z0-9]+(\.[a-z0-9]+)*$').hasMatch(name)
     ? null
     : 'systemImage "$name" is not an SF Symbol name, such as "book" or "person.crop.circle".';
+
+// ── Conditional ParameterSummary models ─────────────────────────────────────
+
+/// Comparison operator for a conditional `When(\.$param, ...)` summary.
+enum SummaryComparisonModel {
+  equalTo,
+  notEqualTo,
+  hasAnyValue,
+  hasNoValue,
+  lessThan,
+  lessThanOrEqualTo,
+  greaterThan,
+  greaterThanOrEqualTo;
+
+  bool get takesValue => this != hasAnyValue && this != hasNoValue;
+
+  String get swift => '.$name';
+}
+
+/// A node in an `@AssistantAction`'s conditional `ParameterSummary` tree.
+sealed class SummaryNode {
+  const SummaryNode();
+}
+
+/// A leaf `Summary("...")` sentence.
+class SummaryLeaf extends SummaryNode {
+  const SummaryLeaf(this.template);
+
+  final String template;
+}
+
+/// `When(\.$param, comparison, [value,] { then }, otherwise: { otherwise })`.
+class SummaryWhenModel extends SummaryNode {
+  const SummaryWhenModel({
+    required this.param,
+    required this.comparison,
+    this.swiftValue,
+    required this.then,
+    required this.otherwise,
+  });
+
+  final String param;
+  final SummaryComparisonModel comparison;
+
+  /// Swift literal compared against (`true`, `5`, `"work"`, `.fast`), or null
+  /// for `hasAnyValue` / `hasNoValue`.
+  final String? swiftValue;
+  final SummaryNode then;
+  final SummaryNode otherwise;
+}
+
+/// `Switch(\.$param) { Case(.a) { ... } DefaultCase { ... } }`.
+class SummarySwitchModel extends SummaryNode {
+  const SummarySwitchModel({
+    required this.param,
+    required this.cases,
+    this.defaultSummary,
+  });
+
+  final String param;
+
+  /// Swift enum case identifier (without leading `.`) -> sentence template.
+  final Map<String, String> cases;
+
+  /// Optional fallback template (`DefaultCase`).
+  final String? defaultSummary;
+}

@@ -106,11 +106,20 @@ void main() {
     expect(snippet, contains('@Parameter(title: "Card ID")\n  public var id: String'));
     expect(snippet, contains('public func perform() async throws -> some IntentResult & ShowsSnippetView {'));
     expect(snippet, contains('let card = AssistantCardStore.card(id, initial: card)'));
-    expect(snippet, contains(r'AssistantCardView(card) { AssistantCardButtonIntent($0, card: id) }'));
+    expect(
+        snippet,
+        contains(
+            r'AssistantCardView(card) { AssistantCardButtonIntent($0, card: id) } toggle: { AssistantCardButtonIntent($0, card: id) }'));
 
     final button = _block(swift, 'public struct AssistantCardButtonIntent: AppIntent');
     expect(swift, contains('@available(iOS 26.0, macOS 26.0, *)\npublic struct AssistantCardButtonIntent: AppIntent {'));
     expect(button, contains('public static let isDiscoverable = false'));
+    expect(button, contains('public init(_ button: AssistantCard.Button, card: String) {'));
+    expect(button, contains('public init(_ toggle: AssistantCard.Toggle, card: String) {\n'
+        '    action = toggle.action\n'
+        '    args = toggle.args\n'
+        '    self.card = card\n'
+        '  }'));
     expect(button, contains('public static let supportedModes: IntentModes = .foreground(.dynamic)'));
     expect(button, isNot(contains('ForegroundContinuableIntent')), reason: 'deprecated from 26');
     expect(button, contains('try await continueInForeground(alwaysConfirm: false)'));

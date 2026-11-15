@@ -14,11 +14,13 @@ import SwiftUI
 /// nothing without a card.
 public struct AssistantCardView: View {
   let card: AssistantCard?
+  let toggles: AnyView?
   let buttons: AnyView?
 
-  /// [card] without its buttons.
+  /// [card] without its buttons or toggles.
   public init(_ card: AssistantCard?) {
     self.card = card
+    toggles = nil
     buttons = nil
   }
 
@@ -27,9 +29,27 @@ public struct AssistantCardView: View {
   /// doesn't run them.
   public init<Intent: AppIntent>(_ card: AssistantCard?, intent: (AssistantCard.Button) -> Intent) {
     self.card = card
+    toggles = nil
+    buttons = Self.makeButtons(card, intent: intent)
+  }
+
+  /// [card] with interactive buttons and toggles (`Button(intent:)` and
+  /// `Toggle(isOn:intent:)`), for a `SnippetIntent`'s view.
+  public init<ButtonIntent: AppIntent, ToggleIntent: AppIntent>(
+    _ card: AssistantCard?,
+    intent: (AssistantCard.Button) -> ButtonIntent,
+    toggle: (AssistantCard.Toggle) -> ToggleIntent
+  ) {
+    self.card = card
+    toggles = Self.makeToggles(card, intent: toggle)
+    buttons = Self.makeButtons(card, intent: intent)
+  }
+
+  private static func makeButtons<Intent: AppIntent>(
+    _ card: AssistantCard?, intent: (AssistantCard.Button) -> Intent
+  ) -> AnyView? {
     let items = (card?.buttons ?? []).map { ($0, intent($0)) }
-    buttons =
-      items.isEmpty
+    return items.isEmpty
       ? nil
       : AnyView(
         HStack(spacing: 8) {
@@ -38,6 +58,20 @@ public struct AssistantCardView: View {
           }
         }
         .buttonStyle(.bordered))
+  }
+
+  private static func makeToggles<Intent: AppIntent>(
+    _ card: AssistantCard?, intent: (AssistantCard.Toggle) -> Intent
+  ) -> AnyView? {
+    let items = (card?.toggles ?? []).map { ($0, intent($0)) }
+    return items.isEmpty
+      ? nil
+      : AnyView(
+        VStack(alignment: .leading, spacing: 8) {
+          ForEach(Array(items.enumerated()), id: \.offset) { _, item in
+            Self.toggle(item.0, intent: item.1)
+          }
+        })
   }
 
   public var body: some View {
@@ -64,11 +98,28 @@ public struct AssistantCardView: View {
             .font(.subheadline)
           }
         }
+        if let toggles {
+          if card.rows.isEmpty { Divider() }
+          toggles.padding(.top, 2)
+        }
         if let buttons {
           buttons.padding(.top, 4)
         }
       }
       .padding()
+    }
+  }
+
+  @ViewBuilder
+  private static func toggle(_ toggle: AssistantCard.Toggle, intent: some AppIntent) -> some View {
+    if let symbol = toggle.systemImage {
+      Toggle(isOn: toggle.value, intent: intent) {
+        Label(toggle.label, systemImage: symbol)
+      }
+    } else {
+      Toggle(isOn: toggle.value, intent: intent) {
+        Text(toggle.label)
+      }
     }
   }
 
@@ -86,12 +137,24 @@ public struct AssistantCardView: View {
     }
   }
 
-  /// The card's image file, else its SF Symbol, else nothing. Snippets are
-  /// drawn once, so the file is read now.
+  /// The card's local image file, else its remote HTTP(S) URL, else its SF
+  /// Symbol, else nothing.
   @ViewBuilder
   private static func image(_ card: AssistantCard) -> some View {
     if let path = card.imagePath, let image = loadImage(path) {
       image.resizable().scaledToFill().frame(width: 56, height: 56).clipShape(RoundedRectangle(cornerRadius: 10))
+    } else if let raw = card.imageUrl, let url = URL(string: raw),
+      ["https", "http"].contains(url.scheme?.lowercased() ?? "")
+    {
+      AsyncImage(url: url) { image in
+        image.resizable().scaledToFill().frame(width: 56, height: 56).clipShape(RoundedRectangle(cornerRadius: 10))
+      } placeholder: {
+        if let symbol = card.systemImage {
+          Image(systemName: symbol).font(.title2).foregroundStyle(.tint).frame(width: 36, height: 36)
+        } else {
+          ProgressView().frame(width: 36, height: 36)
+        }
+      }
     } else if let symbol = card.systemImage {
       Image(systemName: symbol).font(.title2).foregroundStyle(.tint).frame(width: 36, height: 36)
     }

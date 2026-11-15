@@ -48,11 +48,25 @@ public struct AssistantCard: Equatable, Sendable {
     public let destructive: Bool
   }
 
+  /// An interactive toggle that runs Dart action [actionId] with [args] (JSON
+  /// text) and updates the card (`AssistantCardStore`), from iOS 26 / macOS 26.
+  public struct Toggle: Equatable, Sendable {
+    public let label: String
+    public let value: Bool
+    public let actionId: String
+    public let args: String
+    public let systemImage: String?
+
+    public var action: String { actionId }
+  }
+
   public let title: String
   public let subtitle: String?
   public let rows: [Row]
   public let imagePath: String?
+  public let imageUrl: String?
   public let systemImage: String?
+  public let toggles: [Toggle]
   public let buttons: [Button]
 
   /// The card as JSON text, as Dart sent it: what a generated
@@ -77,7 +91,21 @@ public struct AssistantCard: Equatable, Sendable {
       return Row(label: label, value: value)
     }
     imagePath = object["imagePath"] as? String
+    imageUrl = object["imageUrl"] as? String
     systemImage = object["systemImage"] as? String
+    toggles = (object["toggles"] as? [Any] ?? []).compactMap { toggle in
+      guard let toggle = toggle as? [String: Any],
+        let label = toggle["label"] as? String,
+        let value = toggle["value"] as? Bool,
+        let action = (toggle["action"] as? String) ?? (toggle["actionId"] as? String)
+      else { return nil }
+      let args = (toggle["args"] as? [String: Any])
+        .flatMap { try? JSONSerialization.data(withJSONObject: $0, options: [.sortedKeys]) }
+        .map { String(decoding: $0, as: UTF8.self) }
+      return Toggle(
+        label: label, value: value, actionId: action, args: args ?? "{}",
+        systemImage: toggle["systemImage"] as? String)
+    }
     buttons = (object["buttons"] as? [Any] ?? []).compactMap { button in
       guard let button = button as? [String: Any], let title = button["title"] as? String,
         let action = button["action"] as? String

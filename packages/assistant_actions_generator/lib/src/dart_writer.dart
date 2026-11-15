@@ -34,7 +34,7 @@ String writeDart(AppModel app) {
         if (k == IntentKind.call) i,
     for (final d in app.schemaDomains) ...d.intents,
   ].any((i) => const {CallResult.entities, CallResult.union, CallResult.unions}.contains(callResult(i)));
-  if (returnsLists || _intelligenceNeedsJson(app)) out.writeln("import 'dart:convert';");
+  if (returnsLists || _intelligenceNeedsJson(app) || _optionsNeedsJson(app)) out.writeln("import 'dart:convert';");
   out
     ..writeln()
     ..writeln("import 'package:assistant_actions/assistant_actions.dart';");
@@ -189,10 +189,11 @@ String writeDart(AppModel app) {
   final finders = {
     for (final a in app.actions)
       for (final p in a.params)
-        if (p.entity != null) p.entity!.className: p.entity!,
+        if (p.isEntity) p.entityClassName: (p.entityLibrary, p.entityClassName),
   }.values;
   final args = [
-    for (final e in finders) 'required FutureOr<${ref(e.library, e.className)}?> Function(String id) find${e.className},',
+    for (final (library, className) in finders)
+      'required FutureOr<${ref(library, className)}?> Function(String id) find$className,',
     for (final s in app.schemaEntities) 'required ${s.className}AssistantHandler ${camel(s.className)},',
     for (final d in app.schemaDomains) 'required ${d.handler} ${d.parameter},',
     ..._visualSearchArgs(app),

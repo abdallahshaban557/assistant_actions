@@ -93,12 +93,13 @@ void _intelligenceTail(StringBuffer out, AppModel app, _Ref ref) {
     for (final p in a.params) {
       final String type;
       final String value;
-      if (p.entity case final e?) {
-        final item = ref(e.library, e.className);
+      if (p.isEntity) {
+        final item = ref(p.entityLibrary, p.entityClassName);
+        final idField = p.entityIdField;
         type = '${p.entityList ? 'List<$item>' : item}${p.entityNullable ? '?' : ''}';
         value = p.entityList
-            ? (p.entityNullable ? '${p.name}?.map((e) => e.${e.idField}).toList()' : '[for (final e in ${p.name}) e.${e.idField}]')
-            : '${p.name}${p.entityNullable ? '?' : ''}.${e.idField}';
+            ? (p.entityNullable ? '${p.name}?.map((e) => e.$idField).toList()' : '[for (final e in ${p.name}) e.$idField]')
+            : '${p.name}${p.entityNullable ? '?' : ''}.$idField';
       } else {
         type = p.value!.dart;
         value = p.value!.encodeDart(p.name);

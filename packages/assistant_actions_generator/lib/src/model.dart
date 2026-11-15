@@ -5,7 +5,14 @@ import 'polish.dart';
 import 'schema_calls.dart';
 
 export 'deployment.dart' show DeploymentTarget;
-export 'polish.dart' show UnlockModel;
+export 'polish.dart'
+    show
+        SummaryComparisonModel,
+        SummaryLeaf,
+        SummaryNode,
+        SummarySwitchModel,
+        SummaryWhenModel,
+        UnlockModel;
 
 /// A Dart value type the generator can pass between Swift and Dart.
 enum ValueKind {
@@ -27,6 +34,17 @@ enum ValueKind {
   /// What Visual Intelligence saw (`AssistantSemanticContent`); intent
   /// parameters only.
   semanticContent,
+
+  /// `AssistantCurrency` <-> App Intents `IntentCurrencyAmount`.
+  currency,
+
+  /// Typed Foundation `Measurement<Unit...>` wrappers.
+  length,
+  mass,
+  temperature,
+  volume,
+  speed,
+  energy,
 }
 
 class ValueType {
@@ -75,6 +93,13 @@ class ValueType {
         ValueKind.recurrence => 'AssistantRecurrence',
         ValueKind.union => 'AssistantUnion',
         ValueKind.semanticContent => 'AssistantSemanticContent',
+        ValueKind.currency => 'AssistantCurrency',
+        ValueKind.length => 'AssistantLength',
+        ValueKind.mass => 'AssistantMass',
+        ValueKind.temperature => 'AssistantTemperature',
+        ValueKind.volume => 'AssistantVolume',
+        ValueKind.speed => 'AssistantSpeed',
+        ValueKind.energy => 'AssistantEnergy',
       }}${nullable ? '?' : ''}';
 
   String get swift => '${switch (kind) {
@@ -86,6 +111,13 @@ class ValueType {
         ValueKind.uri => 'URL',
         ValueKind.duration => 'Duration',
         ValueKind.enumeration || ValueKind.entityId => 'String',
+        ValueKind.currency => 'IntentCurrencyAmount',
+        ValueKind.length => 'Measurement<UnitLength>',
+        ValueKind.mass => 'Measurement<UnitMass>',
+        ValueKind.temperature => 'Measurement<UnitTemperature>',
+        ValueKind.volume => 'Measurement<UnitVolume>',
+        ValueKind.speed => 'Measurement<UnitSpeed>',
+        ValueKind.energy => 'Measurement<UnitEnergy>',
         // Schema members only, whose Swift types the writer takes from the schema.
         ValueKind.person ||
         ValueKind.place ||
@@ -113,6 +145,13 @@ class ValueType {
         ValueKind.recurrence => 'recurrence',
         ValueKind.union => 'union',
         ValueKind.semanticContent => 'semanticContent',
+        ValueKind.currency => 'currency',
+        ValueKind.length => 'length',
+        ValueKind.mass => 'mass',
+        ValueKind.temperature => 'temperature',
+        ValueKind.volume => 'volume',
+        ValueKind.speed => 'speed',
+        ValueKind.energy => 'energy',
       };
 
   String get swiftDecoder => switch (kind) {
@@ -130,6 +169,13 @@ class ValueType {
         ValueKind.recurrence => 'recurrence',
         ValueKind.union => 'union',
         ValueKind.semanticContent => 'semanticContent',
+        ValueKind.currency => 'currency',
+        ValueKind.length => 'length',
+        ValueKind.mass => 'mass',
+        ValueKind.temperature => 'temperature',
+        ValueKind.volume => 'volume',
+        ValueKind.speed => 'speed',
+        ValueKind.energy => 'energy',
       };
 
   /// Dart expression decoding [expr] (what Swift sent), nullable.
@@ -158,6 +204,13 @@ class ValueType {
         ValueKind.file => 'AssistantValue.encodeFile($expr)',
         ValueKind.recurrence => 'AssistantValue.encodeRecurrence($expr)',
         ValueKind.union => 'AssistantValue.encodeUnion($expr)',
+        ValueKind.currency => 'AssistantValue.encodeCurrency($expr)',
+        ValueKind.length => 'AssistantValue.encodeLength($expr)',
+        ValueKind.mass => 'AssistantValue.encodeMass($expr)',
+        ValueKind.temperature => 'AssistantValue.encodeTemperature($expr)',
+        ValueKind.volume => 'AssistantValue.encodeVolume($expr)',
+        ValueKind.speed => 'AssistantValue.encodeSpeed($expr)',
+        ValueKind.energy => 'AssistantValue.encodeEnergy($expr)',
         _ => expr,
       };
 }
@@ -239,6 +292,64 @@ class EntityModel {
   String get swiftName => '${className}Entity';
 }
 
+/// Numeric control styles on `@Param`.
+enum ControlStyleModel { stepper, field, slider }
+
+/// Text capitalization modes on `@Param`.
+enum CapitalizationModel { none, words, sentences, allCharacters }
+
+/// Keyboard types on `@Param`.
+enum KeyboardTypeModel {
+  defaultType,
+  asciiCapable,
+  numbersAndPunctuation,
+  url,
+  numberPad;
+
+  String get swift => switch (this) {
+        defaultType => '.default',
+        asciiCapable => '.asciiCapable',
+        numbersAndPunctuation => '.numbersAndPunctuation',
+        url => '.URL',
+        numberPad => '.numberPad',
+      };
+}
+
+/// One parameter of a dynamic options function (`@IntentParameterDependency`).
+class OptionsDependency {
+  const OptionsDependency({required this.name, required this.named, this.nullable = false, this.defaultDart});
+
+  final String name;
+  final bool named;
+  final bool nullable;
+  final String? defaultDart;
+}
+
+/// `@Param(options: ...)` dynamic options provider configuration.
+class ParamOptionsModel {
+  const ParamOptionsModel({
+    required this.functionName,
+    required this.library,
+    this.dependencies = const [],
+    this.snapshotCollection,
+    this.snapshotField,
+  });
+
+  final String functionName;
+  final Uri library;
+  final List<OptionsDependency> dependencies;
+  final String? snapshotCollection;
+  final String? snapshotField;
+
+  ParamOptionsModel withDependencies(List<OptionsDependency> dependencies) => ParamOptionsModel(
+        functionName: functionName,
+        library: library,
+        dependencies: dependencies,
+        snapshotCollection: snapshotCollection,
+        snapshotField: snapshotField,
+      );
+}
+
 /// A parameter of an `@AssistantAction` function.
 class ParamModel {
   ParamModel({
@@ -247,11 +358,20 @@ class ParamModel {
     required this.named,
     this.value,
     this.entity,
+    this.schemaEntity,
     this.entityNullable = false,
     this.entityList = false,
     this.prompt,
     this.swiftDefault,
     this.defaultDart,
+    this.min,
+    this.max,
+    this.controlStyle,
+    this.multiline = false,
+    this.capitalization,
+    this.keyboardType,
+    this.supportedContentTypes,
+    this.options,
   });
 
   final String name;
@@ -267,19 +387,71 @@ class ParamModel {
   /// Set for value parameters.
   final ValueType? value;
 
-  /// Set for entity parameters.
+  /// Set for `@AssistantEntity` parameters.
   final EntityModel? entity;
+
+  /// Set for adopted schema entity parameters.
+  final SchemaEntityModel? schemaEntity;
+
   final bool entityNullable;
 
-  /// A `List` of [entity] items.
+  /// A `List` of [entity] or [schemaEntity] items.
   final bool entityList;
 
   /// The Dart default as a Dart expression, used when Swift sends nothing.
   final String? defaultDart;
 
+  /// Numeric bounds (`inclusiveRange: (min, max)`).
+  final num? min;
+  final num? max;
+  final ControlStyleModel? controlStyle;
+
+  /// `String.IntentInputOptions` settings.
+  final bool multiline;
+  final CapitalizationModel? capitalization;
+  final KeyboardTypeModel? keyboardType;
+
+  /// UTType identifiers for `AssistantFile` / `List<AssistantFile>`.
+  final List<String>? supportedContentTypes;
+
+  /// `DynamicOptionsProvider` configuration.
+  final ParamOptionsModel? options;
+
+  bool get isEntity => entity != null || schemaEntity != null;
+  String get entityClassName => entity?.className ?? schemaEntity!.className;
+  Uri get entityLibrary => entity?.library ?? schemaEntity!.library;
+  String get entityIdField => entity?.idField ?? schemaEntity!.idField;
+  String get entitySwiftName => entity?.swiftName ?? schemaEntity!.swiftName;
+  UnlockModel? get entityUnlock => entity?.unlock ?? schemaEntity?.unlock;
+
+  bool get hasInputOptions => multiline || capitalization != null || keyboardType != null;
+
   bool get nullable => value?.nullable ?? entityNullable;
 
-  String get swiftType => value?.swift ?? '${entity!.swiftName}${entityNullable ? '?' : ''}';
+  String get swiftType =>
+      value?.swift ?? '${entityList ? '[$entitySwiftName]' : entitySwiftName}${entityNullable ? '?' : ''}';
+
+  ParamModel copyWith({String? swiftDefault, ParamOptionsModel? options}) => ParamModel(
+        name: name,
+        title: title,
+        named: named,
+        value: value,
+        entity: entity,
+        schemaEntity: schemaEntity,
+        entityNullable: entityNullable,
+        entityList: entityList,
+        prompt: prompt,
+        swiftDefault: swiftDefault ?? this.swiftDefault,
+        defaultDart: defaultDart,
+        min: min,
+        max: max,
+        controlStyle: controlStyle,
+        multiline: multiline,
+        capitalization: capitalization,
+        keyboardType: keyboardType,
+        supportedContentTypes: supportedContentTypes,
+        options: options ?? this.options,
+      );
 }
 
 /// What an `@AssistantAction` returns to Shortcuts (`ReturnsValue`), beyond
@@ -390,6 +562,7 @@ class ActionModel {
     this.longRunning = false,
     this.unlock,
     this.summary,
+    this.conditionalSummary,
     this.cardButtons = false,
   });
 
@@ -400,6 +573,9 @@ class ActionModel {
 
   /// `summary:`: the Shortcuts sentence, with `{param}` placeholders.
   final String? summary;
+
+  /// `summaries:`: conditional Shortcuts sentences (`When` / `Switch`).
+  final SummaryNode? conditionalSummary;
 
   /// `longRunning: true`: a `LongRunningIntent`.
   final bool longRunning;
@@ -786,7 +962,14 @@ class AppModel {
       schemaEntities.any((s) => s.className == className && s.url != null);
 
   Iterable<Uri> get libraries => {
-        for (final a in actions) a.library,
+        for (final a in actions) ...[
+          a.library,
+          for (final p in a.params) ...[
+            if (p.isEntity) p.entityLibrary,
+            if (p.options case final o?) o.library,
+          ],
+          if (a.result case final r? when r.isEntity) r.entity?.library ?? r.schemaEntity!.library,
+        ],
         for (final e in entities) e.library,
         for (final s in schemaEntities) s.library,
         if (background case final b?) b.library,

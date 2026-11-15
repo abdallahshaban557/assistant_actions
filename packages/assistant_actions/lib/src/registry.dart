@@ -3,6 +3,7 @@ library;
 
 import 'dart:convert';
 
+import 'param_options.dart';
 import 'values.dart';
 
 /// Runs one action with the arguments Swift sent and returns what Siri should
@@ -135,10 +136,32 @@ abstract final class AssistantValue {
   static AssistantSemanticContent? semanticContent(Object? v) =>
       v is Map ? AssistantSemanticContent.fromJson(v.cast()) : null;
 
+  static AssistantCurrency? currency(Object? v) =>
+      v is Map && v['amount'] is num && v['currencyCode'] is String ? AssistantCurrency.fromJson(v.cast()) : null;
+  static AssistantLength? length(Object? v) =>
+      v is Map && v['value'] is num ? AssistantLength.fromJson(v.cast()) : null;
+  static AssistantMass? mass(Object? v) =>
+      v is Map && v['value'] is num ? AssistantMass.fromJson(v.cast()) : null;
+  static AssistantTemperature? temperature(Object? v) =>
+      v is Map && v['value'] is num ? AssistantTemperature.fromJson(v.cast()) : null;
+  static AssistantVolume? volume(Object? v) =>
+      v is Map && v['value'] is num ? AssistantVolume.fromJson(v.cast()) : null;
+  static AssistantSpeed? speed(Object? v) =>
+      v is Map && v['value'] is num ? AssistantSpeed.fromJson(v.cast()) : null;
+  static AssistantEnergy? energy(Object? v) =>
+      v is Map && v['value'] is num ? AssistantEnergy.fromJson(v.cast()) : null;
+
   static Map<String, Object?>? encodePerson(AssistantPerson? p) => p?.toJson();
   static Map<String, Object?>? encodePlace(AssistantPlace? p) => p?.toJson();
   static Map<String, Object?>? encodeFile(AssistantFile? f) => f?.toJson();
   static Map<String, Object?>? encodeRecurrence(AssistantRecurrence? r) => r?.json;
+  static Map<String, Object?>? encodeCurrency(AssistantCurrency? c) => c?.toJson();
+  static Map<String, Object?>? encodeLength(AssistantLength? m) => m?.toJson();
+  static Map<String, Object?>? encodeMass(AssistantMass? m) => m?.toJson();
+  static Map<String, Object?>? encodeTemperature(AssistantTemperature? m) => m?.toJson();
+  static Map<String, Object?>? encodeVolume(AssistantVolume? m) => m?.toJson();
+  static Map<String, Object?>? encodeSpeed(AssistantSpeed? m) => m?.toJson();
+  static Map<String, Object?>? encodeEnergy(AssistantEnergy? m) => m?.toJson();
 
   /// A union case Swift sent: `{case, kind, value}`, where `kind` is the
   /// schema type of the value (`date`, `place`, `entity`, …).
@@ -174,6 +197,13 @@ abstract final class AssistantValue {
         AssistantPlace p => p.toJson(),
         AssistantFile f => f.toJson(),
         AssistantRecurrence r => r.json,
+        AssistantCurrency c => c.toJson(),
+        AssistantLength m => m.toJson(),
+        AssistantMass m => m.toJson(),
+        AssistantTemperature m => m.toJson(),
+        AssistantVolume m => m.toJson(),
+        AssistantSpeed m => m.toJson(),
+        AssistantEnergy m => m.toJson(),
         AssistantUnion u => encodeUnion(u),
         List l => [for (final e in l) encodeAny(e)],
         _ => v,
