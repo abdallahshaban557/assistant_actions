@@ -81,6 +81,7 @@ ActionModel _plan() => _action(
 
 AppModel _app({
   List<ActionModel> actions = const [],
+  List<SnapshotActionModel> snapshotActions = const [],
   List<SchemaEntityModel> schemaEntities = const [],
   List<SchemaDomainModel> domains = const [],
   List<IntentShortcutModel> intentShortcuts = const [],
@@ -90,6 +91,7 @@ AppModel _app({
     AppModel(
       appName: 'Mira',
       actions: actions,
+      snapshotActions: snapshotActions,
       entities: [_recipe],
       schemaEntities: schemaEntities,
       schemaDomains: domains,
@@ -558,6 +560,141 @@ void main() {
       final app = _app(actions: [filter]);
       expect(SwiftWriter(app).write(), isNot(contains('PredictableIntent')));
       expect(writeDart(app), isNot(contains('AssistantDonations')));
+    });
+  });
+
+  group('FoundationModels.Tool bridging', () {
+    test('generates @Generable Arguments, @Guide descriptions, enum wrappers and entity lookup', () {
+      final customPrompt = _action(
+        'tagRecipes',
+        params: [
+          ParamModel(name: 'recipes', title: 'Recipes', prompt: 'Which recipes to tag', named: true, entity: _recipe, entityList: true),
+          ParamModel(name: 'tags', title: 'Tags', named: true, value: const ValueType(ValueKind.string, list: true)),
+          ParamModel(name: 'servings', title: 'Servings', named: true, value: const ValueType(ValueKind.integer, nullable: true)),
+        ],
+      );
+      final swift = SwiftWriter(_app(actions: [_plan(), customPrompt])).write();
+      expect(swift, contains('#if canImport(FoundationModels)\n  import FoundationModels\n#endif'));
+      expect(swift, contains('#if canImport(FoundationModels)\n@available(iOS 26.0, macOS 26.0, *)\n@Generable\n'
+          'public enum MealEnumToolValue: String, Sendable {\n  case dinner\n  case snack\n}'));
+      expect(swift, contains('private func assistantResolveEntity<E>('));
+
+      final planTool = block(swift, 'public struct PlanMealActionTool: FoundationModels.Tool');
+      expect(planTool, contains('public let name = "planMeal"'));
+      expect(planTool, contains('public let description = "planMeal"'));
+      expect(planTool, contains('@Generable\n  public struct Arguments: Sendable {'));
+      expect(planTool, contains('@Guide(description: "Recipe (ID or title)")\n    public var recipe: String'));
+      expect(planTool, contains('@Guide(description: "Meal")\n    public var meal: MealEnumToolValue?'));
+      expect(planTool, contains(
+          'let recipe = try assistantResolveEntity(toolArguments.recipe, collection: "Recipe", '
+          'typeWords: RecipeEntityQuery.typeWords, make: RecipeEntity.init(record:))'));
+      expect(planTool, contains('let meal: MealEnum = toolArguments.meal.flatMap { MealEnum(rawValue: \$0.rawValue) } ?? .dinner'));
+      expect(planTool, contains('AssistantInbox.call("planMeal", args: toolPayload)'));
+      expect(planTool, contains('return fallbackDialog'));
+
+      final tagTool = block(swift, 'public struct TagRecipesActionTool: FoundationModels.Tool');
+      expect(tagTool, contains('@Guide(description: "Which recipes to tag")\n    public var recipes: [String]'));
+      expect(tagTool, contains('@Guide(description: "Tags")\n    public var tags: [String]'));
+      expect(tagTool, contains('@Guide(description: "Servings")\n    public var servings: Int?'));
+    });
+
+    test('formats scalar results, entity results and AssistantReply cards as clean Strings', () {
+      final app = _app(actions: [
+        _action('count', result: const ResultModel(value: ValueType(ValueKind.integer), wrapped: true)),
+        _action('quickest', result: ResultModel(entity: _recipe, nullable: true)),
+        _action('pick', reply: true, result: ResultModel(entity: _recipe, wrapped: true)),
+      ]);
+      final swift = SwiftWriter(app).write();
+      expect(swift, contains('private func assistantDescribeToolValue(_ value: Any?) -> String?'));
+      final countTool = block(swift, 'public struct CountActionTool: FoundationModels.Tool');
+      expect(countTool, contains('let valueText = assistantDescribeToolValue(result.value)'));
+      final quickestTool = block(swift, 'public struct QuickestActionTool: FoundationModels.Tool');
+      expect(quickestTool, contains('let value = try await RecipeEntityQuery().entities(for: ids).first'));
+      expect(quickestTool, contains('let valueText: String? = value.map { String(localized: \$0.displayRepresentation.title) }'));
+      final pickTool = block(swift, 'public struct PickActionTool: FoundationModels.Tool');
+      expect(pickTool, contains('let reply = AssistantReply(json: rawReply)'));
+      expect(pickTool, contains('if let card = reply.card {'));
+      expect(pickTool, contains(r'for row in card.rows { parts.append("\(row.label): \(row.value)") }'));
+    });
+
+    test('bridges SnapshotAnswer actions and registers discoverable tools in AssistantFoundationTools.all', () {
+      final showTasks = SnapshotActionModel(
+        name: 'showTasks',
+        title: 'Show Tasks',
+        description: 'Lists open tasks.',
+        collection: 'Recipe',
+        fields: const [FieldModel('minutes', ValueType(ValueKind.integer))],
+        where: const {},
+        filters: const [SnapshotFilterModel('minutes', SnapshotFilterOp.lessOrEqual, '30')],
+        limit: 5,
+        item: '{title}',
+        dialog: 'You have {count} quick recipes.',
+        empty: 'No quick recipes.',
+        separator: ', ',
+      );
+      final inlineItems = SnapshotActionModel(
+        name: 'inlineTasks',
+        title: 'Inline Tasks',
+        collection: 'Recipe',
+        fields: const [],
+        where: const {},
+        limit: 5,
+        item: '{title}',
+        dialog: 'Recipes: {items}.',
+        empty: 'None.',
+        separator: ', ',
+      );
+      final hiddenSnapshot = SnapshotActionModel(
+        name: 'secretSnapshot',
+        title: 'Secret Snapshot',
+        isDiscoverable: false,
+        collection: 'Recipe',
+        fields: const [],
+        where: const {},
+        limit: 5,
+        item: '{title}',
+        dialog: '{items}',
+        empty: 'None.',
+        separator: ', ',
+      );
+      final app = _app(
+        actions: [
+          _plan(),
+          _action('secret', discoverable: false),
+          _action('focus', focusFilter: const FocusFilterModel(), params: [
+            ParamModel(name: 'quiet', title: 'Quiet', named: true, value: const ValueType(ValueKind.boolean)),
+          ]),
+          _action('locate', params: [
+            ParamModel(name: 'where', title: 'Where', named: true, value: const ValueType(ValueKind.place)),
+          ]),
+          _action('schedule', params: [
+            ParamModel(name: 'when', title: 'When', named: true, value: const ValueType(ValueKind.dateTime)),
+          ]),
+        ],
+        snapshotActions: [showTasks, inlineItems, hiddenSnapshot],
+      );
+      final swift = SwiftWriter(app).write();
+      final showTool = block(swift, 'public struct ShowTasksActionTool: FoundationModels.Tool');
+      expect(showTool, contains('public let name = "showTasks"'));
+      expect(showTool, contains('public let description = "Lists open tasks."'));
+      expect(showTool, contains('@Generable\n  public struct Arguments: Sendable {\n    public init() {}\n  }'));
+      expect(showTool, contains('filters: [.lessOrEqual("minutes", 30)]'));
+      expect(showTool,
+          contains(r'return answer.items.isEmpty ? answer.dialog : ([answer.dialog] + answer.items).joined(separator: "\n")'));
+
+      final inlineTool = block(swift, 'public struct InlineTasksActionTool: FoundationModels.Tool');
+      expect(inlineTool, contains('return answer.dialog'));
+
+      expect(swift, isNot(contains('SecretActionTool')));
+      expect(swift, isNot(contains('FocusFocusFilterTool')));
+      expect(swift, isNot(contains('LocateActionTool')));
+      expect(swift, isNot(contains('ScheduleActionTool')));
+      expect(swift, isNot(contains('SecretSnapshotActionTool')));
+
+      final catalog = block(swift, 'public enum AssistantFoundationTools');
+      expect(catalog, contains('PlanMealActionTool(),'));
+      expect(catalog, contains('ShowTasksActionTool(),'));
+      expect(catalog, contains('InlineTasksActionTool(),'));
     });
   });
 }

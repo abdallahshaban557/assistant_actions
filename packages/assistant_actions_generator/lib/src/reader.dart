@@ -69,7 +69,12 @@ class ModelReader {
     _readAppEnums(libraries);
     for (final lib in libraries) {
       for (final cls in lib.classes) {
-        if (_annotation(cls, 'AssistantEntity') case final a?) entities.add(_entity(cls, a));
+        final plainEntity = _annotation(cls, 'AssistantEntity');
+        if (plainEntity != null) {
+          entities.add(await _entity(cls, plainEntity));
+        } else {
+          _checkSpotlightAnnotations(cls);
+        }
         if (_schemaAnnotation(cls) case final a?) schemaEntities.add(await _schemaEntity(cls, a));
         if (_schemaAnnotation(cls) == null && _schemaAnnotation(cls, 'SchemaIntents') == null) {
           _checkIntentFeatures(cls);
@@ -346,7 +351,7 @@ class ModelReader {
 
   // ── Entities ──────────────────────────────────────────────────────────
 
-  EntityModel _entity(ClassElement cls, ConstantReader annotation) {
+  Future<EntityModel> _entity(ClassElement cls, ConstantReader annotation) async {
     final id = _markedMember(cls, 'EntityId');
     final title = _markedMember(cls, 'DisplayTitle');
     if (id == null) {
@@ -364,6 +369,18 @@ class ModelReader {
     }
     final subtitle = _markedMember(cls, 'DisplaySubtitle');
     final image = _imageField(cls);
+    final keywords = _spotlightField(cls, 'EntityKeywords', _SpotlightKind.keywords);
+    final body = _spotlightField(cls, 'EntityBody', _SpotlightKind.body);
+    final createdAt = _spotlightField(cls, 'EntityCreatedAt', _SpotlightKind.date);
+    final updatedAt = _spotlightField(cls, 'EntityUpdatedAt', _SpotlightKind.date);
+    final fields = <FieldModel>[];
+    for (final f in cls.fields) {
+      if (!f.isStatic && f.isOriginDeclaration && f.displayName != id.$1.displayName && f.displayName != image?.name) {
+        if (await _entityFieldType(f.type, f) case final type?) {
+          fields.add(FieldModel(f.displayName, type));
+        }
+      }
+    }
     return EntityModel(
       className: cls.displayName,
       library: cls.library.uri,
@@ -377,12 +394,108 @@ class ModelReader {
       unlock: _unlock(annotation),
       systemImage: _systemImage(annotation, cls),
       image: image,
-      fields: [
-        for (final f in cls.fields)
-          if (!f.isStatic && f.isOriginDeclaration && f.displayName != id.$1.displayName && f.displayName != image?.name)
-            if (_valueType(f.type) case final type?) FieldModel(f.displayName, type),
-      ],
+      keywords: keywords,
+      body: body,
+      createdAt: createdAt,
+      updatedAt: updatedAt,
+      fields: fields,
     );
+  }
+
+  /// Value types published for fields on a plain `@AssistantEntity`: scalar
+  /// values, `List<String>`, `@AssistantEnum`s and schema enums.
+  Future<ValueType?> _entityFieldType(DartType type, Element at) async {
+    if (_valueType(type) case final v?) return v;
+    final nullable = type.nullabilitySuffix == NullabilitySuffix.question;
+    if (type is InterfaceType && type.isDartCoreList) {
+      final element = type.typeArguments.single;
+      if (element.isDartCoreString && element.nullabilitySuffix != NullabilitySuffix.question) {
+        return ValueType(ValueKind.string, nullable: nullable, list: true);
+      }
+      return null;
+    }
+    if (type is! InterfaceType || type.element is! EnumElement) return null;
+    final element = type.element as EnumElement;
+    final name = element.displayName;
+    if (_appEnums.containsKey(name)) return ValueType(ValueKind.enumeration, nullable: nullable, appEnum: name);
+    if (_openEnums.values.where((o) => o.className == name).firstOrNull case final open?) {
+      return ValueType(ValueKind.enumeration, nullable: nullable, enumRef: open.schema, appEnum: name);
+    }
+    final uri = element.library.uri;
+    if (uri.scheme == 'package' &&
+        uri.pathSegments.length == 3 &&
+        uri.pathSegments.first == _package &&
+        uri.pathSegments[1] == 'schemas') {
+      final domain = uri.pathSegments[2]
+          .replaceFirst(RegExp(r'\.dart$'), '')
+          .replaceAllMapped(RegExp('_([a-z])'), (m) => m[1]!.toUpperCase());
+      final catalog = await _catalog(domain, at);
+      for (final e in catalog.enums.values) {
+        if (dartEnumName(e.id) == name && e.cases.isNotEmpty) {
+          return ValueType(ValueKind.enumeration, nullable: nullable, enumRef: e.id);
+        }
+      }
+    }
+    return null;
+  }
+
+  FieldModel? _spotlightField(ClassElement cls, String marker, _SpotlightKind kind) {
+    final marked = [
+      for (final f in cls.fields)
+        if (!f.isStatic && f.isOriginDeclaration && _annotation(f, marker) != null) (f as Element, f.type),
+      for (final g in cls.getters)
+        if (!g.isStatic && g.isOriginDeclaration && _annotation(g, marker) != null) (g as Element, g.returnType),
+    ];
+    if (marked.isEmpty) return null;
+    if (marked.length > 1) {
+      throw InvalidGenerationSourceError(
+          '${cls.displayName} has ${marked.length} @$marker() members '
+          '(${marked.map((m) => m.$1.displayName).join(', ')}); mark at most one.',
+          element: marked[1].$1);
+    }
+    final (member, type) = marked.single;
+    final nullable = type.nullabilitySuffix == NullabilitySuffix.question;
+    switch (kind) {
+      case _SpotlightKind.keywords:
+        if (type is! InterfaceType ||
+            !type.isDartCoreList ||
+            !type.typeArguments.single.isDartCoreString ||
+            type.typeArguments.single.nullabilitySuffix == NullabilitySuffix.question) {
+          throw InvalidGenerationSourceError(
+              '${cls.displayName}.${member.displayName} is ${type.getDisplayString()}, '
+              'but @$marker() requires List<String> or List<String>?.',
+              element: member);
+        }
+        return FieldModel(member.displayName, ValueType(ValueKind.string, nullable: nullable, list: true));
+      case _SpotlightKind.body:
+        if (!type.isDartCoreString) {
+          throw InvalidGenerationSourceError(
+              '${cls.displayName}.${member.displayName} is ${type.getDisplayString()}, '
+              'but @$marker() requires String or String?.',
+              element: member);
+        }
+        return FieldModel(member.displayName, ValueType(ValueKind.string, nullable: nullable));
+      case _SpotlightKind.date:
+        final v = _valueType(type);
+        if (v == null || v.kind != ValueKind.dateTime) {
+          throw InvalidGenerationSourceError(
+              '${cls.displayName}.${member.displayName} is ${type.getDisplayString()}, '
+              'but @$marker() requires DateTime or DateTime?.',
+              element: member);
+        }
+        return FieldModel(member.displayName, v);
+    }
+  }
+
+  void _checkSpotlightAnnotations(ClassElement cls) {
+    for (final marker in const ['EntityKeywords', 'EntityBody', 'EntityCreatedAt', 'EntityUpdatedAt']) {
+      if (_markedMember(cls, marker) case (final member, _)?) {
+        throw InvalidGenerationSourceError(
+            '@$marker() goes on a field or getter of an @AssistantEntity class; '
+            'schema entities index their mapped schema properties automatically.',
+            element: member);
+      }
+    }
   }
 
   /// The field or explicit getter of [cls] annotated with [marker].
@@ -682,9 +795,16 @@ class ModelReader {
       };
       where[fieldName] = literal;
     }
+    final filters = [
+      for (final f in answer.peek('filters')?.listValue ?? const <DartObject>[])
+        _snapshotFilter(f, field, error),
+    ];
     final sortBy = answer.peek('sortBy')?.stringValue;
-    if (sortBy != null && field(sortBy, 'sortBy').type.kind == ValueKind.uri) {
-      throw error('sortBy "$sortBy" is a Uri, which has no order.');
+    if (sortBy != null) {
+      final s = field(sortBy, 'sortBy');
+      if (s.type.kind == ValueKind.uri || s.type.list) {
+        throw error('sortBy "$sortBy" is a ${s.type.dart.replaceAll('?', '')}, which has no order.');
+      }
     }
     final limit = answer.read('limit').intValue;
     if (limit < 1) throw error('limit must be at least 1.');
@@ -711,6 +831,7 @@ class ModelReader {
       fields: fields,
       titleField: titleProperty == null ? null : schemaEntity!.mapping[titleProperty.name]?.name,
       where: where,
+      filters: filters,
       sortBy: sortBy,
       descending: answer.read('descending').boolValue,
       limit: limit,
@@ -720,6 +841,119 @@ class ModelReader {
       separator: answer.read('separator').stringValue,
       unlock: _unlock(annotation),
     );
+  }
+
+  SnapshotFilterModel _snapshotFilter(
+    DartObject obj,
+    FieldModel Function(String key, String use) field,
+    InvalidGenerationSourceError Function(String message) error,
+  ) {
+    final reader = ConstantReader(obj);
+    final fieldName = reader.read('field').stringValue;
+    final opIndex = reader.read('operator').objectValue.getField('index')!.toIntValue()!;
+    final op = SnapshotFilterOp.values[opIndex];
+    final f = field(fieldName, 'filters');
+    final raw = obj.getField('value');
+    final expected = raw == null || raw.isNull ? null : raw;
+
+    String? dateExpr(DartObject? v) {
+      final text = v?.toStringValue();
+      if (text == null) return null;
+      final parsed = DateTime.tryParse(text);
+      if (parsed == null) return null;
+      return 'Date(timeIntervalSince1970: ${_Actions._swiftDouble(parsed.millisecondsSinceEpoch / 1000)})';
+    }
+
+    String? durationExpr(DartObject? v) {
+      final t = v?.type;
+      if (t is! InterfaceType || !t.element.library.isDartCore || t.element.displayName != 'Duration') return null;
+      final micros = (v!.getField('inMicroseconds') ?? v.getField('_duration'))?.toIntValue();
+      if (micros == null) return null;
+      return _Actions._swiftDouble(micros / 1e6);
+    }
+
+    switch (op) {
+      case SnapshotFilterOp.isNull || SnapshotFilterOp.isNotNull:
+        return SnapshotFilterModel(fieldName, op);
+      case SnapshotFilterOp.isToday || SnapshotFilterOp.isPast || SnapshotFilterOp.isFuture:
+        if (f.type.list || f.type.kind != ValueKind.dateTime) {
+          throw error('filters "${op.name}" on "$fieldName" requires a DateTime field, not ${f.type.dart}.');
+        }
+        return SnapshotFilterModel(fieldName, op);
+      case SnapshotFilterOp.contains || SnapshotFilterOp.startsWith:
+        if (f.type.list || f.type.kind != ValueKind.string) {
+          throw error('filters "${op.name}" on "$fieldName" requires a String field, not ${f.type.dart}.');
+        }
+        final text = expected?.toStringValue();
+        if (text == null) {
+          throw error('filters "${op.name}" on "$fieldName" needs a String operand.');
+        }
+        return SnapshotFilterModel(fieldName, op, _swiftLiteral(text));
+      case SnapshotFilterOp.lessThan ||
+            SnapshotFilterOp.lessOrEqual ||
+            SnapshotFilterOp.greaterThan ||
+            SnapshotFilterOp.greaterOrEqual:
+        if (f.type.list) {
+          throw error('filters "${op.name}" cannot compare list field "$fieldName" (${f.type.dart}).');
+        }
+        final literal = switch (f.type.kind) {
+          ValueKind.integer when expected?.toIntValue() != null => '${expected!.toIntValue()}',
+          ValueKind.decimal when (expected?.toDoubleValue() ?? expected?.toIntValue()?.toDouble()) != null =>
+            _Actions._swiftDouble(expected!.toDoubleValue() ?? expected.toIntValue()!.toDouble()),
+          ValueKind.duration => durationExpr(expected),
+          ValueKind.dateTime => dateExpr(expected),
+          _ => throw error(
+              'filters "${op.name}" on "$fieldName" requires an int, double, Duration or DateTime field, '
+              'not ${f.type.dart}.'),
+        };
+        if (literal == null) {
+          throw error(f.type.kind == ValueKind.dateTime
+              ? 'filters "$fieldName" is ${f.type.dart}; pass an ISO-8601 date string '
+                  '(such as "2026-05-01T09:00:00Z"), or use SnapshotFilter.isToday / isPast / isFuture.'
+              : 'filters "$fieldName" is ${f.type.dart}; compare it with a matching value.');
+        }
+        return SnapshotFilterModel(fieldName, op, literal);
+      case SnapshotFilterOp.equals || SnapshotFilterOp.notEquals:
+        if (f.type.list) {
+          throw error('filters "${op.name}" cannot compare list field "$fieldName" (${f.type.dart}).');
+        }
+        String? enumLiteral(DartObject? v) {
+          final t = v?.type;
+          if (t is InterfaceType && t.element is EnumElement) {
+            if (t.element.displayName != f.type.dart.replaceAll('?', '')) return null;
+            return _swiftLiteral(_Actions._schemaCase(_caseName(v!)));
+          }
+          final text = v?.toStringValue();
+          if (text == null) return null;
+          final cases = f.type.enumRef == null
+              ? [for (final c in _appEnums[f.type.appEnum!]!.cases) c.name]
+              : f.type.appEnum != null
+                  ? [for (final c in _openEnums[f.type.enumRef!]!.cases) _Actions._schemaCase(c)]
+                  : _catalogs[f.type.enumRef!.split('.').first]!.enums[f.type.enumRef!]!.cases;
+          final normalized = _Actions._schemaCase(text);
+          return cases.contains(normalized) ? _swiftLiteral(normalized) : null;
+        }
+
+        final literal = switch (f.type.kind) {
+          ValueKind.boolean when expected?.toBoolValue() != null => '${expected!.toBoolValue()}',
+          ValueKind.string || ValueKind.entityId when expected?.toStringValue() != null =>
+            _swiftLiteral(expected!.toStringValue()!),
+          ValueKind.integer when expected?.toIntValue() != null => '${expected!.toIntValue()}',
+          ValueKind.decimal when (expected?.toDoubleValue() ?? expected?.toIntValue()?.toDouble()) != null =>
+            _Actions._swiftDouble(expected!.toDoubleValue() ?? expected.toIntValue()!.toDouble()),
+          ValueKind.duration => durationExpr(expected),
+          ValueKind.dateTime => dateExpr(expected),
+          ValueKind.enumeration => enumLiteral(expected),
+          _ => throw error('filters "${op.name}" does not support "$fieldName" (${f.type.dart}).'),
+        };
+        if (literal == null) {
+          throw error(f.type.kind == ValueKind.dateTime
+              ? 'filters "$fieldName" is ${f.type.dart}; pass an ISO-8601 date string '
+                  '(such as "2026-05-01T09:00:00Z"), or use SnapshotFilter.isNull / isNotNull.'
+              : 'filters "$fieldName" is ${f.type.dart}; compare it with a matching value.');
+        }
+        return SnapshotFilterModel(fieldName, op, literal);
+    }
   }
 
   /// Placeholder names in a snapshot template: `{name}` and `{name|one|many}`.
@@ -782,3 +1016,5 @@ class ModelReader {
     return words.isEmpty ? words : words[0].toUpperCase() + words.substring(1).toLowerCase();
   }
 }
+
+enum _SpotlightKind { keywords, body, date }

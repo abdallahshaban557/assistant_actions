@@ -1,6 +1,8 @@
 /// Annotations read by `assistant_actions_generator`.
 library;
 
+import 'snapshot_filter.dart';
+
 /// Marks the library that defines the app's assistant actions
 /// (`lib/assistant_actions.dart`).
 ///
@@ -419,6 +421,7 @@ class SnapshotAnswer<T> {
     required this.dialog,
     required this.empty,
     this.where = const {},
+    this.filters = const [],
     this.sortBy,
     this.descending = false,
     this.limit = 5,
@@ -427,6 +430,11 @@ class SnapshotAnswer<T> {
 
   /// Only items whose field equals the value (a `bool`, `String` or `int`).
   final Map<String, Object> where;
+
+  /// Richer predicates evaluated in Swift alongside [where]: comparisons,
+  /// case/diacritic-insensitive string matching, null checks and relative
+  /// `DateTime` checks (`isToday`, `isPast`, `isFuture`).
+  final List<SnapshotFilter> filters;
 
   /// The field to order by; items without a value come last.
   final String? sortBy;

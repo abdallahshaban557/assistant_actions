@@ -205,6 +205,10 @@ class EntityModel {
     this.unlock,
     this.systemImage,
     this.image,
+    this.keywords,
+    this.body,
+    this.createdAt,
+    this.updatedAt,
   });
 
   final String className;
@@ -220,6 +224,18 @@ class EntityModel {
   /// The `@EntityImage()` field (a `String` or `Uri`), published with the
   /// item but not one of [fields].
   final FieldModel? image;
+
+  /// `@EntityKeywords()` (`List<String>` / `List<String>?`) for Spotlight.
+  final FieldModel? keywords;
+
+  /// `@EntityBody()` (`String` / `String?`) for Spotlight `textContent`.
+  final FieldModel? body;
+
+  /// `@EntityCreatedAt()` (`DateTime` / `DateTime?`) for Spotlight.
+  final FieldModel? createdAt;
+
+  /// `@EntityUpdatedAt()` (`DateTime` / `DateTime?`) for Spotlight.
+  final FieldModel? updatedAt;
 
   /// `@AssistantSyncable()`: a `SyncableEntity`.
   final bool syncable;
@@ -455,6 +471,35 @@ class FocusFilterModel {
   final String? summary;
 }
 
+/// Operators for [SnapshotFilterModel], matching `SnapshotOperator` in
+/// `package:assistant_actions` and `AssistantQuery.Filter` in Swift.
+enum SnapshotFilterOp {
+  equals,
+  notEquals,
+  lessThan,
+  lessOrEqual,
+  greaterThan,
+  greaterOrEqual,
+  contains,
+  startsWith,
+  isNull,
+  isNotNull,
+  isToday,
+  isPast,
+  isFuture,
+}
+
+/// One predicate in `SnapshotAnswer.filters`.
+class SnapshotFilterModel {
+  const SnapshotFilterModel(this.field, this.op, [this.swiftValue]);
+
+  final String field;
+  final SnapshotFilterOp op;
+
+  /// Swift expression for the operand, or null for unary checks.
+  final String? swiftValue;
+}
+
 /// `@AssistantAction` on a `const SnapshotAnswer<T>`: answered in Swift from
 /// the published snapshot of [collection], without Flutter.
 class SnapshotActionModel {
@@ -469,6 +514,7 @@ class SnapshotActionModel {
     required this.dialog,
     required this.empty,
     required this.separator,
+    this.filters = const [],
     this.titleField,
     this.sortBy,
     this.descending = false,
@@ -501,6 +547,9 @@ class SnapshotActionModel {
 
   /// Field name → a Swift literal it must equal.
   final Map<String, String> where;
+
+  /// Richer `SnapshotFilter` predicates evaluated in Swift.
+  final List<SnapshotFilterModel> filters;
   final String? sortBy;
   final bool descending;
   final int limit;

@@ -15,6 +15,7 @@ part 'swift_writer_files.dart';
 part 'swift_writer_modern.dart';
 part 'swift_writer_intelligence.dart';
 part 'swift_writer_cards.dart';
+part 'swift_writer_tools.dart';
 
 /// Writes `AssistantActions.g.swift`, compiled into the generated
 /// `assistant_actions_app` plugin.
@@ -62,6 +63,7 @@ class SwiftWriter {
     _backgroundEntrypoint();
     _intelligence();
     _cardIntents();
+    _foundationTools();
     body.write(_publicize(_out.toString()));
 
     return [
@@ -108,6 +110,8 @@ class SwiftWriter {
   void _entity(EntityModel e) {
     final name = e.swiftName;
     final fields = _plainQueryables(e);
+    final spotlightDecls = _plainSpotlightDeclarations(e, fields);
+    final spotlightInits = _plainSpotlightInits(e, fields);
     _out.writeln('''
 /// `${e.className}`, published from Dart with `AssistantActions.publish`.
 public struct $name: AppEntity {
@@ -118,7 +122,7 @@ public struct $name: AppEntity {
   @Property(title: "Title")
   public var title: String
   public let subtitle: String?
-${_imageDeclaration(e.image, access: 'public ')}${[for (final q in fields) '  @Property(title: "${_escape(q.title)}")\n  public var ${q.member}: ${q.swiftType}\n'].join()}
+${_imageDeclaration(e.image, access: 'public ')}$spotlightDecls${[for (final q in fields) '  @Property(title: "${_escape(q.title)}")\n  public var ${q.member}: ${q.swiftType}\n'].join()}
   public var displayRepresentation: DisplayRepresentation {
 ${switch (_displayImage(e.systemImage, e.image)) {
       final image? => '    DisplayRepresentation(title: "\\(title)", subtitle: subtitle.map { "\\(\$0)" }, image: $image)',
@@ -130,10 +134,10 @@ ${switch (_displayImage(e.systemImage, e.image)) {
   init(record: AssistantRecord) {
     id = record.id
     subtitle = record.subtitle
-${_imageInit(e.image)}    // `@Property` members last: setting one needs every stored property set.
+${_imageInit(e.image)}$spotlightInits    // `@Property` members last: setting one needs every stored property set.
     title = record.title
 ${[for (final f in e.fields)
-      if (fields.any((q) => q.member == f.name)) '    ${f.name} = AssistantValues.${f.type.swiftDecoder}(record.fields["${f.name}"])\n'].join()}  }
+      if (fields.any((q) => q.member == f.name)) '    ${f.name} = ${_decodePlainField(f)}\n'].join()}  }
 }
 
 public struct ${name}Query: EntityStringQuery, EnumerableEntityQuery, EntityPropertyQuery {
@@ -162,33 +166,82 @@ public struct ${name}Query: EntityStringQuery, EnumerableEntityQuery, EntityProp
     AssistantSnapshot.records("${e.className}").map($name.init(record:))
   }
 
-${_propertyQuery(name, [const _Queryable('title', 'Title', 'string', optional: false, isTitle: true), ...fields], 'AssistantSnapshot.records("${e.className}").map($name.init(record:))', 'public ')}}
+${_propertyQuery(name, [const _Queryable('title', 'Title', 'string', optional: false, isTitle: true), ...fields], 'AssistantSnapshot.records("${e.className}").map($name.init(record:))', 'public ', true)}}
 ''');
+  }
+
+  String _decodePlainField(FieldModel f) => switch (f.type.kind) {
+    ValueKind.duration => 'AssistantValues.measurement(record.fields["${f.name}"])',
+    ValueKind.enumeration =>
+      'AssistantValues.string(record.fields["${f.name}"]).flatMap(${f.type.appEnum}Enum.init(rawValue:))',
+    _ => 'AssistantValues.${f.type.swiftDecoder}(record.fields["${f.name}"])',
+  };
+
+  String? _plainSpotlightRef(EntityModel e, FieldModel? f, List<_Queryable> fields, String fallback) {
+    if (f == null) return null;
+    if (f.name == e.titleGetter) return 'title';
+    if (f.name == e.subtitleGetter) return 'subtitle';
+    if (fields.any((q) => q.member == f.name)) return f.name;
+    return fallback;
+  }
+
+  String _plainSpotlightDeclarations(EntityModel e, List<_Queryable> fields) {
+    final lines = <String>[
+      if (e.keywords != null) '  public let assistantKeywords: [String]?',
+      if (_plainSpotlightRef(e, e.body, fields, 'assistantBody') == 'assistantBody')
+        '  public let assistantBody: String?',
+      if (_plainSpotlightRef(e, e.createdAt, fields, 'assistantCreatedAt') == 'assistantCreatedAt')
+        '  public let assistantCreatedAt: Date?',
+      if (_plainSpotlightRef(e, e.updatedAt, fields, 'assistantUpdatedAt') == 'assistantUpdatedAt')
+        '  public let assistantUpdatedAt: Date?',
+    ];
+    return lines.map((l) => '$l\n').join();
+  }
+
+  String _plainSpotlightInits(EntityModel e, List<_Queryable> fields) {
+    final lines = <String>[
+      if (e.keywords case final k?) '    assistantKeywords = AssistantValues.strings(record.fields["${k.name}"])',
+      if (_plainSpotlightRef(e, e.body, fields, 'assistantBody') == 'assistantBody')
+        '    assistantBody = AssistantValues.string(record.fields["${e.body!.name}"])',
+      if (_plainSpotlightRef(e, e.createdAt, fields, 'assistantCreatedAt') == 'assistantCreatedAt')
+        '    assistantCreatedAt = AssistantValues.date(record.fields["${e.createdAt!.name}"])',
+      if (_plainSpotlightRef(e, e.updatedAt, fields, 'assistantUpdatedAt') == 'assistantUpdatedAt')
+        '    assistantUpdatedAt = AssistantValues.date(record.fields["${e.updatedAt!.name}"])',
+    ];
+    return lines.map((l) => '$l\n').join();
   }
 
   /// The fields of a plain entity Siri can filter and sort by, beyond its title.
   List<_Queryable> _plainQueryables(EntityModel e) => [
     for (final f in e.fields)
-      if (!const {'id', 'title', 'subtitle', 'displayRepresentation'}.contains(f.name) &&
+      if (!f.type.list &&
+          !const {'id', 'title', 'subtitle', 'displayRepresentation'}.contains(f.name) &&
           f.name != e.titleGetter &&
           !f.name.contains(r'$'))
-        if (switch (f.type.kind) {
-              ValueKind.string => 'string',
-              ValueKind.integer => 'int',
-              ValueKind.decimal => 'double',
-              ValueKind.boolean => 'bool',
-              ValueKind.dateTime => 'date',
-              _ => null,
-            }
-            case final kind?)
-          _Queryable(
-            f.name,
-            _words(f.name),
-            kind,
-            optional: true,
-            swiftType: ValueType(f.type.kind, nullable: true).swift,
-          ),
+        ?_plainQueryable(f),
   ];
+
+  _Queryable? _plainQueryable(FieldModel f) {
+    final (kind, swiftType) = switch (f.type.kind) {
+      ValueKind.string => ('string', 'String?'),
+      ValueKind.integer => ('int', 'Int?'),
+      ValueKind.decimal => ('double', 'Double?'),
+      ValueKind.boolean => ('bool', 'Bool?'),
+      ValueKind.dateTime => ('date', 'Date?'),
+      ValueKind.duration => ('duration', 'Measurement<UnitDuration>?'),
+      ValueKind.enumeration when f.type.enumRef == null && f.type.appEnum != null =>
+        ('enum', '${f.type.appEnum}Enum?'),
+      _ => (null, null),
+    };
+    if (kind == null || swiftType == null) return null;
+    return _Queryable(
+      f.name,
+      _words(f.name),
+      kind,
+      optional: true,
+      swiftType: swiftType,
+    );
+  }
 
   /// `dueDate` → `Due Date`.
   static String _words(String name) =>
@@ -196,8 +249,19 @@ ${_propertyQuery(name, [const _Queryable('title', 'Title', 'string', optional: f
 
   /// Comparators Siri can use on a property of schema kind [kind], as
   /// (App Intents comparator, `AssistantComparison.Operator`).
-  static List<(String, String)>? _comparators(String kind) => switch (kind) {
+  static List<(String, String)>? _comparators(String kind, {bool plain = false}) => switch (kind) {
     'bool' => const [('EqualToComparator', 'equal')],
+    'enum' when plain => const [
+      ('EqualToComparator', 'equal'),
+      ('NotEqualToComparator', 'notEqual'),
+    ],
+    'duration' when plain => const [
+      ('EqualToComparator', 'equal'),
+      ('LessThanComparator', 'less'),
+      ('LessThanOrEqualToComparator', 'lessOrEqual'),
+      ('GreaterThanComparator', 'greater'),
+      ('GreaterThanOrEqualToComparator', 'greaterOrEqual'),
+    ],
     'date' || 'dateComponents' || 'int' || 'double' => const [
       ('EqualToComparator', 'equal'),
       ('NotEqualToComparator', 'notEqual'),
@@ -207,6 +271,13 @@ ${_propertyQuery(name, [const _Queryable('title', 'Title', 'string', optional: f
       ('GreaterThanOrEqualToComparator', 'greaterOrEqual'),
       ('IsBetweenComparator', 'between'),
     ],
+    'string' || 'attributedString' when plain => const [
+      ('ContainsComparator', 'contains'),
+      ('EqualToComparator', 'equal'),
+      ('NotEqualToComparator', 'notEqual'),
+      ('HasPrefixComparator', 'hasPrefix'),
+      ('HasSuffixComparator', 'hasSuffix'),
+    ],
     'string' || 'attributedString' => const [('ContainsComparator', 'contains')],
     _ => null,
   };
@@ -214,7 +285,7 @@ ${_propertyQuery(name, [const _Queryable('title', 'Title', 'string', optional: f
   /// The `EntityPropertyQuery` members of [entity]'s query, so Siri can ask
   /// for "open reminders" or "notes from yesterday". Comparators are
   /// evaluated in Swift by the runtime's `AssistantPredicate` over [all].
-  String _propertyQuery(String entity, List<_Queryable> props, String all, [String access = '']) {
+  String _propertyQuery(String entity, List<_Queryable> props, String all, [String access = '', bool plain = false]) {
     final out = StringBuffer()
       ..writeln('  ${access}typealias ComparatorMappingType = AssistantPredicate<$entity>')
       ..writeln()
@@ -224,7 +295,7 @@ ${_propertyQuery(name, [const _Queryable('title', 'Title', 'string', optional: f
       ..writeln('  ${access}static let properties = QueryProperties {');
     for (final q in props) {
       out.writeln('    Property(\\$entity.\$${q.member}) {');
-      for (final (comparator, op) in _comparators(q.kind)!) {
+      for (final (comparator, op) in _comparators(q.kind, plain: plain)!) {
         out.writeln(
           op == 'between'
               ? '      $comparator { low, high in AssistantPredicate({ \$0.${q.member} }, .between, low, high) }'
@@ -271,12 +342,32 @@ ${_propertyQuery(name, [const _Queryable('title', 'Title', 'string', optional: f
     return out.toString();
   }
 
-  void _snapshotAction(SnapshotActionModel a) {
+  static String _filterSwift(SnapshotFilterModel f) =>
+      f.swiftValue == null ? '.${f.op.name}("${_escape(f.field)}")' : '.${f.op.name}("${_escape(f.field)}", ${f.swiftValue})';
+
+  String _snapshotAnswerCall(SnapshotActionModel a, {String indent = '    '}) {
     String list(Iterable<String> items) => '[${items.join(', ')}]';
     final where = a.where.isEmpty
         ? '[:]'
         : '[${a.where.entries.map((e) => '"${e.key}": ${e.value}').join(', ')}]';
-    final dates = [for (final f in a.fields) if (f.type.kind == ValueKind.dateTime) '"${f.name}"'];
+    final filters = a.filters.isEmpty ? '' : '$indent  filters: [${a.filters.map(_filterSwift).join(', ')}],\n';
+    final dates = [for (final f in a.fields) if (!f.type.list && f.type.kind == ValueKind.dateTime) '"${f.name}"'];
+    return 'AssistantQuery.answer(\n'
+        '$indent  "${a.collection}",\n'
+        '$indent  where: $where,\n'
+        '$filters'
+        '$indent  sortBy: ${a.sortBy == null ? 'nil' : '"${a.sortBy}"'},\n'
+        '$indent  descending: ${a.descending},\n'
+        '$indent  limit: ${a.limit},\n'
+        '$indent  dateFields: ${dates.isEmpty ? '[]' : list(dates)},\n'
+        '$indent  titleField: ${a.titleField == null ? 'nil' : '"${a.titleField}"'},\n'
+        '$indent  item: "${_escape(a.item)}",\n'
+        '$indent  dialog: "${_escape(a.dialog)}",\n'
+        '$indent  empty: "${_escape(a.empty)}",\n'
+        '$indent  separator: "${_escape(a.separator)}")';
+  }
+
+  void _snapshotAction(SnapshotActionModel a) {
     _out
       ..writeln('/// `${a.name}` in Dart: answered from the published `${a.collection}` snapshot, without Flutter.')
       ..writeln('public struct ${a.swiftName}: AppIntent {')
@@ -289,18 +380,7 @@ ${_propertyQuery(name, [const _Queryable('title', 'Title', 'string', optional: f
 
   @MainActor
   public func perform() async throws -> some IntentResult & ReturnsValue<[String]> & ProvidesDialog {
-    let answer = AssistantQuery.answer(
-      "${a.collection}",
-      where: $where,
-      sortBy: ${a.sortBy == null ? 'nil' : '"${a.sortBy}"'},
-      descending: ${a.descending},
-      limit: ${a.limit},
-      dateFields: ${dates.isEmpty ? '[]' : list(dates)},
-      titleField: ${a.titleField == null ? 'nil' : '"${a.titleField}"'},
-      item: "${_escape(a.item)}",
-      dialog: "${_escape(a.dialog)}",
-      empty: "${_escape(a.empty)}",
-      separator: "${_escape(a.separator)}")
+    let answer = ${_snapshotAnswerCall(a)}
     return .result(value: answer.items, dialog: IntentDialog(stringLiteral: answer.dialog))
   }
 }
@@ -327,6 +407,16 @@ ${_propertyQuery(name, [const _Queryable('title', 'Title', 'string', optional: f
   /// and on Siri's inbox changes.
   void _spotlight() {
     for (final e in app.entities) {
+      final fields = _plainQueryables(e);
+      final bodyRef = _plainSpotlightRef(e, e.body, fields, 'assistantBody');
+      final createdRef = _plainSpotlightRef(e, e.createdAt, fields, 'assistantCreatedAt');
+      final updatedRef = _plainSpotlightRef(e, e.updatedAt, fields, 'assistantUpdatedAt');
+      final extra = [
+        if (e.keywords != null) '    attributes.keywords = assistantKeywords',
+        if (bodyRef != null) '    attributes.textContent = $bodyRef',
+        if (createdRef != null) '    attributes.contentCreationDate = $createdRef',
+        if (updatedRef != null) '    attributes.contentModificationDate = $updatedRef',
+      ].map((l) => '$l\n').join();
       _out.writeln('''
 @available(iOS 18.0, macOS 15.0, *)
 extension ${e.swiftName}: IndexedEntity {
@@ -335,7 +425,7 @@ extension ${e.swiftName}: IndexedEntity {
     attributes.title = title
     attributes.displayName = title
     attributes.contentDescription = subtitle
-${_spotlightImage(e.image)}    return attributes
+$extra${_spotlightImage(e.image)}    return attributes
   }
 }
 ''');
@@ -528,7 +618,7 @@ ${_spotlightImage(e.image)}    return attributes
 
   /// Frameworks some platforms lack (VisualIntelligence isn't in the iOS
   /// simulator SDK): intents that need them are left out there.
-  static const _optionalFrameworks = {'VisualIntelligence'};
+  static const _optionalFrameworks = {'FoundationModels', 'VisualIntelligence'};
 
   /// The optional framework [intent]'s types need, if any.
   String? _optionalFramework(IntentSchema intent) {
@@ -1470,7 +1560,7 @@ class _Queryable {
   /// Its Swift type, for members the writer declares itself.
   final String swiftType;
 
-  /// Like Apple's Notes: sorted by title, dates and numbers, not by other
-  /// text or bools.
-  bool get sortable => kind != 'bool' && (isTitle || (kind != 'string' && kind != 'attributedString'));
+  /// Like Apple's Notes: sorted by title, dates, durations and numbers, not by
+  /// other text, enums or bools.
+  bool get sortable => kind != 'bool' && kind != 'enum' && (isTitle || (kind != 'string' && kind != 'attributedString'));
 }
