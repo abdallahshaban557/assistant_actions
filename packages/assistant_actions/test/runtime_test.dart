@@ -419,6 +419,114 @@ void main() {
       expect((catalog['queries'] as Map)['entryTransferable']['property'], 'location');
     });
   });
+
+  group('System surfaces runtime & annotations', () {
+    test('AssistantApp typedef, appGroup, AssistantControl, AssistantWidgetConfig and Focus filter criteria', () {
+      const app = AssistantApp(name: 'Mira', appGroup: 'group.dev.mira');
+      expect(app, isA<AssistantActionsApp>());
+      expect(app.appGroup, 'group.dev.mira');
+
+      const control = AssistantControl(
+        id: 'focus_mode',
+        title: 'Focus Mode',
+        systemImage: 'moon.fill',
+        subtitle: 'Toggle focus',
+        toggleSnapshotCollection: 'Settings',
+        toggleEntityId: 'default',
+        toggleField: 'enabled',
+      );
+      expect((control.id, control.toggleSnapshotCollection, control.toggleField), ('focus_mode', 'Settings', 'enabled'));
+
+      const widgetConfig = AssistantWidgetConfig(
+        id: 'pinned_note',
+        title: 'Pinned Note',
+        description: 'Pick a note for your widget.',
+      );
+      expect((widgetConfig.id, widgetConfig.title), ('pinned_note', 'Pinned Note'));
+
+      const filter = AssistantFocusFilter(title: 'Work Focus', filterCriteriaParam: 'account');
+      expect(filter.filterCriteriaParam, 'account');
+    });
+
+    test('openShortcutsApp invokes shortcuts.open on the Swift host', () async {
+      final host = _CallingHost(reply: 'true');
+      await AssistantActions.start(const AssistantActionsRegistry(), host: host);
+      expect(await AssistantActions.openShortcutsApp(), isTrue);
+      expect(host.invoked, [
+        ['shortcuts.open', <String, Object?>{}],
+      ]);
+    });
+
+    test('currentFocusFilter and syncCurrentFocusFilter resolve async FocusFilter.current results', () async {
+      final applied = <Map<String, Object?>>[];
+      final host = _FocusHost();
+      await AssistantActions.start(
+        AssistantActionsRegistry(
+          actions: {
+            'applyFocus': (args) async {
+              applied.add(args);
+              return null;
+            },
+          },
+        ),
+        host: host,
+      );
+
+      final pendingQuery = AssistantActions.currentFocusFilter();
+      await Future<void>.delayed(Duration.zero);
+      expect(host.lastRequestId, isNotNull);
+      await AssistantActions.perform(
+        'assistant_actions.focusFilterResult',
+        jsonEncode({
+          'requestId': host.lastRequestId,
+          'action': 'applyFocus',
+          'params': {'hideBadges': true, 'account': 'work'},
+        }),
+      );
+      expect(await pendingQuery, {'hideBadges': true, 'account': 'work'});
+      expect(applied, isEmpty, reason: 'currentFocusFilter only inspects without running the handler');
+
+      final pendingSync = AssistantActions.syncCurrentFocusFilter();
+      await Future<void>.delayed(Duration.zero);
+      await AssistantActions.perform(
+        'assistant_actions.focusFilterResult',
+        jsonEncode({
+          'requestId': host.lastRequestId,
+          'action': 'applyFocus',
+          'params': {'hideBadges': false, 'account': 'personal'},
+        }),
+      );
+      expect(await pendingSync, {'hideBadges': false, 'account': 'personal'});
+      expect(applied, [
+        {'hideBadges': false, 'account': 'personal'},
+      ]);
+
+      final pendingNone = AssistantActions.syncCurrentFocusFilter();
+      await Future<void>.delayed(Duration.zero);
+      await AssistantActions.perform(
+        'assistant_actions.focusFilterResult',
+        jsonEncode({'requestId': host.lastRequestId, 'none': true}),
+      );
+      expect(await pendingNone, isNull);
+      expect(applied, hasLength(1));
+    });
+  });
+}
+
+class _FocusHost extends _FakeHost implements AssistantHostCalls {
+  _FocusHost() : super([]);
+
+  String? lastRequestId;
+
+  @override
+  Future<String?> invoke(String method, String argsJson) async {
+    if (method == 'focusFilter.current') {
+      final args = (jsonDecode(argsJson) as Map).cast<String, Object?>();
+      lastRequestId = args['requestId'] as String?;
+      return jsonEncode({'pending': true});
+    }
+    return null;
+  }
 }
 
 class _BackgroundHost extends _FakeHost implements AssistantHostCalls {

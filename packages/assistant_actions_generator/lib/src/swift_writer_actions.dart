@@ -94,6 +94,12 @@ extension _Actions on SwiftWriter {
     if (a.params.isNotEmpty) _out.writeln('    ]');
     // Asked before anything runs or is queued.
     if (a.confirm != null) _out.writeln('    try await assistantConfirm(${_spokenDialog(a.confirm!, a)})');
+    if (a.control != null && a.control!.isToggle) {
+      final cid = SwiftWriter._escape(a.control!.id);
+      _out
+        ..writeln('    AssistantAppGroup.userDefaults.set(value, forKey: "assistant_actions.control.$cid")')
+        ..writeln('    assistantReloadControl("$cid")');
+    }
     final dialog = a.dialog == null ? '"Done."' : _spokenDialog(a.dialog!, a);
     if (a.liveActivity) {
       // The reader allows no Shortcuts value here.
@@ -134,6 +140,13 @@ extension _Actions on SwiftWriter {
       ..writeln('  }')
       ..writeln('}')
       ..writeln();
+    if (a.control != null && a.control!.isToggle) {
+      final toggleFloor = SwiftWriter._max(floor, const {'iOS': 18, 'macOS': 15});
+      _out
+        ..writeln(_availability(toggleFloor))
+        ..writeln('extension ${a.swiftName}: SetValueIntent {}')
+        ..writeln();
+    }
     if (a.liveActivity) _liveActivityConformance(a);
     // Live calls report progress and can be cancelled (swift_writer_modern.dart).
     if (foreground) _out.write(_continuableExtension(a.swiftName, modes, _above(floor) ? _availability(floor) : ''));
@@ -321,20 +334,24 @@ extension _Actions on SwiftWriter {
     return floor;
   }
 
-  /// Schema types plain actions use, which [_schemas] declares in Swift.
+  /// Schema types plain actions and widget configs use, which [_schemas] declares in Swift.
   List<SchemaType> get _actionSchemaTypes => [
         for (final a in app.actions) ...[
           for (final p in a.params)
             if (p.value?.enumRef case final ref?) SchemaType('enum', ref: ref),
           if (a.result?.value?.enumRef case final ref?) SchemaType('enum', ref: ref),
         ],
+        for (final w in app.widgetConfigs)
+          for (final p in w.params)
+            if (p.value?.enumRef case final ref?) SchemaType('enum', ref: ref),
       ];
 
-  /// Frameworks plain actions need: GeoToolbox for places.
+  /// Frameworks plain actions and controls need: GeoToolbox for places, WidgetKit for controls/widgets.
   void _actionImports() {
     final places = app.actions.any((a) =>
         a.params.any((p) => p.value?.kind == ValueKind.place) || a.result?.value?.kind == ValueKind.place);
     if (places) _imports.add('GeoToolbox');
+    if (app.controls.isNotEmpty || app.widgetConfigs.isNotEmpty) _imports.add('WidgetKit');
   }
 
   // ── Public types ──────────────────────────────────────────────────────

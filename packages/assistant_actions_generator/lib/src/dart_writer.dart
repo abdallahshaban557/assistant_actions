@@ -2,7 +2,7 @@ import 'catalog.dart';
 import 'model.dart';
 import 'schema_calls.dart';
 import 'schema_library.dart' show schemaLibraryFile;
-import 'swift_writer.dart' show writeAppShortcuts;
+import 'swift_writer.dart' show writeAppShortcuts, writeAppWidgets;
 
 part 'dart_writer_actions.dart';
 
@@ -395,3 +395,7 @@ void _callEntry(
 /// Writes `apple/AssistantShortcuts.g.swift`, the one file that must be in
 /// the app's Runner targets: Apple only reads App Shortcuts from the app.
 String writeShortcuts(AppModel app) => writeAppShortcuts(app);
+
+/// Writes `apple/AssistantWidgets.g.swift`: extension-safe `ControlWidget`s
+/// and `WidgetConfigurationIntent`s for the `AssistantWidgets` target.
+String writeWidgets(AppModel app) => writeAppWidgets(app);

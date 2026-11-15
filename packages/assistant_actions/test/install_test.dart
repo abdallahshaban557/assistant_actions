@@ -47,9 +47,17 @@ void main() {
     test('adds an app extension target with its sources', () {
       expect(pbx, contains('productType = "com.apple.product-type.app-extension";'));
       expect(pbx, contains('path = AssistantWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR;'));
-      for (final f in ['AssistantWidgets.swift', 'AssistantLiveActivityWidget.swift', 'AssistantActivityAttributes.swift']) {
+      for (final f in [
+        'AssistantAppGroup.swift',
+        'AssistantWidgets.swift',
+        'AssistantLiveActivityIntent.swift',
+        'AssistantLiveActivityWidget.swift',
+        'AssistantActivityAttributes.swift',
+        'AssistantWidgets.g.swift',
+      ]) {
         expect(pbx, contains('/* $f in Sources */ = {isa = PBXBuildFile;'), reason: f);
       }
+      expect(pbx, contains('path = ../apple/AssistantWidgets.g.swift; sourceTree = SOURCE_ROOT;'));
       expect(pbx, contains('path = AssistantWidgets;\n\t\t\tsourceTree = "<group>";'));
     });
 
@@ -129,9 +137,17 @@ void main() {
     expect(File('$widgets/AssistantActivityAttributes.swift').readAsStringSync(),
         File('$_sources/AssistantActivityAttributes.swift').readAsStringSync(),
         reason: 'ActivityKit matches the app and extension copies by name and fields');
-    for (final f in ['AssistantWidgets.swift', 'AssistantLiveActivityWidget.swift', 'Info.plist', 'AssistantWidgets.xcconfig']) {
+    for (final f in [
+      'AssistantAppGroup.swift',
+      'AssistantLiveActivityIntent.swift',
+      'AssistantWidgets.swift',
+      'AssistantLiveActivityWidget.swift',
+      'Info.plist',
+      'AssistantWidgets.xcconfig',
+    ]) {
       expect(File('$widgets/$f').existsSync(), isTrue, reason: f);
     }
+    expect(File('${app.path}/apple/AssistantWidgets.g.swift').existsSync(), isTrue);
     expect(File('${app.path}/ios/Runner/Info.plist').readAsStringSync(), contains('NSSupportsLiveActivities'));
 
     final pbx = File('${app.path}/ios/Runner.xcodeproj/project.pbxproj').readAsStringSync();

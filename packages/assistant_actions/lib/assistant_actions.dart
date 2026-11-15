@@ -5,6 +5,7 @@
 library;
 
 export 'src/annotations.dart';
+export 'src/controls.dart';
 export 'src/focus_filter.dart';
 export 'src/host.dart' show AssistantHost, AssistantHostCalls;
 export 'src/live_activity.dart';
@@ -15,3 +16,4 @@ export 'src/reply.dart';
 export 'src/runtime.dart';
 export 'src/schema.dart';
 export 'src/values.dart';
+export 'src/widgets.dart';

@@ -43,6 +43,10 @@ class ModelReader {
           'nothing generated.');
       return null;
     }
+    final appGroup = app.peek('appGroup')?.stringValue;
+    if (appGroup != null && appGroup.trim().isEmpty) {
+      throw InvalidGenerationSourceError('@AssistantActionsApp(appGroup: ...) cannot be empty.', element: library);
+    }
     await _checkRuntime(library);
     final libraries = _ownLibraries(library);
     final entities = <EntityModel>[];
@@ -101,6 +105,11 @@ class ModelReader {
     final actions = <ActionModel>[];
     for (final lib in libraries) {
       for (final fn in lib.topLevelFunctions) {
+        if (_annotation(fn, 'AssistantControl') != null && _annotation(fn, 'AssistantAction') == null) {
+          throw InvalidGenerationSourceError(
+              '${fn.displayName}: @AssistantControl requires @AssistantAction on the same function.',
+              element: fn);
+        }
         if (_annotation(fn, 'AssistantAction') case final a?) {
           actions.add(await _action(fn, a, entities, schemaEntities));
         }
@@ -109,6 +118,26 @@ class ModelReader {
         }
       }
     }
+    final focusFilters = actions.where((a) => a.focusFilter != null).toList();
+    if (focusFilters.length > 1) {
+      throw InvalidGenerationSourceError(
+          'Only one function can be @AssistantFocusFilter (${focusFilters.map((f) => f.functionName).join(', ')}).',
+          element: library);
+    }
+    final controlIds = <String>{};
+    final controlSwiftNames = <String>{};
+    for (final a in actions) {
+      if (a.control case final c?) {
+        if (!controlIds.add(c.id)) {
+          throw InvalidGenerationSourceError('Two @AssistantControl declarations share id "${c.id}".', element: library);
+        }
+        if (!controlSwiftNames.add(c.swiftWidgetName)) {
+          throw InvalidGenerationSourceError(
+              'Two @AssistantControl declarations produce ${c.swiftWidgetName}.', element: library);
+        }
+      }
+    }
+    final widgetConfigs = await _widgetConfigs(libraries, entities, library);
     final snapshotActions = <SnapshotActionModel>[];
     for (final lib in libraries) {
       for (final variable in lib.topLevelVariables) {
@@ -141,6 +170,8 @@ class ModelReader {
       background: background,
       deployment: deployment,
       unlock: _unlock(app) ?? UnlockModel.notRequired,
+      appGroup: appGroup?.trim(),
+      widgetConfigs: widgetConfigs,
     );
   }
 

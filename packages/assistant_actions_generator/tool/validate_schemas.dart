@@ -491,10 +491,11 @@ Future<bool> _processSwift(String swift, String platform, String out, {String? d
   final files = [
     generated,
     stub,
-    for (final f in ['AssistantValues', 'AssistantInbox', 'AssistantSnapshot', 'AssistantQuery', 'AssistantSpotlight',
+    for (final f in ['AssistantAppGroup', 'AssistantValues', 'AssistantInbox', 'AssistantSnapshot', 'AssistantQuery', 'AssistantSpotlight',
       'AssistantMatch', 'AssistantComparison', 'AssistantRichValues', 'AssistantHostCalls', 'AssistantReply',
       'AssistantDialog', 'AssistantInteraction', 'AssistantCardView', 'AssistantCardStore', 'AssistantLiveCall', 'AssistantLiveIntents',
-      'AssistantFileIDs', 'AssistantUndo', 'AssistantContext', 'AssistantVisualIntelligence'])
+      'AssistantFileIDs', 'AssistantUndo', 'AssistantContext', 'AssistantVisualIntelligence', 'AssistantPlatformViews',
+      'AssistantActivityAttributes', 'AssistantLiveActivityIntent'])
       p.join(sources, '$f.swift'),
   ];
   final ios = platform == 'ios';

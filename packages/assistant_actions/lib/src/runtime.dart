@@ -9,6 +9,7 @@ import 'package:flutter/widgets.dart';
 
 import 'bridge/assistant_api.g.dart';
 import 'host.dart';
+import 'live_activity.dart';
 import 'live_call.dart';
 import 'registry.dart';
 
@@ -170,6 +171,72 @@ abstract final class AssistantActions {
   static Future<bool> donateAction(String action, Map<String, Object?> args) async =>
       await callSwift('donate.action', {'action': action, 'args': args}) == true;
 
+  /// Opens Apple's Shortcuts app (`shortcuts://`). Returns whether the OS
+  /// opened the URL.
+  static Future<bool> openShortcutsApp() async => await callSwift('shortcuts.open') == true;
+
+  static int _nextFocusRequest = 0;
+  static final _focusRequests = <String, Completer<({String? action, Map<String, Object?> params})?>>{};
+
+  /// Internal action Swift calls to deliver `MyFocusFilterIntent.current`.
+  @internal
+  static const focusFilterResultAction = 'assistant_actions.focusFilterResult';
+
+  /// Queries the currently active `@AssistantFocusFilter`'s parameters via
+  /// `SetFocusFilterIntent.current` on cold start, returning null when no
+  /// Focus filter is configured or active.
+  static Future<Map<String, Object?>?> currentFocusFilter() async => (await _queryFocusFilter())?.params;
+
+  /// Queries `SetFocusFilterIntent.current` and invokes the registered Dart
+  /// `@AssistantFocusFilter` handler with those parameters on cold launch.
+  /// Returns the applied parameters, or null when no Focus filter is active.
+  static Future<Map<String, Object?>?> syncCurrentFocusFilter() async {
+    final current = await _queryFocusFilter();
+    if (current == null) return null;
+    final actions = _registry?.actions;
+    if (actions != null) {
+      final handler = current.action != null ? actions[current.action] : null;
+      await handler?.call(Map<String, Object?>.of(current.params));
+    }
+    return current.params;
+  }
+
+  static Future<({String? action, Map<String, Object?> params})?> _queryFocusFilter() async {
+    final requestId = 'ff_${++_nextFocusRequest}';
+    final completer = Completer<({String? action, Map<String, Object?> params})?>();
+    _focusRequests[requestId] = completer;
+    try {
+      final raw = await callSwift('focusFilter.current', {'requestId': requestId});
+      if (raw == null) {
+        _focusRequests.remove(requestId);
+        return null;
+      }
+      if (raw is Map) {
+        final map = raw.cast<String, Object?>();
+        if (map['pending'] == true) {
+          return await completer.future;
+        }
+        _focusRequests.remove(requestId);
+        return _parseFocusFilter(map);
+      }
+      _focusRequests.remove(requestId);
+      return null;
+    } catch (_) {
+      _focusRequests.remove(requestId);
+      return null;
+    }
+  }
+
+  static ({String? action, Map<String, Object?> params})? _parseFocusFilter(Map<String, Object?> map) {
+    if (map['none'] == true) return null;
+    final action = map['action'] as String?;
+    final nested = map['params'];
+    if (nested is Map) {
+      return (action: action, params: nested.cast<String, Object?>());
+    }
+    return (action: action, params: map);
+  }
+
   static EntityCodec<Object?> _codec<T>(T item) {
     final codecs = _registry?.codecs ?? const {};
     final codec = codecs[T] ?? codecs[item.runtimeType];
@@ -209,6 +276,18 @@ abstract final class AssistantActions {
     final args = (jsonDecode(argsJson) as Map).cast<String, Object?>();
     if (action == AssistantCall.cancelAction) {
       AssistantCall.cancel(args['call'] as String?);
+      return null;
+    }
+    if (action == AssistantLiveActivity.pushTokenAction) {
+      AssistantLiveActivity.deliverPushToken(args);
+      return null;
+    }
+    if (action == focusFilterResultAction) {
+      final requestId = args['requestId'] as String?;
+      final completer = requestId == null ? null : _focusRequests.remove(requestId);
+      if (completer != null && !completer.isCompleted) {
+        completer.complete(_parseFocusFilter(args));
+      }
       return null;
     }
     final handler = _registry?.actions[action];

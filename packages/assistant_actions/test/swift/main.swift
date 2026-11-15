@@ -495,6 +495,93 @@ check("\(AssistantMatch.records(spots, matchingPlace: [String: Any](), field: "w
   "an empty place matches nothing")
 check("\(Int(AssistantMatch.distance((47.6, -122.3), (47.61, -122.3))))", "1111", "distances are in metres")
 
+// Shared App Group container discovery and fallback (`AssistantAppGroup`).
+do {
+  AssistantAppGroup.reset()
+  check(AssistantAppGroup.identifier ?? "nil", "nil", "no App Group by default")
+  check(AssistantAppGroup.containerURL() == nil ? "nil" : "url", "nil", "no shared container URL without an App Group")
+  let defaultDir = try! AssistantAppGroup.directoryURL()
+  check(defaultDir.lastPathComponent, "assistant_actions", "default directory is named assistant_actions")
+
+  let tempContainer = FileManager.default.temporaryDirectory
+    .appendingPathComponent("assistant_app_group_\(UUID().uuidString)", isDirectory: true)
+  let suiteName = "dev.assistantactions.tests.\(UUID().uuidString)"
+  defer {
+    AssistantAppGroup.reset()
+    UserDefaults.standard.removePersistentDomain(forName: suiteName)
+    try? FileManager.default.removeItem(at: tempContainer)
+  }
+
+  AssistantAppGroup.configure(suiteName, containerURL: tempContainer)
+  check(AssistantAppGroup.identifier ?? "nil", suiteName, "configured App Group identifier is active")
+  check(AssistantAppGroup.containerURL()?.path ?? "nil", tempContainer.path, "configured container URL is used")
+
+  try! AssistantSnapshot.write(
+    collection: "GroupTask",
+    json: #"{"records":[{"id":"t1","title":"Shared task","fields":{"done":false}}]}"#)
+  let snapshotFile = tempContainer.appendingPathComponent("assistant_actions/GroupTask.json")
+  check(FileManager.default.fileExists(atPath: snapshotFile.path) ? "yes" : "no", "yes",
+    "snapshots write into the App Group container")
+  check(AssistantSnapshot.records("GroupTask").map(\.title).joined(), "Shared task",
+    "snapshots read from the App Group container")
+
+  AssistantInbox.create("GroupTask", id: "t2", fields: ["done": true])
+  check(AssistantSnapshot.records("GroupTask").map(\.id).joined(separator: ","), "t2,t1",
+    "queued App Group inbox items layer onto App Group snapshots")
+  check((UserDefaults.standard.stringArray(forKey: "assistant_actions.inbox") ?? []).isEmpty ? "empty" : "leaked",
+    "empty", "App Group inbox stays isolated from UserDefaults.standard")
+  let drained = AssistantInbox.drain()
+  check("\(drained.count)", "1", "drain reads and clears the App Group suite")
+  check("\(AssistantInbox.drain().count)", "0", "App Group inbox is empty after drain")
+
+  // Live Activity button fallback enqueues into the configured App Group suite.
+  AssistantLiveActivityButtonIntent.enqueueFallback(actionId: "pauseTimer", argsJson: #"{"seconds":15}"#)
+  let buttonQueued = AssistantInbox.drain()
+  check("\(buttonQueued.count)", "1", "Live Activity button fallback queues a call in the App Group inbox")
+  check(buttonQueued.first?.contains(#""action":"pauseTimer""#) == true ? "yes" : "no", "yes",
+    "queued Live Activity button call carries actionId")
+
+  AssistantAppGroup.reset()
+  check(AssistantAppGroup.identifier ?? "nil", "nil", "reset restores automatic discovery")
+}
+
+// Interactive Live Activity buttons in ContentState + APNs push host calls.
+do {
+  let state = AssistantActivityAttributes.ContentState(json: [
+    "title": "Workout",
+    "buttons": [
+      ["label": "Pause", "actionId": "pauseWorkout", "systemImage": "pause.fill", "args": #"{"id":"w1"}"#],
+      ["label": "", "actionId": "ignored"],
+    ],
+  ])
+  check("\(state.buttons.count)", "1", "valid Live Activity buttons decode and empty ones are dropped")
+  check("\(state.buttons[0].label):\(state.buttons[0].actionId):\(state.buttons[0].systemImage ?? "")",
+    "Pause:pauseWorkout:pause.fill", "button fields decode")
+  check(state.buttons[0].argsObject["id"] as? String ?? "", "w1", "button argsObject decodes JSON")
+
+  let encoded = try! JSONEncoder().encode(state)
+  let roundTripped = try! JSONDecoder().decode(AssistantActivityAttributes.ContentState.self, from: encoded)
+  check("\(roundTripped.buttons.count)", "1", "ContentState buttons round-trip through Codable")
+
+  let apnsPayload = #"{"title":"Remote Push"}"#.data(using: .utf8)!
+  let fromApns = try! JSONDecoder().decode(AssistantActivityAttributes.ContentState.self, from: apnsPayload)
+  check("\(fromApns.title):\(fromApns.buttons.count)", "Remote Push:0",
+    "APNs payloads omitting buttons decode with an empty array")
+
+  MainActor.assumeIsolated {
+    AssistantLiveActivities.register()
+    check((try? AssistantHostCalls.invoke("liveActivity.pushToken", argsJson: #"{"id":"a1"}"#)) ?? "nil",
+      "nil", "pushToken returns nil on macOS")
+    check((try? AssistantHostCalls.invoke("liveActivity.observePushToStart", argsJson: "{}")) ?? "nil",
+      "nil", "observePushToStart returns nil on macOS")
+    check((try? AssistantHostCalls.invoke("liveActivity.stopPushToStart", argsJson: "{}")) ?? "nil",
+      "nil", "stopPushToStart succeeds on macOS")
+    check(AssistantPlatformViews.siriTipViewType, "assistant_actions/siri_tip", "SiriTip platform view id")
+    check(AssistantPlatformViews.shortcutsLinkViewType, "assistant_actions/shortcuts_link",
+      "ShortcutsLink platform view id")
+  }
+}
+
 if failures > 0 {
   print("\(failures) failed")
   exit(1)

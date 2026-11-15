@@ -15,6 +15,7 @@ part 'swift_writer_files.dart';
 part 'swift_writer_modern.dart';
 part 'swift_writer_intelligence.dart';
 part 'swift_writer_cards.dart';
+part 'swift_writer_controls.dart';
 
 /// Writes `AssistantActions.g.swift`, compiled into the generated
 /// `assistant_actions_app` plugin.
@@ -55,12 +56,15 @@ class SwiftWriter {
     for (final a in app.snapshotActions) {
       _snapshotAction(a);
     }
+    _widgetConfigsMain();
     if (app.schemaEntities.isNotEmpty || app.schemaDomains.isNotEmpty || _actionSchemaTypes.isNotEmpty) _schemas();
     _spotlight();
     _imageHelpers();
     _entityConformances();
     _backgroundEntrypoint();
+    _appGroupProvider();
     _intelligence();
+    _intentProvider();
     _cardIntents();
     body.write(_publicize(_out.toString()));
 

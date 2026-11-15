@@ -169,6 +169,7 @@ extension _Actions on ModelReader {
       unlock: _unlock(annotation),
       summary: _summary(annotation, params, fn),
       cardButtons: cardButtons,
+      control: _control(fn, _annotation(fn, 'AssistantControl'), params, entities, schemaEntities),
     );
   }
 

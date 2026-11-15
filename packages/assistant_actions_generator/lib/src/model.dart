@@ -391,9 +391,13 @@ class ActionModel {
     this.unlock,
     this.summary,
     this.cardButtons = false,
+    this.control,
   });
 
   final String functionName;
+
+  /// `@AssistantControl(...)` on this action, if any.
+  final ControlModel? control;
 
   /// `requiresUnlock:`, if set.
   final UnlockModel? unlock;
@@ -449,10 +453,67 @@ class ActionModel {
 
 /// `@AssistantFocusFilter` options beyond an action's.
 class FocusFilterModel {
-  const FocusFilterModel({this.summary});
+  const FocusFilterModel({this.summary, this.filterCriteriaParam});
 
   /// What Settings shows under the title; `{param}` interpolates.
   final String? summary;
+
+  /// Optional parameter name used to build `appContext`'s
+  /// `notificationFilterPredicate` (`NSPredicate(format: "SELF IN %@", ...)`).
+  final String? filterCriteriaParam;
+}
+
+/// `@AssistantControl` on an `@AssistantAction` function.
+class ControlModel {
+  const ControlModel({
+    required this.id,
+    required this.title,
+    required this.systemImage,
+    this.subtitle,
+    this.isToggle = false,
+    this.toggleSnapshotCollection,
+    this.toggleEntityId,
+    this.toggleField,
+  });
+
+  final String id;
+  final String title;
+  final String systemImage;
+  final String? subtitle;
+  final bool isToggle;
+  final String? toggleSnapshotCollection;
+  final String? toggleEntityId;
+  final String? toggleField;
+
+  static String _swiftIdentifier(String raw, String fallback) {
+    final joined = raw.split(RegExp(r'[^A-Za-z0-9]+')).where((s) => s.isNotEmpty).map(pascal).join();
+    if (joined.isEmpty) return fallback;
+    return RegExp(r'^[0-9]').hasMatch(joined) ? '$fallback$joined' : joined;
+  }
+
+  String get swiftWidgetName => '${_swiftIdentifier(id, 'Control')}ControlWidget';
+  String get swiftProviderName => '${_swiftIdentifier(id, 'Control')}ControlValueProvider';
+}
+
+/// `@AssistantWidgetConfig` on a top-level configuration function or class.
+class WidgetConfigModel {
+  const WidgetConfigModel({
+    required this.id,
+    required this.name,
+    required this.library,
+    required this.title,
+    this.description,
+    this.params = const [],
+  });
+
+  final String id;
+  final String name;
+  final Uri library;
+  final String title;
+  final String? description;
+  final List<ParamModel> params;
+
+  String get swiftName => '${ControlModel._swiftIdentifier(name, 'Widget')}WidgetIntent';
 }
 
 /// `@AssistantAction` on a `const SnapshotAnswer<T>`: answered in Swift from
@@ -728,7 +789,21 @@ class AppModel {
     this.background,
     this.deployment = DeploymentTarget.minimum,
     this.unlock = UnlockModel.notRequired,
+    this.appGroup,
+    this.widgetConfigs = const [],
   });
+
+  /// `@AssistantActionsApp(appGroup:)`: shared App Group container identifier.
+  final String? appGroup;
+
+  /// `@AssistantWidgetConfig(...)` declarations for configurable widgets.
+  final List<WidgetConfigModel> widgetConfigs;
+
+  /// `@AssistantControl(...)` actions paired with their control metadata.
+  List<(ActionModel, ControlModel)> get controls => [
+        for (final a in actions)
+          if (a.control case final c?) (a, c),
+      ];
 
   /// `@AssistantActionsApp(requiresUnlock:)`: the default for every intent.
   final UnlockModel unlock;

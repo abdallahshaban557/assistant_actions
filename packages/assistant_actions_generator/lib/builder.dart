@@ -34,10 +34,11 @@ class AssistantActionsBuilder implements Builder {
   static const swiftOutput =
       'packages/assistant_actions_app/darwin/assistant_actions_app/Sources/assistant_actions_app/AssistantActions.g.swift';
   static const shortcutsOutput = 'apple/AssistantShortcuts.g.swift';
+  static const widgetsOutput = 'apple/AssistantWidgets.g.swift';
 
   @override
   final buildExtensions = const {
-    '^$input': [dartOutput, swiftOutput, shortcutsOutput],
+    '^$input': [dartOutput, swiftOutput, shortcutsOutput, widgetsOutput],
   };
 
   @override
@@ -52,6 +53,7 @@ class AssistantActionsBuilder implements Builder {
     await step.writeAsString(AssetId(package, dartOutput), dart);
     await step.writeAsString(AssetId(package, swiftOutput), SwiftWriter(app).write());
     await step.writeAsString(AssetId(package, shortcutsOutput), writeShortcuts(app));
+    await step.writeAsString(AssetId(package, widgetsOutput), writeWidgets(app));
   }
 
   /// The plugin package's platforms (build_runner runs in the app's root),

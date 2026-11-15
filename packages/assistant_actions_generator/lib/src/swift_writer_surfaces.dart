@@ -49,7 +49,19 @@ extension _Surfaces on SwiftWriter {
       ..writeln(summary == null
           ? '    DisplayRepresentation(title: Self.title)'
           : '    let summary: String = $summary\n    return DisplayRepresentation(title: Self.title, subtitle: "\\(summary)")')
-      ..writeln('  }')
+      ..writeln('  }');
+    if (filter.filterCriteriaParam case final criteriaName?) {
+      final criteriaParam = a.params.firstWhere((p) => p.name == criteriaName);
+      _out
+        ..writeln()
+        ..writeln('  public var appContext: FocusFilterAppContext {')
+        ..writeln('    if let allowed: [String] = ${_focusCriteriaValues(criteriaParam)}, !allowed.isEmpty {')
+        ..writeln('      return FocusFilterAppContext(notificationFilterPredicate: NSPredicate(format: "SELF IN %@", allowed))')
+        ..writeln('    }')
+        ..writeln('    return FocusFilterAppContext()')
+        ..writeln('  }');
+    }
+    _out
       ..writeln()
       ..writeln('  @MainActor')
       ..writeln('  public func perform() async throws -> some IntentResult {')
@@ -64,6 +76,27 @@ extension _Surfaces on SwiftWriter {
       ..writeln('  }')
       ..writeln('}')
       ..writeln();
+  }
+
+  /// Swift expression of type `[String]?` extracting notification filter
+  /// criteria values from [p].
+  String _focusCriteriaValues(ParamModel p) {
+    final n = swiftName(p.name);
+    final opt = _optional(p);
+    if (p.entity != null) {
+      if (p.entityList) return opt ? '$n?.map(\\.id)' : 'Optional($n.map(\\.id))';
+      return opt ? '$n.map { [\$0.id] }' : '[$n.id]';
+    }
+    final v = p.value!;
+    return switch (v.kind) {
+      ValueKind.enumeration => v.list
+          ? (opt ? '$n?.map(\\.rawValue)' : 'Optional($n.map(\\.rawValue))')
+          : (opt ? '$n.map { [\$0.rawValue] }' : '[$n.rawValue]'),
+      ValueKind.string => v.list ? (opt ? n : 'Optional($n)') : (opt ? '$n.map { [\$0] }' : '[$n]'),
+      _ => v.list
+          ? (opt ? '$n?.map { "\\(\$0)" }' : 'Optional($n.map { "\\(\$0)" })')
+          : (opt ? '$n.map { ["\\(\$0)"] }' : '["\\($n)"]'),
+    };
   }
 
   /// The body of a `liveActivity: true` action's `perform`. It runs in the

@@ -44,8 +44,9 @@ public enum AssistantInbox {
 
   /// Returns every queued item as JSON and clears the queue.
   static func drain() -> [String] {
-    let items = stored()
-    UserDefaults.standard.removeObject(forKey: key)
+    let defaults = AssistantAppGroup.userDefaults
+    let items = stored(in: defaults)
+    defaults.removeObject(forKey: key)
     return items
   }
 
@@ -56,13 +57,14 @@ public enum AssistantInbox {
       let data = try? JSONSerialization.data(withJSONObject: entry),
       let json = String(data: data, encoding: .utf8)
     else { return }
-    UserDefaults.standard.set(stored() + [json], forKey: key)
+    let defaults = AssistantAppGroup.userDefaults
+    defaults.set(stored(in: defaults) + [json], forKey: key)
     // Siri's own changes show in Spotlight before Dart applies them.
     if let collection = item["collection"] as? String { AssistantSpotlight.update(collection) }
   }
 
-  private static func stored() -> [String] {
-    UserDefaults.standard.stringArray(forKey: key) ?? []
+  private static func stored(in defaults: UserDefaults = AssistantAppGroup.userDefaults) -> [String] {
+    defaults.stringArray(forKey: key) ?? []
   }
 
   private static func decode(_ json: String) -> [String: Any]? {

@@ -317,6 +317,7 @@ ${_unlockMember(_entityUnlock(className).forSchema(_systemOpen))}  var target: $
   /// and donations.
   void _hostCalls() {
     final opens = _openTargets;
+    final focusFilter = app.actions.where((a) => a.focusFilter != null).firstOrNull;
     final actions = [
       for (final a in _userActions) (a.id, a.swiftName, a.params, _actionFloor(a)),
       for (final a in app.snapshotActions) (a.id, a.swiftName, const <ParamModel>[], _none),
@@ -345,6 +346,9 @@ ${_unlockMember(_entityUnlock(className).forSchema(_systemOpen))}  var target: $
     }
     if (opens.isNotEmpty) _out.writeln('    AssistantHostCalls.register("donate.entity") { args in donateEntity(args) }');
     if (actions.isNotEmpty) _out.writeln('    AssistantHostCalls.register("donate.action") { args in donateAction(args) }');
+    if (focusFilter != null) {
+      _out.writeln('    AssistantHostCalls.register("focusFilter.current") { args in queryFocusFilter(args) }');
+    }
     _out.writeln('  }');
 
     if (opens.isNotEmpty) {
@@ -413,9 +417,53 @@ ${_unlockMember(_entityUnlock(className).forSchema(_systemOpen))}  var target: $
         ..writeln('    }')
         ..writeln('  }');
     }
+    if (focusFilter != null) {
+      _out
+        ..writeln()
+        ..writeln('  /// Queries `${focusFilter.swiftName}.current` on cold start.')
+        ..writeln('  @MainActor')
+        ..writeln('  private static func queryFocusFilter(_ args: [String: Any]) -> [String: Any] {')
+        ..writeln('    let requestId = args["requestId"] as? String ?? ""')
+        ..writeln('    Task { @MainActor in')
+        ..writeln('      do {')
+        ..writeln('        let current = try await ${focusFilter.swiftName}.current')
+        ..writeln(focusFilter.params.isEmpty ? '        let params: [String: Any] = [:]' : '        let params: [String: Any] = [');
+      for (final p in focusFilter.params) {
+        final expr = _encodeFocusCurrentParam(p);
+        _out.writeln('          "${p.name}": $expr,');
+      }
+      if (focusFilter.params.isNotEmpty) _out.writeln('        ]');
+      _out
+        ..writeln('        _ = try? await AssistantBridge.shared.perform(')
+        ..writeln('          "assistant_actions.focusFilterResult",')
+        ..writeln('          args: ["requestId": requestId, "action": "${focusFilter.id}", "params": params])')
+        ..writeln('      } catch {')
+        ..writeln('        _ = try? await AssistantBridge.shared.perform(')
+        ..writeln('          "assistant_actions.focusFilterResult",')
+        ..writeln('          args: ["requestId": requestId, "none": true])')
+        ..writeln('      }')
+        ..writeln('    }')
+        ..writeln('    return ["pending": true]')
+        ..writeln('  }');
+    }
     _out
       ..writeln('}')
       ..writeln();
+  }
+
+  String _encodeFocusCurrentParam(ParamModel p) {
+    final n = 'current.${swiftName(p.name)}';
+    final optional = _optional(p);
+    if (p.entity != null) {
+      if (p.entityList) return optional ? 'AssistantValues.encode($n?.map(\\.id))' : '$n.map(\\.id)';
+      return optional ? 'AssistantValues.encode($n?.id)' : '$n.id';
+    }
+    if (p.value!.list) {
+      return optional
+          ? '$n.map { \$0.map { AssistantValues.encode(\$0) } as Any } ?? NSNull()'
+          : '$n.map { AssistantValues.encode(\$0) }';
+    }
+    return 'AssistantValues.encode($n)';
   }
 
   // ── Queries ──

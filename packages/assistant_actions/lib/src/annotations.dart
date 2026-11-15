@@ -9,7 +9,12 @@ library;
 /// library;
 /// ```
 class AssistantActionsApp {
-  const AssistantActionsApp({required this.name, this.shortcutTileColor, this.requiresUnlock = Unlock.notRequired});
+  const AssistantActionsApp({
+    required this.name,
+    this.shortcutTileColor,
+    this.requiresUnlock = Unlock.notRequired,
+    this.appGroup,
+  });
 
   /// The app's name, as used by `{app}` in shortcut phrases.
   final String name;
@@ -26,7 +31,16 @@ class AssistantActionsApp {
   /// Entity queries have no such setting in App Intents: Siri can still find
   /// published items by title on a locked device (see the README).
   final Unlock requiresUnlock;
+
+  /// Optional Apple App Group identifier (such as `'group.com.example.app'`)
+  /// shared with widget and control extensions. When set, published snapshots,
+  /// queued inbox items, and Spotlight state use the shared App Group container
+  /// and `UserDefaults(suiteName:)`.
+  final String? appGroup;
 }
+
+/// Short alias for [AssistantActionsApp].
+typedef AssistantApp = AssistantActionsApp;
 
 /// Whether an intent can run while the device is locked (App Intents'
 /// `IntentAuthenticationPolicy`).
