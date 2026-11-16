@@ -1176,26 +1176,34 @@ class _FakeBuildStep implements BuildStep {
 Future<(String dart, String swift, String shortcuts)> _readAndGenerate(String source, {bool analyzeGenerated = false}) async {
   final dir = Directory.systemTemp.createTempSync('assistant_actions_reader_test_');
   try {
-    final pkgConfig = jsonDecode(File('../assistant_actions/.dart_tool/package_config.json').readAsStringSync())
-        as Map<String, Object?>;
-    final packages = (pkgConfig['packages'] as List).cast<Map<String, Object?>>().map((p) {
-      if (p['name'] == 'assistant_actions') {
-        return {
-          ...p,
-          'rootUri': Directory('../assistant_actions').absolute.uri.toString(),
-        };
-      }
-      return p;
-    }).toList()
-      ..add({
+    final runtimeConfigFile = File('../assistant_actions/.dart_tool/package_config.json').absolute;
+    final hasFlutterConfig = runtimeConfigFile.existsSync();
+    final configFile = hasFlutterConfig ? runtimeConfigFile : File('.dart_tool/package_config.json').absolute;
+    final pkgConfig = jsonDecode(configFile.readAsStringSync()) as Map<String, Object?>;
+    final configDirUri = Uri.directory(configFile.parent.path);
+    final packages = <Map<String, Object?>>[
+      for (final p in (pkgConfig['packages'] as List).cast<Map<String, Object?>>())
+        if (p['name'] != 'assistant_actions' && p['name'] != 'app')
+          {
+            ...p,
+            'rootUri': configDirUri.resolve(p['rootUri'] as String).toString(),
+          },
+      {
+        'name': 'assistant_actions',
+        'rootUri': Directory('../assistant_actions').absolute.uri.toString(),
+        'packageUri': 'lib/',
+        'languageVersion': '3.6',
+      },
+      {
         'name': 'app',
         'rootUri': dir.absolute.uri.toString(),
         'packageUri': 'lib/',
         'languageVersion': '3.6',
-      });
+      },
+    ];
     File('${dir.path}/pubspec.yaml').writeAsStringSync('name: app\nenvironment:\n  sdk: ^3.6.0\n');
     final dartTool = Directory('${dir.path}/.dart_tool')..createSync(recursive: true);
-    File('${dartTool.path}/package_config.json').writeAsStringSync(jsonEncode({...pkgConfig, 'packages': packages}));
+    File('${dartTool.path}/package_config.json').writeAsStringSync(jsonEncode({'configVersion': 2, 'packages': packages}));
     final libDir = Directory('${dir.path}/lib')..createSync(recursive: true);
     final entry = File('${libDir.path}/assistant_actions.dart')..writeAsStringSync(source);
 
@@ -1220,9 +1228,15 @@ Future<(String dart, String swift, String shortcuts)> _readAndGenerate(String so
           .toList();
       expect(severe, isEmpty, reason: 'assistant_actions.g.dart failed analyzer:\n${severe.join('\n')}\n--- DART ---\n$dartOut');
 
-      final flutterAnalyze = Process.runSync('flutter', ['analyze', '--no-pub'], workingDirectory: dir.path);
-      expect(flutterAnalyze.exitCode, 0,
-          reason: 'flutter analyze failed on generated assistant_actions.g.dart:\n${flutterAnalyze.stdout}\n${flutterAnalyze.stderr}\n--- DART ---\n$dartOut');
+      if (hasFlutterConfig) {
+        try {
+          final flutterAnalyze = Process.runSync('flutter', ['analyze', '--no-pub'], workingDirectory: dir.path);
+          expect(flutterAnalyze.exitCode, 0,
+              reason: 'flutter analyze failed on generated assistant_actions.g.dart:\n${flutterAnalyze.stdout}\n${flutterAnalyze.stderr}\n--- DART ---\n$dartOut');
+        } on ProcessException {
+          // Pure-Dart CI runners without Flutter still run AnalysisContextCollection error checks above.
+        }
+      }
     }
     return (dartOut, SwiftWriter(model).write(), writeAppShortcuts(model));
   } finally {

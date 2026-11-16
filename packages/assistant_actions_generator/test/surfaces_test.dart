@@ -131,10 +131,13 @@ class _FakeBuildStep implements BuildStep {
 
 Future<AppModel?> _readDartSource(String source, {String? modelsSource}) async {
   final runtimeRoot = p.normalize(p.join(Directory.current.path, '..', 'assistant_actions'));
-  final runtimePkgConfig = jsonDecode(
-    File(p.join(runtimeRoot, '.dart_tool', 'package_config.json')).readAsStringSync(),
-  ) as Map<String, Object?>;
-  final existingPackages = (runtimePkgConfig['packages'] as List).cast<Map<String, Object?>>();
+  final runtimePkgFile = File(p.join(runtimeRoot, '.dart_tool', 'package_config.json'));
+  final configFile = runtimePkgFile.existsSync()
+      ? runtimePkgFile
+      : File(p.join(Directory.current.path, '.dart_tool', 'package_config.json'));
+  final basePkgConfig = jsonDecode(configFile.readAsStringSync()) as Map<String, Object?>;
+  final configDirUri = Uri.directory(configFile.parent.absolute.path);
+  final existingPackages = (basePkgConfig['packages'] as List).cast<Map<String, Object?>>();
 
   final temp = await Directory.systemTemp.createTemp('surfaces_reader_');
   try {
@@ -142,11 +145,9 @@ Future<AppModel?> _readDartSource(String source, {String? modelsSource}) async {
     Directory(p.join(temp.path, '.dart_tool')).createSync(recursive: true);
     final resolvedPackages = <Map<String, Object?>>[];
     for (final pkg in existingPackages) {
-      if (pkg['name'] == 'assistant_actions') continue;
+      if (pkg['name'] == 'assistant_actions' || pkg['name'] == 'test_app') continue;
       final rawUri = pkg['rootUri'] as String;
-      final absUri = rawUri.startsWith('file://')
-          ? rawUri
-          : Uri.directory(p.normalize(p.join(runtimeRoot, '.dart_tool', rawUri))).toString();
+      final absUri = configDirUri.resolve(rawUri).toString();
       resolvedPackages.add({...pkg, 'rootUri': absUri});
     }
     resolvedPackages.add({
@@ -598,7 +599,10 @@ public enum AssistantActionError: Error { case notRunning; case failed(String) }
         ]);
         expect(res.exitCode, 0, reason: 'Main generated Swift ($sdkName): ${res.stdout}${res.stderr}');
       }
-    }, timeout: const Timeout(Duration(minutes: 2)));
+    },
+      skip: !Platform.isMacOS ? 'xcrun swiftc requires macOS' : null,
+      timeout: const Timeout(Duration(minutes: 2)),
+    );
   });
 
   group('ModelReader end-to-end validation for System Surfaces', () {

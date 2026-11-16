@@ -269,27 +269,35 @@ const dueTodayTasks = SnapshotAnswer<KitchenTask>(
     final dir = Directory.systemTemp.createTempSync('cross_track_integration_');
     addTearDown(() => dir.deleteSync(recursive: true));
 
-    final pkgConfig = jsonDecode(File('../assistant_actions/.dart_tool/package_config.json').readAsStringSync())
-        as Map<String, Object?>;
-    final packages = (pkgConfig['packages'] as List).cast<Map<String, Object?>>().map((pkg) {
-      if (pkg['name'] == 'assistant_actions') {
-        return {
-          ...pkg,
-          'rootUri': Directory('../assistant_actions').absolute.uri.toString(),
-        };
-      }
-      return pkg;
-    }).toList()
-      ..add({
+    final runtimeConfigFile = File('../assistant_actions/.dart_tool/package_config.json').absolute;
+    final hasFlutterConfig = runtimeConfigFile.existsSync();
+    final configFile = hasFlutterConfig ? runtimeConfigFile : File('.dart_tool/package_config.json').absolute;
+    final pkgConfig = jsonDecode(configFile.readAsStringSync()) as Map<String, Object?>;
+    final configDirUri = Uri.directory(configFile.parent.path);
+    final packages = <Map<String, Object?>>[
+      for (final pkg in (pkgConfig['packages'] as List).cast<Map<String, Object?>>())
+        if (pkg['name'] != 'assistant_actions' && pkg['name'] != 'mira_kitchen')
+          {
+            ...pkg,
+            'rootUri': configDirUri.resolve(pkg['rootUri'] as String).toString(),
+          },
+      {
+        'name': 'assistant_actions',
+        'rootUri': Directory('../assistant_actions').absolute.uri.toString(),
+        'packageUri': 'lib/',
+        'languageVersion': '3.6',
+      },
+      {
         'name': 'mira_kitchen',
         'rootUri': dir.absolute.uri.toString(),
         'packageUri': 'lib/',
         'languageVersion': '3.6',
-      });
+      },
+    ];
 
     File('${dir.path}/pubspec.yaml').writeAsStringSync('name: mira_kitchen\nenvironment:\n  sdk: ^3.6.0\n');
     final dartTool = Directory('${dir.path}/.dart_tool')..createSync(recursive: true);
-    File('${dartTool.path}/package_config.json').writeAsStringSync(jsonEncode({...pkgConfig, 'packages': packages}));
+    File('${dartTool.path}/package_config.json').writeAsStringSync(jsonEncode({'configVersion': 2, 'packages': packages}));
     final libDir = Directory('${dir.path}/lib')..createSync(recursive: true);
     final entry = File('${libDir.path}/assistant_actions.dart')..writeAsStringSync(source);
 
@@ -331,11 +339,27 @@ const dueTodayTasks = SnapshotAnswer<KitchenTask>(
     expect(widgetsSwift, contains('public struct KitchenTimerToggleControlWidget: ControlWidget {'));
     expect(widgetsSwift, contains('public struct QuickCleanControlWidget: ControlWidget {'));
 
-    // Run `flutter analyze --no-pub` on both entry and generated `assistant_actions.g.dart`!
-    File('${libDir.path}/assistant_actions.g.dart').writeAsStringSync(dartOut);
-    final analyzeRes = Process.runSync('flutter', ['analyze', '--no-pub'], workingDirectory: dir.path);
-    expect(analyzeRes.exitCode, 0,
-        reason: 'flutter analyze failed:\n${analyzeRes.stdout}\n${analyzeRes.stderr}\n--- DART ---\n$dartOut');
+    // Typecheck entry + generated `assistant_actions.g.dart` with the Dart analyzer (and `flutter analyze` when available).
+    final genFile = File('${libDir.path}/assistant_actions.g.dart')..writeAsStringSync(dartOut);
+    final genCollection = AnalysisContextCollection(includedPaths: [dir.absolute.path]);
+    final errRes = await genCollection.contextFor(genFile.absolute.path).currentSession.getErrors(genFile.absolute.path);
+    expect(errRes, isA<ErrorsResult>());
+    final severe = (errRes as ErrorsResult)
+        .diagnostics
+        .where((e) => !e.diagnosticCode.lowerCaseName.contains('uri_does_not_exist'))
+        .toList();
+    expect(severe, isEmpty,
+        reason: 'assistant_actions.g.dart failed analyzer:\n${severe.join('\n')}\n--- DART ---\n$dartOut');
+
+    if (hasFlutterConfig) {
+      try {
+        final analyzeRes = Process.runSync('flutter', ['analyze', '--no-pub'], workingDirectory: dir.path);
+        expect(analyzeRes.exitCode, 0,
+            reason: 'flutter analyze failed:\n${analyzeRes.stdout}\n${analyzeRes.stderr}\n--- DART ---\n$dartOut');
+      } on ProcessException {
+        // Pure-Dart CI runners without Flutter still run AnalysisContextCollection error checks above.
+      }
+    }
 
     // Typecheck generated Swift (runtime module + main app module + Runner shortcuts + standalone widget extension)
     // across BOTH macOS and iOS Simulator SDKs!

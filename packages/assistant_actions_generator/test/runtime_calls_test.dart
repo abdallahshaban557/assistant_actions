@@ -622,8 +622,11 @@ Future<AssistantReply<int>> makeNumber() async => AssistantReply.spoken('hi');
   });
 
   group('Generated Swift typechecks with xcrun swiftc', () {
-    test('compiles generated Swift for all 4 features on macOS and iOS Simulator SDKs', () async {
-      final reminders = _load('reminders');
+    test(
+      'compiles generated Swift for all 4 features on macOS and iOS Simulator SDKs',
+      skip: !Platform.isMacOS ? 'xcrun swiftc requires macOS' : null,
+      () async {
+        final reminders = _load('reminders');
       final camera = _load('camera');
       final assistant = _load('assistant');
 

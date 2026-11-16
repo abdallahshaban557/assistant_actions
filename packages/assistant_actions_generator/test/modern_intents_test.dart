@@ -761,15 +761,25 @@ class _TestBuildStep implements BuildStep {
 Future<AppModel?> _readAppFromSource(String source) async {
   final tempDir = Directory.systemTemp.createTempSync('assistant_actions_reader_');
   try {
-    final baseConfigFile = File('../assistant_actions/.dart_tool/package_config.json').absolute;
+    final runtimeConfigFile = File('../assistant_actions/.dart_tool/package_config.json').absolute;
+    final baseConfigFile = runtimeConfigFile.existsSync()
+        ? runtimeConfigFile
+        : File('.dart_tool/package_config.json').absolute;
     final baseConfig = (jsonDecode(baseConfigFile.readAsStringSync()) as Map).cast<String, Object?>();
     final baseRoot = Uri.directory(baseConfigFile.parent.path);
     final packages = <Map<String, Object?>>[
       for (final raw in (baseConfig['packages'] as List).cast<Map<Object?, Object?>>())
-        {
-          ...raw.cast<String, Object?>(),
-          'rootUri': baseRoot.resolve(raw['rootUri'] as String).toString(),
-        },
+        if (raw['name'] != 'assistant_actions' && raw['name'] != 'app')
+          {
+            ...raw.cast<String, Object?>(),
+            'rootUri': baseRoot.resolve(raw['rootUri'] as String).toString(),
+          },
+      {
+        'name': 'assistant_actions',
+        'rootUri': Directory('../assistant_actions').absolute.uri.toString(),
+        'packageUri': 'lib/',
+        'languageVersion': '3.6',
+      },
       {
         'name': 'app',
         'rootUri': tempDir.uri.toString(),
