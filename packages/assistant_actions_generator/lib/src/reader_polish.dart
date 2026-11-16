@@ -167,8 +167,8 @@ extension _Polish on ModelReader {
                       _catalogs[v.enumRef!.split('.').first]?.enums[v.enumRef]?.cases.length ??
                       0)
                   : 0);
-          if (parsedCases.length < totalCases) {
-            throw err('SummarySwitch("$pName") omits cases of $expectedEnum; set defaultSummary (or cover every case).');
+          if (v.nullable || totalCases == 0 || parsedCases.length < totalCases) {
+            throw err('SummarySwitch("$pName") omits cases of ${v.dart}; set defaultSummary (or cover every case).');
           }
         }
         trailing = SummarySwitchModel(param: pName, cases: parsedCases, defaultSummary: defStr);

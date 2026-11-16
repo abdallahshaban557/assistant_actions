@@ -92,8 +92,8 @@ extension _Polish on SwiftWriter {
         SummaryLeaf(:final template) => _renderSummaryLeaf(template, params, indent),
         SummaryWhenModel(:final param, :final comparison, :final swiftValue, :final then, :final otherwise) => [
             comparison.takesValue
-                ? '${indent}When(\\.\$${swiftName(param)}, ${comparison.swift}, $swiftValue, {'
-                : '${indent}When(\\.\$${swiftName(param)}, ${comparison.swift}, {',
+                ? '${indent}When(\\Self.\$${swiftName(param)}, ${comparison.swift}, $swiftValue, {'
+                : '${indent}When(\\Self.\$${swiftName(param)}, ${comparison.swift}, {',
             _renderSummaryNode(then, params, '$indent  '),
             '$indent}, otherwise: {',
             _renderSummaryNode(otherwise, params, '$indent  '),
@@ -106,11 +106,9 @@ extension _Polish on SwiftWriter {
               _renderSummaryLeaf(tmpl, params, '$indent    '),
               '$indent  }',
             ],
-            if (defaultSummary != null) ...[
-              '$indent  DefaultCase {',
-              _renderSummaryLeaf(defaultSummary, params, '$indent    '),
-              '$indent  }',
-            ],
+            '$indent  DefaultCase {',
+            _renderSummaryLeaf(defaultSummary ?? cases.values.last, params, '$indent    '),
+            '$indent  }',
             '$indent}',
           ].join('\n'),
       };

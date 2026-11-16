@@ -792,13 +792,13 @@ void main() {
   });
 
   group('ModelReader end-to-end & xcrun swiftc -typecheck', () {
-    test('reads all 5 new features from Dart source and typechecks generated Swift against Apple SDK', () async {
-      final (dart, swift, shortcuts) = await _readAndGenerate('''
-import 'package:assistant_actions/assistant_actions.dart';
-import 'package:assistant_actions/schemas/journal.dart';
-
+    test('reads all 5 new features from Dart source and typechecks generated Dart & Swift', () async {
+      final (dart, swift, shortcuts) = await _readAndGenerate(analyzeGenerated: true, '''
 @AssistantActionsApp(name: 'Mira')
 library;
+
+import 'package:assistant_actions/assistant_actions.dart';
+import 'package:assistant_actions/schemas/journal.dart';
 
 @AssistantEnum(title: 'Brew Size')
 enum BrewSize {
@@ -842,12 +842,20 @@ Future<AssistantActionsRegistry> initBackground() async => throw UnimplementedEr
   runs: Runs.withFlutter,
   cardButtons: true,
   summaries: [
-    SummaryWhen('iced', value: true, then: 'Brew iced {category} ({size})', otherwise: 'Brew hot {category} ({size})'),
+    SummaryWhen('iced', value: true, then: 'Brew iced {category} ({size})'),
+    SummaryWhen(
+      'shots',
+      comparison: SummaryComparison.greaterThan,
+      value: 2,
+      then: 'Brew strong {category} ({size})',
+      otherwise: 'Brew hot {category} ({size})',
+    ),
   ],
 )
 Future<AssistantReply> smartBrew({
   required TaskItem task,
   List<TaskItem> extraTasks = const [],
+  List<Recipe> extraRecipes = const [],
   @Param(multiline: true, capitalization: TextCapitalizationMode.sentences, keyboardType: ParamKeyboardType.url)
   required String category,
   @Param(options: loadTags, snapshotField: 'Recipe.title')
@@ -889,6 +897,7 @@ Future<AssistantReply> smartBrew({
     systemImage: 'cup.and.saucer',
   ),
   summaries: [
+    SummaryWhen('iced', value: true, then: 'Iced brew {size} for {task}'),
     SummarySwitch(
       'size',
       cases: {BrewSize.large: 'Brew a large cup for {task}'},
@@ -896,21 +905,38 @@ Future<AssistantReply> smartBrew({
     ),
   ],
 )
-Future<AssistantCurrency> quickBrew(TaskItem task, {BrewSize size = BrewSize.small}) async =>
+Future<AssistantCurrency> quickBrew(TaskItem task, {BrewSize size = BrewSize.small, bool iced = false}) async =>
     const AssistantCurrency(amount: 3.0, currencyCode: 'USD');
+
+@AssistantAction(
+  title: 'Exhaustive Size Switch',
+  runs: Runs.withFlutter,
+  summaries: [
+    SummarySwitch(
+      'size',
+      cases: {
+        BrewSize.small: 'Brew a small cup for {task}',
+        BrewSize.large: 'Brew a large cup for {task}',
+      },
+    ),
+  ],
+)
+Future<void> brewBySize(TaskItem task, {BrewSize size = BrewSize.small}) async {}
 
 @AssistantFocusFilter(title: 'Task Focus', summary: 'Focus on {tasks}')
 Future<void> applyTaskFocus({List<TaskItem> tasks = const []}) async {}
 ''');
 
+      expect(dart, contains('List<a0.TaskItem> extraTasks = const []'));
       expect(dart, contains("const AssistantCurrency(amount: 4.5, currencyCode: 'USD')"));
       expect(dart, contains('const AssistantLength(value: 1.5, unit: LengthUnit.kilometers)'));
       expect(dart, contains("'options.smartBrew.tag': (args) async {"));
       expect(dart, contains("'options.smartBrew.linkedTask': (args) async {"));
-      expect(swift, contains('When(\\.\$iced, .equalTo, true, {'));
-      expect(swift, contains('Switch(\\.\$size) {'));
+      expect(swift, contains(r'When(\Self.$iced, .equalTo, true, {'));
+      expect(swift, contains(r'When(\Self.$shots, .greaterThan, 2, {'));
+      expect(swift, contains(r'Switch(\.$size) {'));
       expect(swift, contains('DefaultCase {'));
-      expect(swift, contains('AssistantCardButtonIntent(\$0, card: id)'));
+      expect(swift, contains(r'AssistantCardButtonIntent($0, card: id)'));
 
       if (Platform.isMacOS) {
         _typecheckSwift(swift, shortcuts);
@@ -978,6 +1004,21 @@ Future<void> bad(String? x) async {}
 )
 Future<void> bad(String x) async {}
 ''', 'requires an enum parameter');
+
+      await expectInvalid('''
+@AssistantEnum(title: 'Mode')
+enum Mode {
+  @CaseTitle('Fast')
+  fast,
+  @CaseTitle('Slow')
+  slow,
+}
+@AssistantAction(
+  title: 'Bad',
+  summaries: [SummarySwitch('x', cases: {Mode.fast: 'Fast', Mode.slow: 'Slow'})],
+)
+Future<void> bad(Mode? x) async {}
+''', 'omits cases of Mode?');
     });
   });
 }
@@ -995,7 +1036,7 @@ class _FakeBuildStep implements BuildStep {
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
-Future<(String dart, String swift, String shortcuts)> _readAndGenerate(String source) async {
+Future<(String dart, String swift, String shortcuts)> _readAndGenerate(String source, {bool analyzeGenerated = false}) async {
   final dir = Directory.systemTemp.createTempSync('assistant_actions_reader_test_');
   try {
     final pkgConfig = jsonDecode(File('../assistant_actions/.dart_tool/package_config.json').readAsStringSync())
@@ -1015,6 +1056,7 @@ Future<(String dart, String swift, String shortcuts)> _readAndGenerate(String so
         'packageUri': 'lib/',
         'languageVersion': '3.6',
       });
+    File('${dir.path}/pubspec.yaml').writeAsStringSync('name: app\nenvironment:\n  sdk: ^3.6.0\n');
     final dartTool = Directory('${dir.path}/.dart_tool')..createSync(recursive: true);
     File('${dartTool.path}/package_config.json').writeAsStringSync(jsonEncode({...pkgConfig, 'packages': packages}));
     final libDir = Directory('${dir.path}/lib')..createSync(recursive: true);
@@ -1027,7 +1069,25 @@ Future<(String dart, String swift, String shortcuts)> _readAndGenerate(String so
       throw StateError('Failed to resolve test library: $resolved');
     }
     final model = (await ModelReader(_FakeBuildStep()).read(resolved.element))!;
-    return (writeDart(model), SwiftWriter(model).write(), writeAppShortcuts(model));
+    final dartOut = writeDart(model);
+    if (analyzeGenerated) {
+      final genFile = File('${libDir.path}/assistant_actions.g.dart')..writeAsStringSync(dartOut);
+      final genCollection = AnalysisContextCollection(includedPaths: [dir.absolute.path]);
+      final errRes = await genCollection.contextFor(genFile.absolute.path).currentSession.getErrors(genFile.absolute.path);
+      if (errRes is! ErrorsResult) {
+        throw StateError('Failed to analyze generated file: $errRes');
+      }
+      // Note: generated file starts with `// ignore_for_file: type=lint`, so any error/warning here is a real compile/type error.
+      final severe = errRes.diagnostics
+          .where((e) => !e.diagnosticCode.lowerCaseName.contains('uri_does_not_exist'))
+          .toList();
+      expect(severe, isEmpty, reason: 'assistant_actions.g.dart failed analyzer:\n${severe.join('\n')}\n--- DART ---\n$dartOut');
+
+      final flutterAnalyze = Process.runSync('flutter', ['analyze', '--no-pub'], workingDirectory: dir.path);
+      expect(flutterAnalyze.exitCode, 0,
+          reason: 'flutter analyze failed on generated assistant_actions.g.dart:\n${flutterAnalyze.stdout}\n${flutterAnalyze.stderr}\n--- DART ---\n$dartOut');
+    }
+    return (dartOut, SwiftWriter(model).write(), writeAppShortcuts(model));
   } finally {
     dir.deleteSync(recursive: true);
   }

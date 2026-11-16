@@ -350,13 +350,13 @@ void main() {
       expect(
           block,
           contains('  public static var parameterSummary: some ParameterSummary {\n'
-              r'    When(\.$quick, .equalTo, true, {' '\n'
+              r'    When(\Self.$quick, .equalTo, true, {' '\n'
               r'      Summary("Quickly cook \(\.$recipe)") {' '\n'
               r'        \.$quick' '\n'
               r'        \.$servings' '\n'
               '      }\n'
               '    }, otherwise: {\n'
-              r'      When(\.$servings, .hasAnyValue, {' '\n'
+              r'      When(\Self.$servings, .hasAnyValue, {' '\n'
               r'        Summary("Cook \(\.$recipe) for \(\.$servings)") {' '\n'
               r'          \.$quick' '\n'
               '        }\n'
@@ -370,7 +370,7 @@ void main() {
               '  }\n'));
     });
 
-    test('conditional Switch summaries emit Case and DefaultCase blocks', () {
+    test('conditional Switch summaries emit Case and DefaultCase blocks (including exhaustive switches)', () {
       final meal = AppEnumModel(className: 'Meal', library: _models, title: 'Meal', cases: const [
         AppEnumCase(name: 'dinner', title: 'Dinner'),
         AppEnumCase(name: 'snack', title: 'Snack'),
@@ -384,9 +384,16 @@ void main() {
         cases: {'dinner': 'Cook {recipe} for dinner'},
         defaultSummary: 'Make {recipe} as a {meal}',
       );
+      const exhaustive = SummarySwitchModel(
+        param: 'meal',
+        cases: {'dinner': 'Cook {recipe} for dinner', 'snack': 'Make {recipe} for a snack'},
+      );
       final swift = SwiftWriter(_app(
         appEnums: {'Meal': meal},
-        actions: [_action('cook', params: params, conditionalSummary: cond)],
+        actions: [
+          _action('cook', params: params, conditionalSummary: cond),
+          _action('plate', params: params, conditionalSummary: exhaustive),
+        ],
       )).write();
       final block = _block(swift, 'public struct CookAction');
       expect(
@@ -400,6 +407,28 @@ void main() {
               '      }\n'
               '      DefaultCase {\n'
               r'        Summary("Make \(\.$recipe) as a \(\.$meal)")' '\n'
+              '      }\n'
+              '    }\n'
+              '  }\n'));
+      final plateBlock = _block(swift, 'public struct PlateAction');
+      expect(
+          plateBlock,
+          contains('  public static var parameterSummary: some ParameterSummary {\n'
+              r'    Switch(\.$meal) {' '\n'
+              '      Case(.dinner) {\n'
+              r'        Summary("Cook \(\.$recipe) for dinner") {' '\n'
+              r'          \.$meal' '\n'
+              '        }\n'
+              '      }\n'
+              '      Case(.snack) {\n'
+              r'        Summary("Make \(\.$recipe) for a snack") {' '\n'
+              r'          \.$meal' '\n'
+              '        }\n'
+              '      }\n'
+              '      DefaultCase {\n'
+              r'        Summary("Make \(\.$recipe) for a snack") {' '\n'
+              r'          \.$meal' '\n'
+              '        }\n'
               '      }\n'
               '    }\n'
               '  }\n'));

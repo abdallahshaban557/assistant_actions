@@ -291,7 +291,7 @@ extension _Actions on ModelReader {
           final defVal = p.computeConstantValue();
           if (listed != null && (defVal?.toListValue()?.isEmpty ?? false)) {
             swiftDefault = '[]';
-            dartDefault = 'const <$className>[]';
+            dartDefault = 'const []';
           } else if (!(defVal?.isNull ?? true)) {
             throw InvalidGenerationSourceError('Parameter $name: entity parameters can\'t have a default.',
                 element: fn);
