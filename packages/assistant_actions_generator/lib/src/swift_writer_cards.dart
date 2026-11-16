@@ -93,7 +93,7 @@ public struct AssistantCardSnippetIntent: SnippetIntent {
   @MainActor
   public func perform() async throws -> some IntentResult & ShowsSnippetView {
     let card = AssistantCardStore.card(id, initial: card)
-    return .result(view: AssistantCardView(card) { AssistantCardButtonIntent(\$0, card: id) })
+    return .result(view: AssistantCardView(card) { AssistantCardButtonIntent(\$0, card: id) } toggle: { AssistantCardButtonIntent(\$0, card: id) })
   }
 }
 
@@ -121,6 +121,12 @@ ${_modesMember(modes, access: 'public ')}  /// The Dart action's id.
   public init(_ button: AssistantCard.Button, card: String) {
     action = button.action
     args = button.args
+    self.card = card
+  }
+
+  public init(_ toggle: AssistantCard.Toggle, card: String) {
+    action = toggle.action
+    args = toggle.args
     self.card = card
   }
 

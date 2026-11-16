@@ -52,9 +52,10 @@ extension _Actions on ModelReader {
 
   Future<ActionModel> _action(TopLevelFunctionElement fn, ConstantReader annotation, List<EntityModel> entities,
       List<SchemaEntityModel> schemaEntities) async {
-    final params = [
-      for (final p in fn.formalParameters) await _param(fn, p, entities),
+    final rawParams = [
+      for (final p in fn.formalParameters) await _param(fn, p, entities, schemaEntities),
     ];
+    final params = _resolveOptionsDependencies(fn, rawParams);
     final runs = RunsModel.values[annotation.read('runs').objectValue.getField('index')!.toIntValue()!];
     final dialog = annotation.peek('dialog')?.stringValue;
     final confirm = annotation.peek('confirm')?.stringValue;
@@ -77,7 +78,7 @@ extension _Actions on ModelReader {
     final discoverable = annotation.read('isDiscoverable').boolValue;
     final shortcut = _shortcut(annotation.peek('shortcut'), fn, {
       for (final p in params)
-        if ((p.entity != null && !p.entityList) || (p.value?.kind == ValueKind.enumeration && !p.value!.list)) p.name,
+        if ((p.isEntity && !p.entityList) || (p.value?.kind == ValueKind.enumeration && !p.value!.list)) p.name,
     });
     if (shortcut != null && !discoverable) {
       throw InvalidGenerationSourceError(
@@ -148,6 +149,8 @@ extension _Actions on ModelReader {
           '(its card has the buttons).',
           element: fn);
     }
+    final flatSummary = _summary(annotation, params, fn);
+    final conditionalSummary = _conditionalSummary(annotation, flatSummary, params, fn);
     final undo = await _readUndo(
       fn,
       annotation.peek('undo'),
@@ -157,6 +160,7 @@ extension _Actions on ModelReader {
       returnsReply: returnsReply,
       result: result,
       entities: entities,
+      schemaEntities: schemaEntities,
     );
     return ActionModel(
       functionName: fn.displayName,
@@ -178,7 +182,8 @@ extension _Actions on ModelReader {
       opensApp: opensApp,
       longRunning: longRunning,
       unlock: _unlock(annotation),
-      summary: _summary(annotation, params, fn),
+      summary: conditionalSummary == null ? flatSummary : null,
+      conditionalSummary: conditionalSummary,
       cardButtons: cardButtons,
       control: _control(fn, _annotation(fn, 'AssistantControl'), params, entities, schemaEntities),
     );
@@ -194,6 +199,7 @@ extension _Actions on ModelReader {
     required bool returnsReply,
     required ResultModel? result,
     required List<EntityModel> entities,
+    required List<SchemaEntityModel> schemaEntities,
   }) async {
     if (undoReader == null || undoReader.isNull) return null;
     final undoFn = undoReader.objectValue.toFunctionValue();
@@ -244,7 +250,7 @@ extension _Actions on ModelReader {
               '${fn.displayName} may return no value.',
               element: fn);
         }
-        await _checkUndoResultType(fn, undoFn, up, result: result, entities: entities);
+        await _checkUndoResultType(fn, undoFn, up, result: result, entities: entities, schemaEntities: schemaEntities);
         String? defaultDart;
         if (up.hasDefaultValue) {
           final v = await _actionValue(up.type, undoFn);
@@ -282,17 +288,19 @@ extension _Actions on ModelReader {
             '${undoFn.displayName}: parameter "${source.name}" is mapped twice.',
             element: fn);
       }
-      final parsed = await _param(undoFn, up, entities);
-      final sameType = source.entity != null
-          ? parsed.entity?.className == source.entity!.className && parsed.entityList == source.entityList
+      final parsed = await _param(undoFn, up, entities, schemaEntities);
+      final sameType = source.isEntity
+          ? parsed.isEntity &&
+              parsed.entityClassName == source.entityClassName &&
+              parsed.entityList == source.entityList
           : parsed.value != null &&
               parsed.value!.kind == source.value!.kind &&
               parsed.value!.list == source.value!.list &&
               parsed.value!.enumRef == source.value!.enumRef &&
               parsed.value!.appEnum == source.value!.appEnum;
       if (!sameType) {
-        final expected = source.entity != null
-            ? (source.entityList ? 'List<${source.entity!.className}>' : source.entity!.className)
+        final expected = source.isEntity
+            ? (source.entityList ? 'List<${source.entityClassName}>' : source.entityClassName)
             : source.value!.dart;
         throw InvalidGenerationSourceError(
             '${undoFn.displayName}: parameter "${up.displayName}" is ${up.type.getDisplayString()}, '
@@ -327,6 +335,7 @@ extension _Actions on ModelReader {
     FormalParameterElement up, {
     required ResultModel? result,
     required List<EntityModel> entities,
+    required List<SchemaEntityModel> schemaEntities,
   }) async {
     if (result == null) {
       if (_valueType(up.type)?.kind != ValueKind.string) {
@@ -337,7 +346,7 @@ extension _Actions on ModelReader {
       return;
     }
     if (result.entity case final entity?) {
-      final parsed = await _param(undoFn, up, entities);
+      final parsed = await _param(undoFn, up, entities, schemaEntities);
       if (parsed.entity?.className != entity.className || parsed.entityList != result.list) {
         final expected = result.list ? 'List<${entity.className}>' : entity.className;
         throw InvalidGenerationSourceError(
@@ -347,12 +356,16 @@ extension _Actions on ModelReader {
       return;
     }
     if (result.schemaEntity case final schemaEntity?) {
-      final v = await _actionValue(up.type, undoFn);
-      if (v == null || v.kind != ValueKind.string || v.list != result.list) {
-        final expected = result.list ? 'List<String>' : 'String';
+      final parsed = await _param(undoFn, up, entities, schemaEntities);
+      final matchesSchemaEntity =
+          parsed.schemaEntity?.className == schemaEntity.className && parsed.entityList == result.list;
+      final v = parsed.value;
+      final matchesStringId = v != null && v.kind == ValueKind.string && v.list == result.list;
+      if (!matchesSchemaEntity && !matchesStringId) {
+        final expected = result.list ? 'List<${schemaEntity.className}> or List<String>' : '${schemaEntity.className} or String';
         throw InvalidGenerationSourceError(
             '${undoFn.displayName}: "${up.displayName}" is ${up.type.getDisplayString()}, '
-            'expected $expected (${schemaEntity.className} id).',
+            'expected $expected.',
             element: fn);
       }
       return;
@@ -372,7 +385,7 @@ extension _Actions on ModelReader {
 
   /// Parameters a dialog can say.
   static bool _speakable(ParamModel p) {
-    if (p.entity != null) return true;
+    if (p.isEntity) return true;
     final v = p.value!;
     if (v.list) return v.kind == ValueKind.string;
     return !const {ValueKind.person, ValueKind.place, ValueKind.file}.contains(v.kind);
@@ -424,34 +437,105 @@ extension _Actions on ModelReader {
     return ResultModel(value: value, nullable: nullable, wrapped: wrapped);
   }
 
-  Future<ParamModel> _param(TopLevelFunctionElement fn, FormalParameterElement p, List<EntityModel> entities) async {
+  Future<ParamModel> _param(
+    TopLevelFunctionElement fn,
+    FormalParameterElement p,
+    List<EntityModel> entities,
+    List<SchemaEntityModel> schemaEntities,
+  ) async {
     final meta = _annotation(p, 'Param');
     final name = p.displayName;
     final title = meta?.peek('title')?.stringValue ?? ModelReader._titleCase(name);
     final prompt = meta?.peek('prompt')?.stringValue;
+
+    InvalidGenerationSourceError paramError(String message) =>
+        InvalidGenerationSourceError('${fn.displayName} parameter $name: $message', element: fn);
+
+    final minObj = meta?.peek('min')?.objectValue;
+    final maxObj = meta?.peek('max')?.objectValue;
+    final num? min = minObj == null || minObj.isNull ? null : (minObj.toIntValue() ?? minObj.toDoubleValue());
+    final num? max = maxObj == null || maxObj.isNull ? null : (maxObj.toIntValue() ?? maxObj.toDoubleValue());
+    final csObj = meta?.peek('controlStyle');
+    final controlStyle = csObj == null || csObj.isNull
+        ? null
+        : ControlStyleModel.values[csObj.objectValue.getField('index')!.toIntValue()!];
+    final multiline = meta?.peek('multiline')?.boolValue ?? false;
+    final capObj = meta?.peek('capitalization');
+    final capitalization = capObj == null || capObj.isNull
+        ? null
+        : CapitalizationModel.values[capObj.objectValue.getField('index')!.toIntValue()!];
+    final kbObj = meta?.peek('keyboardType');
+    final keyboardType = kbObj == null || kbObj.isNull
+        ? null
+        : KeyboardTypeModel.values[kbObj.objectValue.getField('index')!.toIntValue()!];
+    final contentTypesReader = meta?.peek('supportedContentTypes');
+    final supportedContentTypes = contentTypesReader == null || contentTypesReader.isNull
+        ? null
+        : [for (final s in contentTypesReader.listValue) s.toStringValue()!];
+    final optionsObj = meta?.peek('options')?.objectValue;
+    final optionsExec = optionsObj == null || optionsObj.isNull ? null : optionsObj.toFunctionValue();
+    final snapshotFieldRaw = meta?.peek('snapshotField')?.stringValue;
+    if (snapshotFieldRaw != null && optionsExec == null) {
+      throw paramError('snapshotField requires options: to be set.');
+    }
+
     final type = p.type;
     final nullable = type.nullabilitySuffix == NullabilitySuffix.question;
     final listed = type is InterfaceType && type.isDartCoreList ? type.typeArguments.single : null;
     final target = listed ?? type;
     if (target is InterfaceType) {
       final entity = entities.where((e) => e.className == target.element.displayName).firstOrNull;
-      if (entity != null) {
+      final schemaEntity = schemaEntities.where((s) => s.className == target.element.displayName).firstOrNull;
+      if (entity != null || schemaEntity != null) {
+        final className = entity?.className ?? schemaEntity!.className;
         if (listed != null && listed.nullabilitySuffix == NullabilitySuffix.question) {
           throw InvalidGenerationSourceError(
-              'Parameter $name: use List<${entity.className}>, not ${type.getDisplayString()}.', element: fn);
+              'Parameter $name: use List<$className>, not ${type.getDisplayString()}.', element: fn);
         }
-        if (p.hasDefaultValue && !(p.computeConstantValue()?.isNull ?? true)) {
-          throw InvalidGenerationSourceError('Parameter $name: entity parameters can\'t have a default.',
-              element: fn);
+        String? swiftDefault;
+        String? dartDefault;
+        if (p.hasDefaultValue) {
+          final defVal = p.computeConstantValue();
+          if (listed != null && (defVal?.toListValue()?.isEmpty ?? false)) {
+            swiftDefault = '[]';
+            dartDefault = 'const []';
+          } else if (!(defVal?.isNull ?? true)) {
+            throw InvalidGenerationSourceError('Parameter $name: entity parameters can\'t have a default.',
+                element: fn);
+          }
         }
+        if (min != null || max != null || controlStyle != null) {
+          throw paramError('min, max and controlStyle are only supported on int and double parameters.');
+        }
+        if (multiline || capitalization != null || keyboardType != null) {
+          throw paramError('multiline, capitalization and keyboardType are only supported on String parameters.');
+        }
+        if (supportedContentTypes != null) {
+          throw paramError('supportedContentTypes is only supported on AssistantFile parameters.');
+        }
+        final options = optionsExec == null
+            ? null
+            : _readEntityOptions(
+                fn,
+                name,
+                optionsExec,
+                className: className,
+                fields: entity?.fields ?? schemaEntity!.fields,
+                snapshotFieldRaw: snapshotFieldRaw,
+              );
         return ParamModel(
-            name: name,
-            title: title,
-            prompt: prompt,
-            named: p.isNamed,
-            entity: entity,
-            entityNullable: nullable,
-            entityList: listed != null);
+          name: name,
+          title: title,
+          prompt: prompt,
+          named: p.isNamed,
+          entity: entity,
+          schemaEntity: schemaEntity,
+          entityNullable: nullable,
+          entityList: listed != null,
+          swiftDefault: swiftDefault,
+          defaultDart: dartDefault,
+          options: options,
+        );
       }
     }
     final value = await _actionValue(type, fn);
@@ -459,10 +543,69 @@ extension _Actions on ModelReader {
       throw InvalidGenerationSourceError(
           'Parameter $name: ${type.getDisplayString()} is not supported. Use String, int, double, bool, '
           'DateTime, Uri, Duration, an @AssistantEnum or schema enum, AssistantPerson, AssistantPlace, '
-          'AssistantFile, an @AssistantEntity class, or a List of one of these.',
+          'AssistantFile, AssistantCurrency, AssistantLength/Mass/Temperature/Volume/Speed/Energy, '
+          'an @AssistantEntity or schema entity class, or a List of one of these.',
           element: fn);
     }
+
+    // Validate numeric constraints.
+    if (min != null || max != null || controlStyle != null) {
+      if (value.list || (value.kind != ValueKind.integer && value.kind != ValueKind.decimal)) {
+        throw paramError('min, max and controlStyle are only supported on int and double parameters.');
+      }
+      if ((min == null) != (max == null)) {
+        throw paramError('set both min and max for an inclusiveRange.');
+      }
+      if (value.kind == ValueKind.integer && ((min != null && min is! int) || (max != null && max is! int))) {
+        throw paramError('int parameter bounds min and max must be integers.');
+      }
+      if (min != null && max != null && min > max) {
+        throw paramError('min ($min) must be <= max ($max).');
+      }
+      if (controlStyle == ControlStyleModel.slider && value.kind == ValueKind.integer) {
+        throw paramError(
+            'ParamControlStyle.slider is only supported on double parameters in App Intents (use stepper or field for int).');
+      }
+    }
+
+    // Validate String input options.
+    if (multiline || capitalization != null || keyboardType != null) {
+      if (value.list || value.kind != ValueKind.string) {
+        throw paramError('multiline, capitalization and keyboardType are only supported on String parameters.');
+      }
+    }
+
+    // Validate file UTType constraints.
+    if (supportedContentTypes != null) {
+      if (value.kind != ValueKind.file) {
+        throw paramError('supportedContentTypes is only supported on AssistantFile and List<AssistantFile> parameters.');
+      }
+      if (supportedContentTypes.isEmpty || supportedContentTypes.any((t) => t.trim().isEmpty)) {
+        throw paramError('supportedContentTypes must list at least one non-empty UTType identifier.');
+      }
+    }
+
     final (swiftDefault, dartDefault) = _defaults(fn, p, value);
+    if (min != null && max != null && p.hasDefaultValue) {
+      final defVal = p.computeConstantValue();
+      final defNum = defVal?.toIntValue() ?? defVal?.toDoubleValue();
+      if (defNum != null && (defNum < min || defNum > max)) {
+        throw paramError('default ($defNum) is outside [$min, $max].');
+      }
+    }
+
+    final options = optionsExec == null
+        ? null
+        : _readValueOptions(
+            fn,
+            name,
+            optionsExec,
+            value: value,
+            entities: entities,
+            schemaEntities: schemaEntities,
+            snapshotFieldRaw: snapshotFieldRaw,
+          );
+
     return ParamModel(
       name: name,
       title: title,
@@ -471,11 +614,226 @@ extension _Actions on ModelReader {
       value: value,
       swiftDefault: swiftDefault,
       defaultDart: dartDefault,
+      min: min,
+      max: max,
+      controlStyle: controlStyle,
+      multiline: multiline,
+      capitalization: capitalization,
+      keyboardType: keyboardType,
+      supportedContentTypes: supportedContentTypes,
+      options: options,
     );
   }
 
+  ParamOptionsModel _readEntityOptions(
+    TopLevelFunctionElement actionFn,
+    String paramName,
+    ExecutableElement exec, {
+    required String className,
+    required List<FieldModel> fields,
+    required String? snapshotFieldRaw,
+  }) {
+    InvalidGenerationSourceError err(String message) =>
+        InvalidGenerationSourceError('${actionFn.displayName} parameter $paramName: $message', element: actionFn);
+
+    if (exec is! TopLevelFunctionElement) {
+      throw err('options must be a top-level function.');
+    }
+    final elem = _optionsElementType(exec.returnType) ?? (throw err('options ${exec.displayName} must return List<$className> or Future<List<$className>>.'));
+    if (elem is! InterfaceType ||
+        elem.element.displayName != className ||
+        elem.nullabilitySuffix == NullabilitySuffix.question) {
+      throw err('options ${exec.displayName} must return List<$className> (not ${exec.returnType.getDisplayString()}).');
+    }
+    String? filterField;
+    if (snapshotFieldRaw != null) {
+      final parts = snapshotFieldRaw.split('.');
+      final fieldName = parts.length == 2 && parts.first == className
+          ? parts[1]
+          : (parts.length == 1 ? parts.first : null);
+      final field = fieldName == null ? null : fields.where((f) => f.name == fieldName).firstOrNull;
+      if (field == null || field.type.kind != ValueKind.boolean) {
+        throw err('snapshotField "$snapshotFieldRaw" on an entity parameter must name a published bool field of $className.');
+      }
+      filterField = field.name;
+    }
+    return ParamOptionsModel(
+      functionName: exec.displayName,
+      library: exec.library.uri,
+      snapshotCollection: className,
+      snapshotField: filterField,
+    );
+  }
+
+  ParamOptionsModel _readValueOptions(
+    TopLevelFunctionElement actionFn,
+    String paramName,
+    ExecutableElement exec, {
+    required ValueType value,
+    required List<EntityModel> entities,
+    required List<SchemaEntityModel> schemaEntities,
+    required String? snapshotFieldRaw,
+  }) {
+    InvalidGenerationSourceError err(String message) =>
+        InvalidGenerationSourceError('${actionFn.displayName} parameter $paramName: $message', element: actionFn);
+
+    if (exec is! TopLevelFunctionElement) {
+      throw err('options must be a top-level function.');
+    }
+    final elemKind = value.element.kind;
+    if (elemKind != ValueKind.string && elemKind != ValueKind.integer && elemKind != ValueKind.decimal) {
+      throw err('options is supported on String, int, double, @AssistantEntity and schema entity parameters.');
+    }
+    final expectedDart = value.element.dart;
+    final retElem = _optionsElementType(exec.returnType) ??
+        (throw err('options ${exec.displayName} must return List<$expectedDart> or Future<List<$expectedDart>>.'));
+    final matches = retElem.nullabilitySuffix != NullabilitySuffix.question &&
+        switch (elemKind) {
+          ValueKind.string => retElem.isDartCoreString,
+          ValueKind.integer => retElem.isDartCoreInt,
+          ValueKind.decimal => retElem.isDartCoreDouble,
+          _ => false,
+        };
+    if (!matches) {
+      throw err('options ${exec.displayName} must return List<$expectedDart> (not ${exec.returnType.getDisplayString()}).');
+    }
+
+    String? snapCollection;
+    String? snapField;
+    if (snapshotFieldRaw != null) {
+      final parts = snapshotFieldRaw.split('.');
+      if (parts.length != 2) {
+        throw err('snapshotField "$snapshotFieldRaw" must be "Collection.field" (such as "Recipe.category").');
+      }
+      final colName = parts[0];
+      final fldName = parts[1];
+      final ent = entities.where((e) => e.className == colName).firstOrNull;
+      final sch = schemaEntities.where((s) => s.className == colName).firstOrNull;
+      if (ent == null && sch == null) {
+        throw err('snapshotField "$snapshotFieldRaw" names "$colName", which is not an entity class.');
+      }
+      final fields = ent?.fields ?? sch!.fields;
+      if (fldName == 'title') {
+        if (elemKind != ValueKind.string) {
+          throw err('snapshotField "$snapshotFieldRaw": title is a String, not $expectedDart.');
+        }
+      } else {
+        final f = fields.where((x) => x.name == fldName).firstOrNull;
+        if (f == null || f.type.list || f.type.kind != elemKind) {
+          throw err('snapshotField "$snapshotFieldRaw" must name a published $expectedDart field of $colName.');
+        }
+      }
+      snapCollection = colName;
+      snapField = fldName;
+    }
+
+    return ParamOptionsModel(
+      functionName: exec.displayName,
+      library: exec.library.uri,
+      snapshotCollection: snapCollection,
+      snapshotField: snapField,
+    );
+  }
+
+  static DartType? _optionsElementType(DartType returnType) {
+    var t = returnType;
+    if (t.isDartAsyncFuture || t.isDartAsyncFutureOr) {
+      t = (t as InterfaceType).typeArguments.single;
+    }
+    if (t.nullabilitySuffix == NullabilitySuffix.question) return null;
+    if (t is InterfaceType && (t.isDartCoreList || t.isDartCoreIterable)) {
+      return t.typeArguments.single;
+    }
+    return null;
+  }
+
+  /// Resolves `@IntentParameterDependency` parameters for any `options:`
+  /// functions on [fn], checking names, types and circular dependencies.
+  List<ParamModel> _resolveOptionsDependencies(TopLevelFunctionElement fn, List<ParamModel> params) {
+    if (params.every((p) => p.options == null)) return params;
+    final byName = {for (final p in params) p.name: p};
+    final resolved = <ParamModel>[];
+    final edges = <String, List<String>>{};
+
+    for (var i = 0; i < params.length; i++) {
+      final p = params[i];
+      if (p.options == null) {
+        resolved.add(p);
+        continue;
+      }
+      final formal = fn.formalParameters[i];
+      final exec = _annotation(formal, 'Param')!.peek('options')!.objectValue.toFunctionValue()! as TopLevelFunctionElement;
+      final deps = <OptionsDependency>[];
+      for (final dep in exec.formalParameters) {
+        final depName = dep.displayName;
+        if (depName == p.name) {
+          throw InvalidGenerationSourceError(
+              '${fn.displayName}: options ${exec.displayName} for parameter $depName cannot depend on itself.',
+              element: fn);
+        }
+        final other = byName[depName];
+        if (other == null) {
+          throw InvalidGenerationSourceError(
+              '${fn.displayName}: options ${exec.displayName} takes "$depName", which is not another parameter of ${fn.displayName}.',
+              element: fn);
+        }
+        final expectedBase = other.isEntity
+            ? (other.entityList ? 'List<${other.entityClassName}>' : other.entityClassName)
+            : other.value!.dart.replaceAll('?', '');
+        final actualBase = dep.type.getDisplayString().replaceFirst(RegExp(r'\?$'), '');
+        if (actualBase != expectedBase) {
+          throw InvalidGenerationSourceError(
+              '${fn.displayName}: options ${exec.displayName} parameter $depName is ${dep.type.getDisplayString()}, '
+              'but ${fn.displayName}.$depName is $expectedBase.',
+              element: fn);
+        }
+        String? depDefault;
+        if (dep.hasDefaultValue && !other.isEntity) {
+          final val = dep.computeConstantValue();
+          if (val != null && !val.isNull) {
+            depDefault = _dartLiteral(val, other.value!, exec, depName);
+          }
+        } else if (dep.type.nullabilitySuffix != NullabilitySuffix.question && !dep.hasDefaultValue) {
+          // Allow non-nullable dep parameter: if Swift hasn't collected `other` yet, options returns [].
+          depDefault = null;
+        }
+        deps.add(OptionsDependency(
+          name: depName,
+          named: dep.isNamed,
+          nullable: dep.type.nullabilitySuffix == NullabilitySuffix.question,
+          defaultDart: depDefault,
+        ));
+      }
+      edges[p.name] = [for (final d in deps) d.name];
+      resolved.add(p.copyWith(options: p.options!.withDependencies(deps)));
+    }
+
+    // Check for circular parameter dependencies.
+    final state = <String, int>{}; // 1 = visiting, 2 = done
+    void visit(String node) {
+      final s = state[node] ?? 0;
+      if (s == 2) return;
+      if (s == 1) {
+        throw InvalidGenerationSourceError(
+            '${fn.displayName}: circular @Param(options:) parameter dependency involving "$node".',
+            element: fn);
+      }
+      state[node] = 1;
+      for (final next in edges[node] ?? const <String>[]) {
+        visit(next);
+      }
+      state[node] = 2;
+    }
+
+    for (final k in edges.keys) {
+      visit(k);
+    }
+    return resolved;
+  }
+
   /// The value type of an action parameter or result: what [_valueType]
-  /// reads, plus enums, people, places, files and lists of these.
+  /// reads, plus enums, people, places, files, currency, measurements and lists
+  /// of these.
   Future<ValueType?> _actionValue(DartType type, Element at) async {
     final nullable = type.nullabilitySuffix == NullabilitySuffix.question;
     if (type is InterfaceType && type.isDartCoreList) {
@@ -490,6 +848,13 @@ extension _Actions on ModelReader {
       ('AssistantPerson', ValueKind.person),
       ('AssistantPlace', ValueKind.place),
       ('AssistantFile', ValueKind.file),
+      ('AssistantCurrency', ValueKind.currency),
+      ('AssistantLength', ValueKind.length),
+      ('AssistantMass', ValueKind.mass),
+      ('AssistantTemperature', ValueKind.temperature),
+      ('AssistantVolume', ValueKind.volume),
+      ('AssistantSpeed', ValueKind.speed),
+      ('AssistantEnergy', ValueKind.energy),
     ]) {
       if (_isFrom(type, name, exact: true)) return ValueType(kind, nullable: nullable);
     }
@@ -568,10 +933,28 @@ extension _Actions on ModelReader {
       ValueKind.boolean => '${value.toBoolValue()}',
       ValueKind.enumeration => '${type.dart.replaceAll('?', '')}.${_caseName(value)}',
       ValueKind.duration => 'const Duration(microseconds: ${value.getField('_duration')!.toIntValue()})',
+      ValueKind.currency =>
+        'const AssistantCurrency(amount: ${value.getField('amount')!.toDoubleValue()}, currencyCode: ${_dartString(value.getField('currencyCode')!.toStringValue()!)})',
+      ValueKind.length ||
+      ValueKind.mass ||
+      ValueKind.temperature ||
+      ValueKind.volume ||
+      ValueKind.speed ||
+      ValueKind.energy =>
+        _measurementLiteral(value, type),
       _ => throw InvalidGenerationSourceError(
           'Parameter $name: a default ${type.dart} isn\'t supported; make it nullable instead.',
           element: at),
     };
+  }
+
+  String _measurementLiteral(DartObject value, ValueType type) {
+    final cls = type.dart.replaceAll('?', '');
+    final numVal = value.getField('value')!.toDoubleValue()!;
+    final unitObj = value.getField('unit')!;
+    final unitType = (unitObj.type as InterfaceType).element.displayName;
+    final unitCase = _caseName(unitObj);
+    return 'const $cls(value: $numVal, unit: $unitType.$unitCase)';
   }
 
   static String _dartString(String s) =>

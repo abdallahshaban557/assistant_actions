@@ -12,6 +12,7 @@ export 'src/host.dart' show AssistantHost, AssistantHostCalls;
 export 'src/live_activity.dart';
 export 'src/intent_features.dart';
 export 'src/live_call.dart' show AssistantCall, AssistantChoice;
+export 'src/param_options.dart';
 export 'src/registry.dart';
 export 'src/reply.dart';
 export 'src/runtime.dart';

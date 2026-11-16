@@ -1,6 +1,8 @@
 /// Annotations read by `assistant_actions_generator`.
 library;
 
+import 'param_options.dart';
+
 /// Marks the library that defines the app's assistant actions
 /// (`lib/assistant_actions.dart`).
 ///
@@ -132,6 +134,7 @@ class AssistantAction {
     this.longRunning = false,
     this.requiresUnlock,
     this.summary,
+    this.summaries = const [],
     this.cardButtons = false,
     this.undo,
   });
@@ -206,6 +209,10 @@ class AssistantAction {
   /// it, Shortcuts lists every parameter as a field.
   final String? summary;
 
+  /// Conditional Shortcuts sentences ([SummaryWhen], [SummarySwitch]) showing
+  /// different sentences depending on parameter values.
+  final List<SummaryCondition> summaries;
+
   /// Top-level function that undoes this action (`UndoableIntent`, iOS 26 /
   /// macOS 26), taking the same parameters as the action plus an optional
   /// named `result` parameter when the action returns a value.
@@ -239,13 +246,63 @@ class ActionResult<T> {
 
 /// Describes an [AssistantAction] parameter.
 class Param {
-  const Param({this.title, this.prompt});
+  const Param({
+    this.title,
+    this.prompt,
+    this.min,
+    this.max,
+    this.controlStyle,
+    this.multiline = false,
+    this.capitalization,
+    this.keyboardType,
+    this.supportedContentTypes,
+    this.options,
+    this.snapshotField,
+  });
 
   /// Shown in Shortcuts. Defaults to the parameter name in title case.
   final String? title;
 
   /// What Siri asks when the value is missing.
   final String? prompt;
+
+  /// Lower bound of an `inclusiveRange` on an `int` or `double` parameter
+  /// (set together with [max]).
+  final num? min;
+
+  /// Upper bound of an `inclusiveRange` on an `int` or `double` parameter
+  /// (set together with [min]).
+  final num? max;
+
+  /// How Shortcuts renders an `int` (`stepper`, `field`) or `double`
+  /// (`stepper`, `field`, `slider`) parameter.
+  final ParamControlStyle? controlStyle;
+
+  /// Allows multi-line text entry on a `String` parameter.
+  final bool multiline;
+
+  /// Text capitalization mode on a `String` parameter.
+  final TextCapitalizationMode? capitalization;
+
+  /// Keyboard type on a `String` parameter.
+  final ParamKeyboardType? keyboardType;
+
+  /// Uniform Type Identifiers (such as `'public.image'`, `'com.adobe.pdf'`,
+  /// `'public.audio'`) accepted by an `AssistantFile` or `List<AssistantFile>`
+  /// parameter (iOS 18 / macOS 15).
+  final List<String>? supportedContentTypes;
+
+  /// Top-level Dart function returning dynamic options (`List<T>` or
+  /// `Future<List<T>>`) for a `String`, `int`, `double`, `@AssistantEntity`,
+  /// or schema entity parameter (`DynamicOptionsProvider`).
+  ///
+  /// Parameters of [options] matching other parameter names on the action
+  /// become `@IntentParameterDependency` dependencies.
+  final Function? options;
+
+  /// Optional `'Collection.field'` fallback read from published snapshots when
+  /// [options] is set and Flutter is not running.
+  final String? snapshotField;
 }
 
 /// An App Shortcut: phrases Siri recognises for an action.

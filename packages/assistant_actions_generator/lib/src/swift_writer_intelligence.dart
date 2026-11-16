@@ -216,12 +216,29 @@ ${_unlockMember(_entityUnlock(className).forSchema(_systemOpen))}  var target: $
       }
       return optional ? '$n?.title ?? ""' : '$n.title';
     }
+    if (p.schemaEntity != null) {
+      const display = r'String(localized: $0.displayRepresentation.title)';
+      if (p.entityList) {
+        return optional
+            ? '$n?.map { $display }.joined(separator: ", ") ?? ""'
+            : '$n.map { $display }.joined(separator: ", ")';
+      }
+      return optional ? '$n.map { $display } ?? ""' : 'String(localized: $n.displayRepresentation.title)';
+    }
     final v = p.value!;
     String? one(String x) => switch (v.kind) {
           ValueKind.string => x,
           ValueKind.dateTime => '$x.formatted(date: .abbreviated, time: .shortened)',
           ValueKind.uri => '$x.absoluteString',
-          ValueKind.duration => '$x.formatted()',
+          ValueKind.duration ||
+          ValueKind.length ||
+          ValueKind.mass ||
+          ValueKind.temperature ||
+          ValueKind.volume ||
+          ValueKind.speed ||
+          ValueKind.energy =>
+            '$x.formatted()',
+          ValueKind.currency => '$x.amount.formatted(.currency(code: $x.currencyCode))',
           ValueKind.enumeration => '$x.rawValue',
           ValueKind.integer || ValueKind.decimal || ValueKind.boolean => '"\\($x)"',
           // People, places and files have no short text.
@@ -250,7 +267,7 @@ ${_unlockMember(_entityUnlock(className).forSchema(_systemOpen))}  var target: $
     if (a.params.isEmpty || a.params.length > 15) {
       _out.writeln('    IntentPrediction(displayRepresentation: { DisplayRepresentation(title: $title) })');
     } else {
-      final paths = [for (final p in a.params) '\\.\$${p.name}'];
+      final paths = [for (final p in a.params) '\\.\$${swiftName(p.name)}'];
       final keys = paths.length == 1 ? paths.single : '(${paths.join(', ')})';
       _out
         ..writeln('    IntentPrediction(parameters: $keys) { ${a.params.map((p) => swiftName(p.name)).join(', ')} in')
@@ -269,12 +286,14 @@ ${_unlockMember(_entityUnlock(className).forSchema(_systemOpen))}  var target: $
   /// decoded from [raw]: what Dart's `AssistantDonations` sent, encoded the
   /// way the registry decodes it.
   String _decodeDonated(ParamModel p, String raw) {
-    if (p.entity case final e?) {
-      String find(String id) => 'AssistantSnapshot.records("${e.className}").first(where: { \$0.id == $id })';
+    if (p.isEntity) {
+      final className = p.entityClassName;
+      final swift = p.entitySwiftName;
+      String find(String id) => 'AssistantSnapshot.records("$className").first(where: { \$0.id == $id })';
       if (p.entityList) {
-        return 'AssistantValues.strings($raw)?.compactMap({ id in ${find('id')} }).map({ \$0.map(${e.swiftName}.init(record:)) })';
+        return 'AssistantValues.strings($raw)?.compactMap({ id in ${find('id')}.map($swift.init(record:)) })';
       }
-      return 'AssistantValues.string($raw).flatMap({ id in ${find('id')} }).map(${e.swiftName}.init(record:))';
+      return 'AssistantValues.string($raw).flatMap({ id in ${find('id')} }).map($swift.init(record:))';
     }
     final v = p.value!;
     String one(String x) => switch (v.kind) {
@@ -586,7 +605,7 @@ ${_unlockMember(_entityUnlock(className).forSchema(_systemOpen))}  var target: $
           if (_optional(p)) {
             // Dart sent null, or left a default Swift can't state to Dart.
             sets.add('intent.$n = $decode');
-          } else if (p.swiftDefault != null) {
+          } else if (p.swiftDefault != null && p.options == null) {
             sets.add('if let value = $decode { intent.$n = value }');
           } else {
             cases.writeln('      guard let ${p.name}Value = $decode else { return false }');
@@ -644,11 +663,16 @@ ${_unlockMember(_entityUnlock(className).forSchema(_systemOpen))}  var target: $
         ..writeln('  }');
     }
     if (focusFilter != null) {
+      final focusFloor = _actionFloor(focusFilter);
       _out
         ..writeln()
         ..writeln('  /// Queries `${focusFilter.swiftName}.current` on cold start.')
         ..writeln('  @MainActor')
-        ..writeln('  private static func queryFocusFilter(_ args: [String: Any]) -> [String: Any] {')
+        ..writeln('  private static func queryFocusFilter(_ args: [String: Any]) -> [String: Any] {');
+      if (_above(focusFloor)) {
+        _out.writeln('    guard ${_available(focusFloor)} else { return ["none": true] }');
+      }
+      _out
         ..writeln('    let requestId = args["requestId"] as? String ?? ""')
         ..writeln('    Task { @MainActor in')
         ..writeln('      do {')
@@ -683,6 +707,11 @@ ${_unlockMember(_entityUnlock(className).forSchema(_systemOpen))}  var target: $
     if (p.entity != null) {
       if (p.entityList) return optional ? 'AssistantValues.encode($n?.map(\\.id))' : '$n.map(\\.id)';
       return optional ? 'AssistantValues.encode($n?.id)' : '$n.id';
+    }
+    if (p.schemaEntity case final s?) {
+      final idPath = _dartIDPath(s.schema.id);
+      if (p.entityList) return optional ? 'AssistantValues.encode($n?.map($idPath))' : '$n.map($idPath)';
+      return optional ? 'AssistantValues.encode(${_dartID(s.schema.id, '$n?')})' : _dartID(s.schema.id, n);
     }
     if (p.value!.list) {
       return optional

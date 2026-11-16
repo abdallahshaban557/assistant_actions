@@ -6,6 +6,7 @@ import 'dart:io';
 
 import 'package:analyzer/dart/analysis/analysis_context_collection.dart';
 import 'package:analyzer/dart/analysis/results.dart';
+import 'package:assistant_actions_generator/src/catalog.dart';
 import 'package:assistant_actions_generator/src/dart_writer.dart';
 import 'package:assistant_actions_generator/src/model.dart';
 import 'package:assistant_actions_generator/src/reader.dart';
@@ -239,6 +240,74 @@ void main() {
       expect(swift, contains('let current = try await ApplyFocusFocusFilter.current'));
       expect(swift, contains('"assistant_actions.focusFilterResult"'));
       expect(swift, contains('"action": "applyFocus"'));
+    });
+
+    test('accept schema entity parameters, list defaults and dynamic options providers', () {
+      final reminders = DomainCatalog.fromJson(
+          (jsonDecode(File('../assistant_actions/lib/src/catalog/reminders.json').readAsStringSync()) as Map).cast());
+      final tasks = SchemaEntityModel(
+        className: 'TaskItem',
+        library: Uri.parse('package:app/models.dart'),
+        catalog: reminders,
+        schema: reminders.entities['reminders.reminder']!,
+        idField: 'id',
+        mapping: const {
+          'title': FieldModel('title', ValueType(ValueKind.string)),
+          'isCompleted': FieldModel('done', ValueType(ValueKind.boolean)),
+        },
+        intents: const [],
+        containers: {
+          'list': const FixedInstance(schema: 'reminders.list', id: 'mira', strings: {'name': 'Mira'}, nested: {}),
+        },
+      );
+      final focus = ActionModel(
+        functionName: 'focusTasks',
+        library: _library,
+        title: 'Task Focus',
+        runs: RunsModel.deferred,
+        returnsString: false,
+        focusFilter: const FocusFilterModel(summary: 'Pinned: {pinned}'),
+        params: [
+          ParamModel(
+            name: 'pinned',
+            title: 'Pinned',
+            named: true,
+            schemaEntity: tasks,
+            entityNullable: true,
+            options: ParamOptionsModel(
+              functionName: 'loadOpenTasks',
+              library: _library,
+              snapshotCollection: 'TaskItem',
+              snapshotField: 'done',
+            ),
+          ),
+          ParamModel(
+            name: 'allowed',
+            title: 'Allowed',
+            named: true,
+            schemaEntity: tasks,
+            entityList: true,
+            swiftDefault: '[]',
+            defaultDart: 'const []',
+          ),
+        ],
+      );
+      final app = AppModel(appName: 'Mira', actions: [focus], entities: const [], schemaEntities: [tasks]);
+      final generated = SwiftWriter(app).write();
+      expect(generated, contains('@available(iOS 27.0, macOS 27.0, *)\npublic struct FocusTasksFocusFilter: SetFocusFilterIntent {'));
+      expect(
+          generated,
+          contains('@Parameter(title: "Pinned", optionsProvider: FocusTasksFocusFilterPinnedOptionsProvider())\n'
+              '  public var pinned: TaskItemEntity?'));
+      expect(generated, contains('@Parameter(title: "Allowed", default: [])\n  public var allowed: [TaskItemEntity]'));
+      expect(generated, contains('"pinned": AssistantValues.encode(pinned?.id),'));
+      expect(generated, contains(r'"allowed": allowed.map(\.id),'));
+      expect(generated, contains(r'let summary: String = "Pinned: \(pinned.map { String(localized: $0.displayRepresentation.title) } ?? "")"'));
+      expect(generated, contains('public struct FocusTasksFocusFilterPinnedOptionsProvider: DynamicOptionsProvider {'));
+
+      final dart = writeDart(app);
+      expect(dart, contains('required FutureOr<a1.TaskItem?> Function(String id) findTaskItem,'));
+      expect(dart, contains("'options.focusTasks.pinned': (args) async {"));
     });
   });
 

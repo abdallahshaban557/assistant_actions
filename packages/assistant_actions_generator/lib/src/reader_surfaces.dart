@@ -8,8 +8,8 @@ extension _Surfaces on ModelReader {
   /// whose parameters are the function's. The system creates the filter with
   /// its parameters' defaults (and runs it with them when the Focus turns
   /// off), so each one is nullable or has a constant default Swift can state.
-  Future<ActionModel> _focusFilter(
-      TopLevelFunctionElement fn, ConstantReader annotation, List<EntityModel> entities) async {
+  Future<ActionModel> _focusFilter(TopLevelFunctionElement fn, ConstantReader annotation, List<EntityModel> entities,
+      List<SchemaEntityModel> schemaEntities) async {
     InvalidGenerationSourceError error(String message) =>
         InvalidGenerationSourceError('${fn.displayName}: $message', element: fn);
 
@@ -23,11 +23,12 @@ extension _Surfaces on ModelReader {
     if (inner is! VoidType && !inner.isDartCoreNull) {
       throw error('a Focus filter returns void (optionally in a Future), not ${result.getDisplayString()}.');
     }
-    final params = <ParamModel>[];
+    final rawParams = <ParamModel>[];
     for (final p in fn.formalParameters) {
-      final param = await _param(fn, p, entities);
-      // `_param` gives defaults App Intents can state as Swift literals.
-      final swiftDefault = param.swiftDefault;
+      final param = await _param(fn, p, entities, schemaEntities);
+      // `_param` gives defaults App Intents can state as Swift literals; for a
+      // non-nullable entity list, an empty list is the Focus-off default.
+      final swiftDefault = param.swiftDefault ?? (param.isEntity && param.entityList && !param.entityNullable ? '[]' : null);
       if (p.hasDefaultValue) {
         final value = p.computeConstantValue();
         // `= null` on a nullable parameter says nothing more.
@@ -40,19 +41,9 @@ extension _Surfaces on ModelReader {
         throw error('${p.displayName} needs a default value or a nullable type: the system creates the '
             'filter with its defaults, and runs it with them when the Focus turns off.');
       }
-      params.add(ParamModel(
-        name: param.name,
-        title: param.title,
-        named: param.named,
-        prompt: param.prompt,
-        value: param.value,
-        entity: param.entity,
-        entityNullable: param.entityNullable,
-        entityList: param.entityList,
-        swiftDefault: swiftDefault,
-        defaultDart: param.defaultDart,
-      ));
+      rawParams.add(param.copyWith(swiftDefault: swiftDefault));
     }
+    final params = _resolveOptionsDependencies(fn, rawParams);
     final summary = annotation.peek('summary')?.stringValue;
     for (final match in RegExp(r'\{(\w+)\}').allMatches(summary ?? '')) {
       final p = params.where((p) => p.name == match.group(1)).firstOrNull;

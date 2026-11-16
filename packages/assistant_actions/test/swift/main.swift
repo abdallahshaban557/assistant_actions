@@ -635,6 +635,43 @@ do {
   }
 }
 
+// Currency, typed measurements and interactive card toggles / remote images.
+let price = IntentCurrencyAmount(amount: Decimal(string: "42.50")!, currencyCode: "USD")
+let priceMap = AssistantValues.encode(price) as! [String: Any]
+check("\(priceMap["amount"]!) \(priceMap["currencyCode"]!)", "42.5 USD", "currency encodes amount and currencyCode")
+let decodedPrice = AssistantValues.currency(["amount": 19.99, "currencyCode": "eur"])!
+check("\(decodedPrice.amount) \(decodedPrice.currencyCode)", "19.99 EUR", "currency decodes and uppercases code")
+check(AssistantValues.currency(["amount": 5]) == nil ? "nil" : "some", "nil", "currency requires currencyCode")
+
+let km = Measurement<UnitLength>(value: 3.5, unit: .kilometers)
+let kmMap = AssistantValues.encode(km) as! [String: Any]
+check("\(kmMap["value"]!) \(kmMap["unit"]!)", "3.5 kilometers", "length preserves supported unit")
+check(AssistantValues.length(kmMap) == km ? "same" : "diff", "same", "length round-trips")
+let nmMap = AssistantValues.encode(Measurement<UnitLength>(value: 1, unit: .nauticalMiles)) as! [String: Any]
+check("\(Int((nmMap["value"] as! Double).rounded())) \(nmMap["unit"]!)", "1852 meters",
+  "unlisted length unit converts to base meters")
+
+let grams = Measurement<UnitMass>(value: 250, unit: .grams)
+check(AssistantValues.mass(AssistantValues.encode(grams)) == grams ? "same" : "diff", "same", "mass round-trips")
+let fahr = Measurement<UnitTemperature>(value: 72, unit: .fahrenheit)
+check(AssistantValues.temperature(AssistantValues.encode(fahr)) == fahr ? "same" : "diff", "same", "temperature round-trips")
+let ml = Measurement<UnitVolume>(value: 500, unit: .milliliters)
+check(AssistantValues.volume(AssistantValues.encode(ml)) == ml ? "same" : "diff", "same", "volume round-trips")
+let mph = Measurement<UnitSpeed>(value: 60, unit: .milesPerHour)
+check(AssistantValues.speed(AssistantValues.encode(mph)) == mph ? "same" : "diff", "same", "speed round-trips")
+let kcal = Measurement<UnitEnergy>(value: 420, unit: .kilocalories)
+check(AssistantValues.energy(AssistantValues.encode(kcal)) == kcal ? "same" : "diff", "same", "energy round-trips")
+
+let toggleReply = AssistantReply(json: #"""
+  {"dialog":"Updated","card":{"title":"Shopping","imageUrl":"https://example.com/a.png","toggles":[{"label":"Milk","value":true,"action":"setDone","args":{"id":"m1","value":false},"systemImage":"cart"}]}}
+  """#)
+check(toggleReply.card?.imageUrl ?? "nil", "https://example.com/a.png", "card decodes remote imageUrl")
+check("\(toggleReply.card?.toggles.count ?? 0)", "1", "card decodes interactive toggles")
+let firstToggle = toggleReply.card!.toggles[0]
+check("\(firstToggle.label)|\(firstToggle.value)|\(firstToggle.action)|\(firstToggle.systemImage ?? "")",
+  "Milk|true|setDone|cart", "toggle fields decode")
+let _ = AssistantCardView(toggleReply.card)
+
 if failures > 0 {
   print("\(failures) failed")
   exit(1)

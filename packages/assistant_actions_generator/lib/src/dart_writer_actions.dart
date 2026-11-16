@@ -1,5 +1,8 @@
 part of 'dart_writer.dart';
 
+/// Whether any parameter uses `@Param(options:)`, which encodes JSON lists.
+bool _optionsNeedsJson(AppModel app) => app.actions.any((a) => a.params.any((p) => p.options != null));
+
 /// The enums plain actions take and return, for the imports: schema enums by
 /// id ([useEnum]), the app's own by library ([useAppEnum]).
 void _actionEnums(AppModel app, void Function(String ref) useEnum, void Function(Uri library, String name) useAppEnum) {
@@ -24,13 +27,14 @@ void _actionEntries(StringBuffer out, AppModel app, String Function(Uri library,
     for (final p in a.params) {
       final local = '_${p.name}';
       final raw = "args['${p.name}']";
-      if (p.entity case final e?) {
+      if (p.isEntity) {
+        final className = p.entityClassName;
         if (p.entityList) {
           final items = '[for (final id in AssistantValue.list($raw, AssistantValue.string) ?? const <String>[]) '
-              'if (await find${e.className}(id) case final e?) e]';
+              'if (await find$className(id) case final e?) e]';
           out.writeln(p.entityNullable ? '      final $local = $raw is List ? $items : null;' : '      final $local = $items;');
         } else {
-          out.writeln("      final $local = $raw is String ? await find${e.className}($raw as String) : null;");
+          out.writeln("      final $local = $raw is String ? await find$className($raw as String) : null;");
           if (!p.entityNullable) out.writeln('      if ($local == null) return null;');
         }
       } else {
@@ -60,6 +64,49 @@ void _actionEntries(StringBuffer out, AppModel app, String Function(Uri library,
         ..writeln('      return AssistantValue.encodeResult(${_encodeResult(result, value)}$dialog);');
     }
     out.writeln('    },');
+
+    // Dynamic options provider entries (`options.<actionId>.<paramName>`).
+    for (final p in a.params) {
+      final opt = p.options;
+      if (opt == null) continue;
+      out.writeln("    'options.${a.id}.${p.name}': (args) async {");
+      final optArgs = <String>[];
+      for (final dep in opt.dependencies) {
+        final other = a.params.firstWhere((x) => x.name == dep.name);
+        final local = '_${dep.name}';
+        final raw = "args['${dep.name}']";
+        if (other.isEntity) {
+          final className = other.entityClassName;
+          if (other.entityList) {
+            final items = '[for (final id in AssistantValue.list($raw, AssistantValue.string) ?? const <String>[]) '
+                'if (await find$className(id) case final e?) e]';
+            out.writeln(dep.nullable ? '      final $local = $raw is List ? $items : null;' : '      final $local = $items;');
+          } else {
+            out.writeln("      final $local = $raw is String ? await find$className($raw as String) : null;");
+            if (!dep.nullable) out.writeln("      if ($local == null) return '[]';");
+          }
+        } else {
+          final decode = other.value!.decodeDart(raw);
+          if (dep.defaultDart case final d?) {
+            out.writeln('      final $local = $decode ?? $d;');
+          } else if (dep.nullable) {
+            out.writeln('      final $local = $decode;');
+          } else {
+            out
+              ..writeln('      final $local = $decode;')
+              ..writeln("      if ($local == null) return '[]';");
+          }
+        }
+        optArgs.add(dep.named ? '${dep.name}: $local' : local);
+      }
+      final optCall = '${ref(opt.library, opt.functionName)}(${optArgs.join(', ')})';
+      if (p.isEntity) {
+        out.writeln("      return jsonEncode([for (final e in await $optCall) e.${p.entityIdField}]);");
+      } else {
+        out.writeln('      return jsonEncode((await $optCall).toList());');
+      }
+      out.writeln('    },');
+    }
   }
 }
 

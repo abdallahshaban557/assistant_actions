@@ -208,4 +208,147 @@ extension AssistantValues {
       return PlaceDescriptor(representations: representations, commonName: map["name"] as? String)
     }
   #endif
+
+  // ── Currency & Measurements ──
+
+  public static func encode(_ currency: IntentCurrencyAmount?) -> Any {
+    guard let currency else { return NSNull() }
+    return [
+      "amount": NSDecimalNumber(decimal: currency.amount).doubleValue,
+      "currencyCode": currency.currencyCode,
+    ]
+  }
+
+  public static func currency(_ value: Any?) -> IntentCurrencyAmount? {
+    guard let map = value as? [String: Any],
+      let amount = double(map["amount"]),
+      let code = map["currencyCode"] as? String
+    else { return nil }
+    let decimal = Decimal(string: String(amount)) ?? Decimal(amount)
+    return IntentCurrencyAmount(amount: decimal, currencyCode: code.uppercased())
+  }
+
+  private static func encodeMeasurement<U: Dimension>(
+    _ measurement: Measurement<U>?,
+    units: [(String, U)],
+    fallback: (String, U)
+  ) -> Any {
+    guard let measurement else { return NSNull() }
+    if let match = units.first(where: { $0.1 == measurement.unit }) {
+      return ["value": measurement.value, "unit": match.0]
+    }
+    return ["value": measurement.converted(to: fallback.1).value, "unit": fallback.0]
+  }
+
+  private static func decodeMeasurement<U: Dimension>(
+    _ value: Any?,
+    units: [(String, U)],
+    fallback: U
+  ) -> Measurement<U>? {
+    guard let map = value as? [String: Any], let number = double(map["value"]) else { return nil }
+    let unitName = map["unit"] as? String
+    let unit = units.first(where: { $0.0 == unitName })?.1 ?? fallback
+    return Measurement(value: number, unit: unit)
+  }
+
+  private static let lengthUnits: [(String, UnitLength)] = [
+    ("meters", .meters),
+    ("kilometers", .kilometers),
+    ("centimeters", .centimeters),
+    ("millimeters", .millimeters),
+    ("miles", .miles),
+    ("yards", .yards),
+    ("feet", .feet),
+    ("inches", .inches),
+  ]
+
+  public static func encode(_ measurement: Measurement<UnitLength>?) -> Any {
+    encodeMeasurement(measurement, units: lengthUnits, fallback: ("meters", .meters))
+  }
+
+  public static func length(_ value: Any?) -> Measurement<UnitLength>? {
+    decodeMeasurement(value, units: lengthUnits, fallback: .meters)
+  }
+
+  private static let massUnits: [(String, UnitMass)] = [
+    ("kilograms", .kilograms),
+    ("grams", .grams),
+    ("milligrams", .milligrams),
+    ("metricTons", .metricTons),
+    ("pounds", .pounds),
+    ("ounces", .ounces),
+    ("stones", .stones),
+  ]
+
+  public static func encode(_ measurement: Measurement<UnitMass>?) -> Any {
+    encodeMeasurement(measurement, units: massUnits, fallback: ("kilograms", .kilograms))
+  }
+
+  public static func mass(_ value: Any?) -> Measurement<UnitMass>? {
+    decodeMeasurement(value, units: massUnits, fallback: .kilograms)
+  }
+
+  private static let temperatureUnits: [(String, UnitTemperature)] = [
+    ("celsius", .celsius),
+    ("fahrenheit", .fahrenheit),
+    ("kelvin", .kelvin),
+  ]
+
+  public static func encode(_ measurement: Measurement<UnitTemperature>?) -> Any {
+    encodeMeasurement(measurement, units: temperatureUnits, fallback: ("celsius", .celsius))
+  }
+
+  public static func temperature(_ value: Any?) -> Measurement<UnitTemperature>? {
+    decodeMeasurement(value, units: temperatureUnits, fallback: .celsius)
+  }
+
+  private static let volumeUnits: [(String, UnitVolume)] = [
+    ("liters", .liters),
+    ("milliliters", .milliliters),
+    ("cubicMeters", .cubicMeters),
+    ("gallons", .gallons),
+    ("quarts", .quarts),
+    ("pints", .pints),
+    ("cups", .cups),
+    ("fluidOunces", .fluidOunces),
+  ]
+
+  public static func encode(_ measurement: Measurement<UnitVolume>?) -> Any {
+    encodeMeasurement(measurement, units: volumeUnits, fallback: ("liters", .liters))
+  }
+
+  public static func volume(_ value: Any?) -> Measurement<UnitVolume>? {
+    decodeMeasurement(value, units: volumeUnits, fallback: .liters)
+  }
+
+  private static let speedUnits: [(String, UnitSpeed)] = [
+    ("metersPerSecond", .metersPerSecond),
+    ("kilometersPerHour", .kilometersPerHour),
+    ("milesPerHour", .milesPerHour),
+    ("knots", .knots),
+  ]
+
+  public static func encode(_ measurement: Measurement<UnitSpeed>?) -> Any {
+    encodeMeasurement(measurement, units: speedUnits, fallback: ("metersPerSecond", .metersPerSecond))
+  }
+
+  public static func speed(_ value: Any?) -> Measurement<UnitSpeed>? {
+    decodeMeasurement(value, units: speedUnits, fallback: .metersPerSecond)
+  }
+
+  private static let energyUnits: [(String, UnitEnergy)] = [
+    ("joules", .joules),
+    ("kilojoules", .kilojoules),
+    ("calories", .calories),
+    ("kilocalories", .kilocalories),
+    ("kilowattHours", .kilowattHours),
+  ]
+
+  public static func encode(_ measurement: Measurement<UnitEnergy>?) -> Any {
+    encodeMeasurement(measurement, units: energyUnits, fallback: ("kilocalories", .kilocalories))
+  }
+
+  public static func energy(_ value: Any?) -> Measurement<UnitEnergy>? {
+    decodeMeasurement(value, units: energyUnits, fallback: .kilocalories)
+  }
 }

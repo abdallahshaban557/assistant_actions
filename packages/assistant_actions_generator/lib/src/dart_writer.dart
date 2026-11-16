@@ -34,7 +34,7 @@ String writeDart(AppModel app) {
         if (k == IntentKind.call) i,
     for (final d in app.schemaDomains) ...d.intents,
   ].any((i) => const {CallResult.entities, CallResult.union, CallResult.unions}.contains(callResult(i)));
-  if (returnsLists || _intelligenceNeedsJson(app)) out.writeln("import 'dart:convert';");
+  if (returnsLists || _intelligenceNeedsJson(app) || _optionsNeedsJson(app)) out.writeln("import 'dart:convert';");
   out
     ..writeln()
     ..writeln("import 'package:assistant_actions/assistant_actions.dart';");
@@ -210,16 +210,17 @@ String writeDart(AppModel app) {
   }
 
   // ── Registry ──
-  final finders = <String, EntityModel>{
+  final finders = <String, (Uri, String)>{
     for (final a in app.actions) ...{
       for (final p in a.params)
-        if (p.entity != null) p.entity!.className: p.entity!,
+        if (p.isEntity) p.entityClassName: (p.entityLibrary, p.entityClassName),
       if (a.undo != null && a.undo!.takesResult && a.result?.entity != null)
-        a.result!.entity!.className: a.result!.entity!,
+        a.result!.entity!.className: (a.result!.entity!.library, a.result!.entity!.className),
     },
   }.values;
   final args = [
-    for (final e in finders) 'required FutureOr<${ref(e.library, e.className)}?> Function(String id) find${e.className},',
+    for (final (library, className) in finders)
+      'required FutureOr<${ref(library, className)}?> Function(String id) find$className,',
     for (final s in app.schemaEntities) 'required ${s.className}AssistantHandler ${camel(s.className)},',
     for (final d in app.schemaDomains) 'required ${d.handler} ${d.parameter},',
     ..._visualSearchArgs(app),
@@ -353,13 +354,13 @@ String writeDart(AppModel app) {
     ..sort();
   if (finders.isNotEmpty || decodedEnums.isNotEmpty) {
     out.writeln('  decoders: {');
-    for (final e in finders) {
-      final type = ref(e.library, e.className);
+    for (final (library, className) in finders) {
+      final type = ref(library, className);
       out
-        ..writeln('    $type: (v) => v is String ? find${e.className}(v) : null,')
+        ..writeln('    $type: (v) => v is String ? find$className(v) : null,')
         ..writeln('    List<$type>: (v) async => [')
         ..writeln('      for (final id in AssistantValue.list(v is List ? v : [v], AssistantValue.string) ?? const <String>[])')
-        ..writeln('        if (await find${e.className}(id) case final item?) item,')
+        ..writeln('        if (await find$className(id) case final item?) item,')
         ..writeln('    ],');
     }
     for (final name in decodedEnums) {

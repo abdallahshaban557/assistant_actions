@@ -541,6 +541,127 @@ void main() {
       expect(applied, hasLength(1));
     });
   });
+
+  group('Currency, measurements, card toggles and param options', () {
+    test('AssistantCurrency and typed measurements round-trip through AssistantValue', () {
+      const usd = AssistantCurrency(amount: 19.95, currencyCode: 'USD');
+      expect(AssistantValue.encodeCurrency(usd), {'amount': 19.95, 'currencyCode': 'USD'});
+      expect(AssistantValue.currency({'amount': 20, 'currencyCode': 'eur'}),
+          const AssistantCurrency(amount: 20.0, currencyCode: 'EUR'));
+      expect(AssistantValue.currency({'amount': 10}), isNull);
+      expect(AssistantValue.encodeAny(usd), {'amount': 19.95, 'currencyCode': 'USD'});
+
+      const length = AssistantLength(value: 5, unit: LengthUnit.kilometers);
+      const mass = AssistantMass(value: 250, unit: MassUnit.grams);
+      const temp = AssistantTemperature(value: 72, unit: TemperatureUnit.fahrenheit);
+      const vol = AssistantVolume(value: 500, unit: VolumeUnit.milliliters);
+      const speed = AssistantSpeed(value: 60, unit: SpeedUnit.milesPerHour);
+      const energy = AssistantEnergy(value: 420, unit: EnergyUnit.kilocalories);
+
+      expect(AssistantValue.length(AssistantValue.encodeAny(length)), length);
+      expect(AssistantValue.mass(AssistantValue.encodeAny(mass)), mass);
+      expect(AssistantValue.temperature(AssistantValue.encodeAny(temp)), temp);
+      expect(AssistantValue.volume(AssistantValue.encodeAny(vol)), vol);
+      expect(AssistantValue.speed(AssistantValue.encodeAny(speed)), speed);
+      expect(AssistantValue.energy(AssistantValue.encodeAny(energy)), energy);
+
+      // Unknown unit names fall back to each dimension's base unit.
+      expect(AssistantValue.length({'value': 12, 'unit': 'furlongs'}),
+          const AssistantLength(value: 12, unit: LengthUnit.meters));
+      expect(AssistantValue.mass({'value': 2, 'unit': 'unknown'}),
+          const AssistantMass(value: 2, unit: MassUnit.kilograms));
+      expect(AssistantValue.temperature({'value': 0, 'unit': 'rankine'}),
+          const AssistantTemperature(value: 0, unit: TemperatureUnit.celsius));
+      expect(AssistantValue.volume({'value': 1, 'unit': 'hogsheads'}),
+          const AssistantVolume(value: 1, unit: VolumeUnit.liters));
+      expect(AssistantValue.speed({'value': 3, 'unit': 'mach'}),
+          const AssistantSpeed(value: 3, unit: SpeedUnit.metersPerSecond));
+      expect(AssistantValue.energy({'value': 9, 'unit': 'ergs'}),
+          const AssistantEnergy(value: 9, unit: EnergyUnit.kilocalories));
+    });
+
+    test('AssistantCard encodes imageUrl and interactive toggles with flipped default value', () async {
+      await AssistantActions.start(
+        AssistantActionsRegistry(actions: {'setDone': (_) async => null}),
+        host: _FakeHost([]),
+      );
+      final reply = AssistantReply(
+        dialog: 'Updated.',
+        card: const AssistantCard(
+          title: 'Shopping',
+          imageUrl: 'https://example.com/banner.png',
+          toggles: [
+            AssistantCardToggle(
+              label: 'Buy milk',
+              value: false,
+              actionId: 'setDone',
+              args: {'id': 'm1'},
+              systemImage: 'checkmark.circle',
+            ),
+            AssistantCardToggle(
+              label: 'Custom payload',
+              value: true,
+              actionId: 'setDone',
+              args: {'id': 'm2', 'value': 'override'},
+            ),
+          ],
+        ),
+      );
+      final decoded = jsonDecode(AssistantReply.encode(reply)) as Map<String, Object?>;
+      final card = decoded['card'] as Map<String, Object?>;
+      expect(card['imageUrl'], 'https://example.com/banner.png');
+      final toggles = (card['toggles'] as List).cast<Map<String, Object?>>();
+      expect(toggles[0], {
+        'label': 'Buy milk',
+        'value': false,
+        'action': 'setDone',
+        'args': {'id': 'm1', 'value': true},
+        'systemImage': 'checkmark.circle',
+      });
+      expect(toggles[1], {
+        'label': 'Custom payload',
+        'value': true,
+        'action': 'setDone',
+        'args': {'id': 'm2', 'value': 'override'},
+      });
+
+      const bad = AssistantReply(
+        card: AssistantCard(
+          title: 'Bad',
+          toggles: [AssistantCardToggle(label: 'X', value: false, actionId: 'missingAction')],
+        ),
+      );
+      expect(() => AssistantReply.encode(bad), throwsArgumentError);
+    });
+
+    test('Param and conditional summary annotations store constraints and branches', () {
+      const p = Param(
+        title: 'Amount',
+        min: 0,
+        max: 100,
+        controlStyle: ParamControlStyle.slider,
+        multiline: true,
+        capitalization: TextCapitalizationMode.sentences,
+        keyboardType: ParamKeyboardType.url,
+        supportedContentTypes: ['public.image'],
+        snapshotField: 'Recipe.title',
+      );
+      expect((p.min, p.max, p.controlStyle), (0, 100, ParamControlStyle.slider));
+      expect((p.multiline, p.capitalization, p.keyboardType),
+          (true, TextCapitalizationMode.sentences, ParamKeyboardType.url));
+      expect(p.supportedContentTypes, ['public.image']);
+      expect(p.snapshotField, 'Recipe.title');
+
+      const action = AssistantAction(
+        title: 'Cook',
+        summaries: [
+          SummaryWhen('quick', value: true, then: 'Quickly cook {dish}', otherwise: 'Cook {dish}'),
+          SummarySwitch('meal', cases: {_Meal.dinner: 'Cook {dish} for dinner'}, defaultSummary: 'Cook {dish}'),
+        ],
+      );
+      expect(action.summaries, hasLength(2));
+    });
+  });
 }
 
 class _FocusHost extends _FakeHost implements AssistantHostCalls {

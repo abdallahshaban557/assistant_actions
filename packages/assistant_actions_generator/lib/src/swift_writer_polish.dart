@@ -19,7 +19,7 @@ extension _Polish on SwiftWriter {
     if (a.unlock case final u?) return u;
     var unlock = app.unlock;
     final explicit = [
-      for (final p in a.params) p.entity?.unlock,
+      for (final p in a.params) p.entityUnlock,
       a.result?.entity?.unlock,
       a.result?.schemaEntity?.unlock,
     ];
@@ -56,21 +56,62 @@ extension _Polish on SwiftWriter {
   /// edit them.
   String _summaryMember(String? summary, List<String> params, {String access = ''}) {
     if (summary == null) return '';
-    final named = summaryPlaceholders(summary).toSet();
-    final text = SwiftWriter._escape(summary).replaceAllMapped(RegExp(r'\{(\w+)\}'), (m) => '\\(\\.\$${m[1]})');
-    final rest = [for (final p in params) if (!named.contains(p)) p];
     final out = StringBuffer('  ${access}static var parameterSummary: some ParameterSummary {\n');
-    if (rest.isEmpty) {
-      out.writeln('    Summary("$text")');
-    } else {
-      out
-        ..writeln('    Summary("$text") {')
-        ..writeln(rest.map((p) => '      \\.\$$p').join('\n'))
-        ..writeln('    }');
-    }
+    out.writeln(_renderSummaryLeaf(summary, params, '    '));
     out.writeln('  }');
     return out.toString();
   }
+
+  /// An `@AssistantAction`'s `parameterSummary`, supporting both flat
+  /// `summary:` and conditional `summaries:` (`When` / `Switch`).
+  String _actionSummaryMember(ActionModel a, {String access = ''}) {
+    final params = [for (final p in a.params) p.name];
+    if (a.conditionalSummary case final cond?) {
+      final out = StringBuffer('  ${access}static var parameterSummary: some ParameterSummary {\n');
+      out.writeln(_renderSummaryNode(cond, params, '    '));
+      out.writeln('  }');
+      return out.toString();
+    }
+    return _summaryMember(a.summary, params, access: access);
+  }
+
+  String _renderSummaryLeaf(String summary, List<String> params, String indent) {
+    final named = summaryPlaceholders(summary).toSet();
+    final text = SwiftWriter._escape(summary)
+        .replaceAllMapped(RegExp(r'\{(\w+)\}'), (m) => '\\(\\.\$${swiftName(m[1]!)})');
+    final rest = [for (final p in params) if (!named.contains(p)) p];
+    if (rest.isEmpty) return '${indent}Summary("$text")';
+    return [
+      '${indent}Summary("$text") {',
+      for (final p in rest) '$indent  \\.\$${swiftName(p)}',
+      '$indent}',
+    ].join('\n');
+  }
+
+  String _renderSummaryNode(SummaryNode node, List<String> params, String indent) => switch (node) {
+        SummaryLeaf(:final template) => _renderSummaryLeaf(template, params, indent),
+        SummaryWhenModel(:final param, :final comparison, :final swiftValue, :final then, :final otherwise) => [
+            comparison.takesValue
+                ? '${indent}When(\\Self.\$${swiftName(param)}, ${comparison.swift}, $swiftValue, {'
+                : '${indent}When(\\Self.\$${swiftName(param)}, ${comparison.swift}, {',
+            _renderSummaryNode(then, params, '$indent  '),
+            '$indent}, otherwise: {',
+            _renderSummaryNode(otherwise, params, '$indent  '),
+            '$indent})',
+          ].join('\n'),
+        SummarySwitchModel(:final param, :final cases, :final defaultSummary) => [
+            '${indent}Switch(\\.\$${swiftName(param)}) {',
+            for (final MapEntry(key: c, value: tmpl) in cases.entries) ...[
+              '$indent  Case(.$c) {',
+              _renderSummaryLeaf(tmpl, params, '$indent    '),
+              '$indent  }',
+            ],
+            '$indent  DefaultCase {',
+            _renderSummaryLeaf(defaultSummary ?? cases.values.last, params, '$indent    '),
+            '$indent  }',
+            '$indent}',
+          ].join('\n'),
+      };
 
   /// The `parameterSummary` of schema [intent], from its entity's ([owner])
   /// or domain's `summaries`.
