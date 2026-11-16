@@ -242,7 +242,7 @@ extension _Actions on SwiftWriter {
       if (_above(floor)) _out.writeln(_availability(floor));
       _out.writeln('public struct ${_optionsProviderName(a, p)}: DynamicOptionsProvider {');
       if (opt.dependencies.isNotEmpty) {
-        final deps = opt.dependencies.map((d) => '\\.\$${swiftName(d.name)}').join(', ');
+        final deps = opt.dependencies.map((d) => '\\.\$${d.name}').join(', ');
         _out
           ..writeln('  @IntentParameterDependency<${a.swiftName}>($deps)')
           ..writeln('  public var intent')
@@ -469,17 +469,18 @@ extension _Actions on SwiftWriter {
         ];
         return '${lines.join('\n')}\n';
       }
+      final itemId = _dartID(r.schemaEntity?.schema.id, r'$0');
       final lines = [
         if (r.nullable) ...[
           '    var value: [$name]? = nil',
           '    if let ids = AssistantValues.strings($source) {',
-          '      let found = try await $query.entities(for: ids)',
-          '      value = ids.compactMap { id in found.first { \$0.id == id } }',
+          '      let found = ${_lookup(name, r.schemaEntity?.schema.id, 'ids')}',
+          '      value = ids.compactMap { id in found.first { $itemId == id } }',
           '    }',
         ] else ...[
           '    let ids = AssistantValues.strings($source) ?? []',
-          '    let found = try await $query.entities(for: ids)',
-          '    let value = ids.compactMap { id in found.first { \$0.id == id } }',
+          '    let found = ${_lookup(name, r.schemaEntity?.schema.id, 'ids')}',
+          '    let value = ids.compactMap { id in found.first { $itemId == id } }',
         ],
       ];
       return '${lines.join('\n')}\n';

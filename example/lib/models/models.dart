@@ -17,7 +17,13 @@ import 'package:assistant_actions/schemas/reminders.dart';
 @IntentShortcut('system.open',
     phrases: ['Open {target} in {app}', 'Show a recipe in {app}'], shortTitle: 'Open Recipe', systemImage: 'book')
 class Recipe {
-  const Recipe({required this.id, required this.name, required this.minutes});
+  const Recipe({
+    required this.id,
+    required this.name,
+    required this.minutes,
+    this.tags = const [],
+    this.notes,
+  });
 
   @EntityId()
   final String id;
@@ -26,6 +32,12 @@ class Recipe {
   final String name;
 
   final int minutes;
+
+  @EntityKeywords()
+  final List<String> tags;
+
+  @EntityBody()
+  final String? notes;
 
   @DisplaySubtitle()
   String get subtitle => '$minutes min';

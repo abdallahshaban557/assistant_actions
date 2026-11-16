@@ -63,13 +63,14 @@ void _actionUndoEntries(StringBuffer out, AppModel app, String Function(Uri libr
             _ when up.nullable => '      final $local = $decode;',
             _ => "      final $local = $decode ?? (throw ArgumentError.notNull('${up.name}'));",
           });
-        } else if (r.entity case final e?) {
+        } else if (r.entity != null || (r.schemaEntity != null && up.resultAsEntity)) {
+          final className = r.entityClassName;
           if (r.list) {
             final items = '[for (final id in AssistantValue.list($raw, AssistantValue.string) ?? const <String>[]) '
-                'if (await find${e.className}(id) case final e?) e]';
+                'if (await find$className(id) case final e?) e]';
             out.writeln(up.nullable ? '      final $local = $raw is List ? $items : null;' : '      final $local = $items;');
           } else {
-            out.writeln('      final $local = $raw is String ? await find${e.className}($raw as String) : null;');
+            out.writeln('      final $local = $raw is String ? await find$className($raw as String) : null;');
             if (!up.nullable) out.writeln('      if ($local == null) return null;');
           }
         } else if (r.schemaEntity != null) {
@@ -90,13 +91,14 @@ void _actionUndoEntries(StringBuffer out, AppModel app, String Function(Uri libr
       } else {
         final p = up.sourceParam!;
         final raw = "args['${p.name}']";
-        if (p.entity case final e?) {
+        if (p.isEntity) {
+          final className = p.entityClassName;
           if (p.entityList) {
             final items = '[for (final id in AssistantValue.list($raw, AssistantValue.string) ?? const <String>[]) '
-                'if (await find${e.className}(id) case final e?) e]';
+                'if (await find$className(id) case final e?) e]';
             out.writeln(up.nullable ? '      final $local = $raw is List ? $items : null;' : '      final $local = $items;');
           } else {
-            out.writeln('      final $local = $raw is String ? await find${e.className}($raw as String) : null;');
+            out.writeln('      final $local = $raw is String ? await find$className($raw as String) : null;');
             if (!up.nullable) out.writeln('      if ($local == null) return null;');
           }
         } else {

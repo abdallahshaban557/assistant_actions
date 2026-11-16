@@ -113,7 +113,7 @@ class WidgetTargetResult {
 /// what. [id] makes object ids.
 WidgetTargetResult addWidgetTarget(String pbx, String Function() id) {
   if (RegExp('/\\* $_widgets \\*/ = \\{\\s*isa = PBXNativeTarget;').hasMatch(pbx)) {
-    return WidgetTargetResult(pbx: pbx);
+    return WidgetTargetResult(pbx: _upgradeWidgetTarget(pbx, id));
   }
   WidgetTargetResult fail(String what) => WidgetTargetResult(problem: 'could not find $what in project.pbxproj');
 
@@ -293,6 +293,78 @@ WidgetTargetResult addWidgetTarget(String pbx, String Function() id) {
     }
   }
   return WidgetTargetResult(pbx: out);
+}
+
+/// Adds any new Swift sources introduced in newer `assistant_actions` releases
+/// (such as `AssistantAppGroup.swift`, `AssistantLiveActivityIntent.swift` and
+/// `../apple/AssistantWidgets.g.swift`) to an existing `AssistantWidgets`
+/// target, leaving an up-to-date project untouched.
+String _upgradeWidgetTarget(String pbx, String Function() id) {
+  final targetMatch = RegExp(
+    r'\w{24} /\* ' + _widgets + r' \*/ = \{\s*isa = PBXNativeTarget;[\s\S]*?buildPhases = \(\n([\s\S]*?)\t\t\t\);',
+  ).firstMatch(pbx);
+  if (targetMatch == null) return pbx;
+  final sourcesPhaseId = RegExp(r'(\w{24}) /\* Sources \*/').firstMatch(targetMatch.group(1)!)?.group(1);
+  if (sourcesPhaseId == null) return pbx;
+
+  final sourcesPhase = RegExp(
+    '$sourcesPhaseId /\\* Sources \\*/ = \\{\\s*isa = PBXSourcesBuildPhase;[\\s\\S]*?files = \\(\\n([\\s\\S]*?)\\t\\t\\t\\);',
+  ).firstMatch(pbx);
+  final widgetGroup = RegExp(
+    r'\w{24} /\* ' + _widgets + r' \*/ = \{\s*isa = PBXGroup;\s*children = \(\n([\s\S]*?)\t\t\t\);',
+  ).firstMatch(pbx);
+  if (sourcesPhase == null || widgetGroup == null) return pbx;
+
+  final existingSources = sourcesPhase.group(1)!;
+  final requiredFiles = [..._ownedWidgetFiles.keys, 'AssistantWidgets.swift', _generatedWidgets]..sort();
+  final missing = [
+    for (final f in requiredFiles)
+      if (!existingSources.contains('/* $f in Sources */')) f,
+  ];
+  if (missing.isEmpty) return pbx;
+
+  const t4 = '\t\t\t\t';
+  final buildFileLines = StringBuffer();
+  final fileRefLines = StringBuffer();
+  final groupChildLines = StringBuffer();
+  final sourceEntryLines = StringBuffer();
+
+  for (final f in missing) {
+    final fileId = id();
+    final buildId = id();
+    buildFileLines.writeln('\t\t$buildId /* $f in Sources */ = {isa = PBXBuildFile; fileRef = $fileId /* $f */; };');
+    if (f == _generatedWidgets) {
+      fileRefLines.writeln(
+          '\t\t$fileId /* $f */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = $f; path = ../apple/$f; sourceTree = SOURCE_ROOT; };');
+    } else {
+      fileRefLines
+          .writeln('\t\t$fileId /* $f */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = $f; sourceTree = "<group>"; };');
+    }
+    groupChildLines.writeln('$t4$fileId /* $f */,');
+    sourceEntryLines.writeln('$t4$buildId /* $f in Sources */,');
+  }
+
+  var out = pbx;
+  final sourcesInsertAt = sourcesPhase.end - '\t\t\t);'.length;
+  out = out.replaceRange(sourcesInsertAt, sourcesInsertAt, sourceEntryLines.toString());
+
+  final updatedGroup = RegExp(
+    r'\w{24} /\* ' + _widgets + r' \*/ = \{\s*isa = PBXGroup;\s*children = \(\n([\s\S]*?)\t\t\t\);',
+  ).firstMatch(out)!;
+  final groupInsertAt = updatedGroup.end - '\t\t\t);'.length;
+  out = out.replaceRange(groupInsertAt, groupInsertAt, groupChildLines.toString());
+
+  for (final (section, text) in [
+    ('PBXBuildFile', buildFileLines.toString()),
+    ('PBXFileReference', fileRefLines.toString()),
+  ]) {
+    final begin = '/* Begin $section section */\n';
+    final at = out.indexOf(begin);
+    if (at >= 0) {
+      out = out.replaceRange(at + begin.length, at + begin.length, text);
+    }
+  }
+  return out;
 }
 
 String _phase(String id, String name, String isa, List<String> files) => '\t\t$id /* $name */ = {\n'

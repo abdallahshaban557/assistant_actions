@@ -81,6 +81,20 @@ void main() {
       expect(install.addWidgetTarget(pbx, _ids()).pbx, pbx);
     });
 
+    test('upgrades an existing AssistantWidgets target missing newer Swift files', () {
+      // Simulate an older AssistantWidgets target before AssistantAppGroup.swift and AssistantWidgets.g.swift existed.
+      final legacy = pbx
+          .split('\n')
+          .where((line) => !line.contains('AssistantAppGroup.swift') && !line.contains('AssistantWidgets.g.swift'))
+          .join('\n');
+      expect(legacy, isNot(contains('AssistantWidgets.g.swift')));
+      final upgraded = install.addWidgetTarget(legacy, _ids()).pbx!;
+      expect(upgraded, contains('/* AssistantAppGroup.swift in Sources */ = {isa = PBXBuildFile;'));
+      expect(upgraded, contains('/* AssistantWidgets.g.swift in Sources */ = {isa = PBXBuildFile;'));
+      expect(upgraded, contains('path = ../apple/AssistantWidgets.g.swift; sourceTree = SOURCE_ROOT;'));
+      expect(install.addWidgetTarget(upgraded, _ids()).pbx, upgraded, reason: 'idempotent after upgrade');
+    });
+
     test('changes nothing when the project is not laid out like a Flutter one', () {
       final result = install.addWidgetTarget(_fixture.replaceAll('/* Runner */', '/* App */'), _ids());
       expect(result.pbx, isNull);

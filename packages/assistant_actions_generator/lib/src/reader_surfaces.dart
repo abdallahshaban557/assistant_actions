@@ -56,7 +56,7 @@ extension _Surfaces on ModelReader {
       if (p == null) {
         throw error('filterCriteriaParam "$filterCriteriaParam" is not a parameter.');
       }
-      final validCriteria = p.entity != null ||
+      final validCriteria = p.isEntity ||
           (p.value != null &&
               const {
                 ValueKind.string,
@@ -274,6 +274,18 @@ extension _Surfaces on ModelReader {
           throw InvalidGenerationSourceError(
               'Parameter $name: use List<${entity.className}>, not ${type.getDisplayString()}.', element: owner);
         }
+        String? swiftDefault;
+        String? dartDefault;
+        if (p.hasDefaultValue) {
+          final defVal = p.computeConstantValue();
+          if (listed != null && (defVal?.toListValue()?.isEmpty ?? false)) {
+            swiftDefault = '[]';
+            dartDefault = 'const []';
+          } else if (!(defVal?.isNull ?? true)) {
+            throw InvalidGenerationSourceError('Parameter $name: entity parameters can\'t have a default.',
+                element: owner);
+          }
+        }
         return ParamModel(
           name: name,
           title: title,
@@ -282,6 +294,8 @@ extension _Surfaces on ModelReader {
           entity: entity,
           entityNullable: nullable,
           entityList: listed != null,
+          swiftDefault: swiftDefault,
+          defaultDart: dartDefault,
         );
       }
     }

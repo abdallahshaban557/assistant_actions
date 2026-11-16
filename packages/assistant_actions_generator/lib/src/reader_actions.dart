@@ -250,7 +250,14 @@ extension _Actions on ModelReader {
               '${fn.displayName} may return no value.',
               element: fn);
         }
-        await _checkUndoResultType(fn, undoFn, up, result: result, entities: entities, schemaEntities: schemaEntities);
+        final resultAsEntity = await _checkUndoResultType(
+          fn,
+          undoFn,
+          up,
+          result: result,
+          entities: entities,
+          schemaEntities: schemaEntities,
+        );
         String? defaultDart;
         if (up.hasDefaultValue) {
           final v = await _actionValue(up.type, undoFn);
@@ -261,6 +268,7 @@ extension _Actions on ModelReader {
           named: up.isNamed,
           nullable: upNullable,
           isResult: true,
+          resultAsEntity: resultAsEntity,
           defaultDart: defaultDart,
         ));
         continue;
@@ -329,7 +337,7 @@ extension _Actions on ModelReader {
     );
   }
 
-  Future<void> _checkUndoResultType(
+  Future<bool> _checkUndoResultType(
     TopLevelFunctionElement fn,
     TopLevelFunctionElement undoFn,
     FormalParameterElement up, {
@@ -343,7 +351,7 @@ extension _Actions on ModelReader {
             '${undoFn.displayName}: "${up.displayName}" is ${up.type.getDisplayString()}, expected String?.',
             element: fn);
       }
-      return;
+      return false;
     }
     if (result.entity case final entity?) {
       final parsed = await _param(undoFn, up, entities, schemaEntities);
@@ -353,7 +361,7 @@ extension _Actions on ModelReader {
             '${undoFn.displayName}: "${up.displayName}" is ${up.type.getDisplayString()}, expected $expected.',
             element: fn);
       }
-      return;
+      return true;
     }
     if (result.schemaEntity case final schemaEntity?) {
       final parsed = await _param(undoFn, up, entities, schemaEntities);
@@ -368,7 +376,7 @@ extension _Actions on ModelReader {
             'expected $expected.',
             element: fn);
       }
-      return;
+      return matchesSchemaEntity;
     }
     final want = result.value!;
     final got = await _actionValue(up.type, undoFn);
@@ -381,6 +389,7 @@ extension _Actions on ModelReader {
           '${undoFn.displayName}: "${up.displayName}" is ${up.type.getDisplayString()}, expected ${want.dart}.',
           element: fn);
     }
+    return false;
   }
 
   /// Parameters a dialog can say.

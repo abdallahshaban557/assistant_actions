@@ -21,17 +21,28 @@ extension _FoundationTools on SwiftWriter {
           if (a.isDiscoverable) a,
       ];
 
+  static bool _isMeasurementKind(ValueKind k) => const {
+        ValueKind.length,
+        ValueKind.mass,
+        ValueKind.temperature,
+        ValueKind.volume,
+        ValueKind.speed,
+        ValueKind.energy,
+      }.contains(k);
+
   bool _isToolParam(ParamModel p) {
-    if (p.entity != null) return true;
+    if (p.isEntity) return true;
     final v = p.value;
     if (v == null) return false;
     return const {
-      ValueKind.string,
-      ValueKind.integer,
-      ValueKind.decimal,
-      ValueKind.boolean,
-      ValueKind.enumeration,
-    }.contains(v.kind);
+          ValueKind.string,
+          ValueKind.integer,
+          ValueKind.decimal,
+          ValueKind.boolean,
+          ValueKind.enumeration,
+          ValueKind.currency,
+        }.contains(v.kind) ||
+        _isMeasurementKind(v.kind);
   }
 
   /// Whether [p] is optional in the `@Generable` `Arguments` struct: nullable
@@ -42,7 +53,7 @@ extension _FoundationTools on SwiftWriter {
 
   String _toolParamSwift(ParamModel p) {
     final optional = _toolParamOptional(p) ? '?' : '';
-    if (p.entity != null) return '${p.entityList ? '[String]' : 'String'}$optional';
+    if (p.isEntity) return '${p.entityList ? '[String]' : 'String'}$optional';
     final v = p.value!;
     final element = switch (v.kind) {
       ValueKind.string => 'String',
@@ -50,6 +61,14 @@ extension _FoundationTools on SwiftWriter {
       ValueKind.decimal => 'Double',
       ValueKind.boolean => 'Bool',
       ValueKind.enumeration => _toolEnumName(v),
+      ValueKind.currency => 'AssistantCurrencyToolValue',
+      ValueKind.length ||
+      ValueKind.mass ||
+      ValueKind.temperature ||
+      ValueKind.volume ||
+      ValueKind.speed ||
+      ValueKind.energy =>
+        'AssistantMeasurementToolValue',
       _ => throw StateError('Unsupported tool parameter ${v.kind}'),
     };
     return '${v.list ? '[$element]' : element}$optional';
@@ -57,7 +76,7 @@ extension _FoundationTools on SwiftWriter {
 
   String _toolGuideDescription(ParamModel p) {
     if (p.prompt case final prompt?) return prompt;
-    if (p.entity != null) {
+    if (p.isEntity) {
       return p.entityList ? '${p.title} (IDs or titles)' : '${p.title} (ID or title)';
     }
     return p.title;
@@ -70,7 +89,31 @@ extension _FoundationTools on SwiftWriter {
 
     _out.writeln('#if canImport(FoundationModels)');
     _emitToolEnums(actions);
-    if (actions.any((a) => a.params.any((p) => p.entity != null))) {
+    if (actions.any((a) => a.params.any((p) => p.value?.kind == ValueKind.currency))) {
+      _out.writeln('''
+@available(iOS 26.0, macOS 26.0, *)
+@Generable
+public struct AssistantCurrencyToolValue: Sendable {
+  @Guide(description: "Numeric amount")
+  public var amount: Double
+  @Guide(description: "ISO 4217 currency code, e.g. USD")
+  public var currencyCode: String
+}
+''');
+    }
+    if (actions.any((a) => a.params.any((p) => p.value != null && _isMeasurementKind(p.value!.kind)))) {
+      _out.writeln('''
+@available(iOS 26.0, macOS 26.0, *)
+@Generable
+public struct AssistantMeasurementToolValue: Sendable {
+  @Guide(description: "Numeric measurement value")
+  public var value: Double
+  @Guide(description: "Unit name (e.g. meters, kilometers, kilograms, celsius, liters, metersPerSecond, kilocalories)")
+  public var unit: String
+}
+''');
+    }
+    if (actions.any((a) => a.params.any((p) => p.isEntity))) {
       _out.writeln('''
 /// Resolves an entity argument from an exact ID or a forgiving title match.
 @available(iOS 26.0, macOS 26.0, *)
@@ -99,6 +142,14 @@ private func assistantResolveEntity<E>(
 private func assistantDescribeToolValue(_ value: Any?) -> String? {
   guard let value, !(value is NSNull) else { return nil }
   if let text = value as? String { return text }
+  if let map = value as? [String: Any] {
+    if let amount = map["amount"], let code = map["currencyCode"] as? String {
+      return "\\(amount) \\(code)"
+    }
+    if let val = map["value"], let unit = map["unit"] as? String {
+      return "\\(val) \\(unit)"
+    }
+  }
   if let items = value as? [Any] {
     return items.compactMap(assistantDescribeToolValue).joined(separator: ", ")
   }
@@ -151,6 +202,9 @@ private func assistantDescribeToolValue(_ value: Any?) -> String? {
   void _emitActionTool(ActionModel a, Map<String, num> floor) {
     final toolName = '${a.swiftName}Tool';
     final desc = SwiftWriter._escape(a.description ?? a.title);
+    final (iOS, macOS) = _versions(floor);
+    final osGuard = iOS.isInfinite ? 'macOS' : (macOS.isInfinite ? 'iOS' : null);
+    if (osGuard != null) _out.writeln('#if os($osGuard)');
     _out
       ..writeln('/// `FoundationModels.Tool` wrapper for `${a.functionName}` (`${a.swiftName}`).')
       ..writeln(_availability(floor))
@@ -187,7 +241,8 @@ private func assistantDescribeToolValue(_ value: Any?) -> String? {
         ..writeln('    let toolPayload: [String: Any] = [:]')
         ..writeln('    let fallbackDialog = $dialogExpr');
     } else {
-      final needsTry = a.params.any((p) => p.entity != null || (p.value?.kind == ValueKind.enumeration && !_optional(p) && p.swiftDefault == null && !p.value!.list));
+      final needsTry = a.params.any((p) =>
+          p.isEntity || (p.value?.kind == ValueKind.enumeration && !_optional(p) && p.swiftDefault == null && !p.value!.list));
       _out.writeln('    let (toolPayload, fallbackDialog): ([String: Any], String) = ${needsTry ? 'try ' : ''}{');
       for (final p in a.params) {
         _out.writeln('      ${_decodeToolArg(p)}');
@@ -230,7 +285,7 @@ private func assistantDescribeToolValue(_ value: Any?) -> String? {
             final entityName = result.entity?.swiftName ?? result.schemaEntity!.swiftName;
             final idsExpr = result.list ? '(AssistantValues.strings(reply.value) ?? [])' : 'reply.ids';
             _out
-              ..writeln('    let found = try await ${entityName}Query().entities(for: $idsExpr)')
+              ..writeln('    let found = ${_lookup(entityName, result.schemaEntity?.schema.id, idsExpr)}')
               ..writeln('    let valueText = found.map { String(localized: \$0.displayRepresentation.title) }.joined(separator: ", ")');
           } else {
             _out.writeln('    let valueText = assistantDescribeToolValue(reply.value) ?? ""');
@@ -281,31 +336,84 @@ private func assistantDescribeToolValue(_ value: Any?) -> String? {
 
     _out
       ..writeln('  }')
-      ..writeln('}')
-      ..writeln();
+      ..writeln('}');
+    if (osGuard != null) _out.writeln('#endif');
+    _out.writeln();
   }
 
   String _decodeToolArg(ParamModel p) {
     final n = swiftName(p.name);
-    if (p.entity case final e?) {
+    if (p.isEntity) {
+      final collection = p.entityClassName;
+      final swift = p.entitySwiftName;
       String resolve(String expr) =>
-          'try assistantResolveEntity($expr, collection: "${e.className}", typeWords: ${e.swiftName}Query.typeWords, make: ${e.swiftName}.init(record:))';
+          'try assistantResolveEntity($expr, collection: "$collection", typeWords: ${swift}Query.typeWords, make: $swift.init(record:))';
       if (p.entityList) {
-        return p.nullable
-            ? 'let $n = try toolArguments.$n.map { try \$0.map { ${resolve(r'$0')} } }'
-            : 'let $n = try toolArguments.$n.map { ${resolve(r'$0')} }';
+        if (p.nullable) {
+          return 'let $n = try toolArguments.$n.map { try \$0.map { ${resolve(r'$0')} } }';
+        }
+        if (p.defaultDart != null) {
+          return 'let $n: [$swift] = try toolArguments.$n.map { try \$0.map { ${resolve(r'$0')} } } ?? []';
+        }
+        return 'let $n = try toolArguments.$n.map { ${resolve(r'$0')} }';
       }
       return p.nullable
           ? 'let $n = try toolArguments.$n.map { ${resolve(r'$0')} }'
           : 'let $n = ${resolve('toolArguments.$n')}';
     }
     final v = p.value!;
+    if (v.kind == ValueKind.currency) {
+      String conv(String x) =>
+          'AssistantValues.currency(["amount": $x.amount, "currencyCode": $x.currencyCode]) '
+          '?? IntentCurrencyAmount(amount: Decimal($x.amount), currencyCode: $x.currencyCode.uppercased())';
+      if (v.list) {
+        if (_optional(p)) {
+          return 'let $n: [IntentCurrencyAmount]? = toolArguments.$n.map { \$0.map { ${conv(r'$0')} } }';
+        }
+        if (p.defaultDart != null) {
+          return 'let $n: [IntentCurrencyAmount] = toolArguments.$n.map { \$0.map { ${conv(r'$0')} } } ?? []';
+        }
+        return 'let $n: [IntentCurrencyAmount] = toolArguments.$n.map { ${conv(r'$0')} }';
+      }
+      return _optional(p)
+          ? 'let $n: IntentCurrencyAmount? = toolArguments.$n.map { ${conv(r'$0')} }'
+          : 'let $n = ${conv('toolArguments.$n')}';
+    }
+    if (_isMeasurementKind(v.kind)) {
+      final (swiftType, decoder, fallbackUnit) = switch (v.kind) {
+        ValueKind.length => ('Measurement<UnitLength>', 'length', 'UnitLength.meters'),
+        ValueKind.mass => ('Measurement<UnitMass>', 'mass', 'UnitMass.kilograms'),
+        ValueKind.temperature => ('Measurement<UnitTemperature>', 'temperature', 'UnitTemperature.celsius'),
+        ValueKind.volume => ('Measurement<UnitVolume>', 'volume', 'UnitVolume.liters'),
+        ValueKind.speed => ('Measurement<UnitSpeed>', 'speed', 'UnitSpeed.metersPerSecond'),
+        ValueKind.energy => ('Measurement<UnitEnergy>', 'energy', 'UnitEnergy.kilocalories'),
+        _ => throw StateError('Unexpected measurement ${v.kind}'),
+      };
+      String conv(String x) =>
+          'AssistantValues.$decoder(["value": $x.value, "unit": $x.unit]) ?? Measurement(value: $x.value, unit: $fallbackUnit)';
+      if (v.list) {
+        if (_optional(p)) {
+          return 'let $n: [$swiftType]? = toolArguments.$n.map { \$0.map { ${conv(r'$0')} } }';
+        }
+        if (p.defaultDart != null) {
+          return 'let $n: [$swiftType] = toolArguments.$n.map { \$0.map { ${conv(r'$0')} } } ?? []';
+        }
+        return 'let $n: [$swiftType] = toolArguments.$n.map { ${conv(r'$0')} }';
+      }
+      return _optional(p)
+          ? 'let $n: $swiftType? = toolArguments.$n.map { ${conv(r'$0')} }'
+          : 'let $n: $swiftType = ${conv('toolArguments.$n')}';
+    }
     if (v.kind == ValueKind.enumeration) {
       final enumSwift = _valueSwift(v.element);
       if (v.list) {
-        return _optional(p)
-            ? 'let $n = toolArguments.$n.map { \$0.compactMap { $enumSwift(rawValue: \$0.rawValue) } }'
-            : 'let $n = toolArguments.$n.compactMap { $enumSwift(rawValue: \$0.rawValue) }';
+        if (_optional(p)) {
+          return 'let $n = toolArguments.$n.map { \$0.compactMap { $enumSwift(rawValue: \$0.rawValue) } }';
+        }
+        if (p.defaultDart != null) {
+          return 'let $n: [$enumSwift] = toolArguments.$n.map { \$0.compactMap { $enumSwift(rawValue: \$0.rawValue) } } ?? []';
+        }
+        return 'let $n = toolArguments.$n.compactMap { $enumSwift(rawValue: \$0.rawValue) }';
       }
       if (p.swiftDefault case final d?) {
         return 'let $n: $enumSwift = toolArguments.$n.flatMap { $enumSwift(rawValue: \$0.rawValue) } ?? $d';
@@ -315,8 +423,8 @@ private func assistantDescribeToolValue(_ value: Any?) -> String? {
       }
       return 'guard let $n = $enumSwift(rawValue: toolArguments.$n.rawValue) else { throw AssistantActionError.failed("Invalid ${SwiftWriter._escape(p.name)}") }';
     }
-    if (!v.list && p.swiftDefault != null) {
-      return 'let $n = toolArguments.$n ?? ${p.swiftDefault}';
+    if (p.swiftDefault != null) {
+      return 'let $n: ${_valueSwift(v)} = toolArguments.$n ?? ${p.swiftDefault}';
     }
     return 'let $n = toolArguments.$n';
   }

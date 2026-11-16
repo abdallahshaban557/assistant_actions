@@ -499,6 +499,8 @@ class ResultModel {
   final bool wrapped;
 
   bool get isEntity => entity != null || schemaEntity != null;
+  String get entityClassName => entity?.className ?? schemaEntity!.className;
+  Uri get entityLibrary => entity?.library ?? schemaEntity!.library;
 
   /// The Dart field holding an entity's id.
   String get idField => entity?.idField ?? schemaEntity!.idField;
@@ -563,6 +565,7 @@ class ActionUndoParam {
     required this.nullable,
     this.sourceParam,
     this.isResult = false,
+    this.resultAsEntity = false,
     this.defaultDart,
   });
 
@@ -571,6 +574,11 @@ class ActionUndoParam {
   final bool nullable;
   final ParamModel? sourceParam;
   final bool isResult;
+
+  /// When [isResult] is true and the action returns an entity (plain or
+  /// schema), whether the undo function takes the entity object (via
+  /// `find<ClassName>`) rather than a raw `String` id.
+  final bool resultAsEntity;
   final String? defaultDart;
 }
 

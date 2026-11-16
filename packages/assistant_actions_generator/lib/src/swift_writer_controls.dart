@@ -337,12 +337,11 @@ public enum AssistantExtensionStorage {
       _writeExtensionAppEnum(buf, e);
     }
 
-    // Extension-safe schema enums referenced by widget configs or controls.
+    // Extension-safe schema enums referenced by widget configs.
     final schemaEnumRefs = <String>{
       for (final w in app.widgetConfigs)
-        for (final p in w.params) ?p.value?.enumRef,
-      for (final (a, _) in app.controls)
-        for (final p in a.params) ?p.value?.enumRef,
+        for (final p in w.params)
+          if (p.value?.appEnum == null) ?p.value?.enumRef,
     };
     for (final ref in schemaEnumRefs) {
       final e = _enumSchema(ref);

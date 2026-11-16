@@ -1,11 +1,11 @@
 # assistant_actions
 
-Siri, Shortcuts, Spotlight and Apple Intelligence for Flutter on iOS and macOS.
+Siri, Shortcuts, Spotlight, Widgets, Controls and Apple Intelligence for Flutter on iOS and macOS.
 
 | Path | What |
 |---|---|
-| `packages/assistant_actions` | Runtime plugin, annotations, typed App Schema libraries, `install` script |
-| `packages/assistant_actions_generator` | `build_runner` builder; `tool/export_catalog.dart` refreshes the schema catalog from Xcode |
+| `packages/assistant_actions` | Runtime plugin, annotations, controls/widgets/SiriTip surfaces, typed App Schema libraries, `install` script |
+| `packages/assistant_actions_generator` | `build_runner` builder (Dart registry, App Intents, Shortcuts, extension-safe Widgets/Controls, `FoundationModels.Tool`s); `tool/export_catalog.dart` refreshes the schema catalog from Xcode |
 | `example` | App using every feature, built for iOS and macOS |
 
 Refresh the schema catalog after a new Xcode:

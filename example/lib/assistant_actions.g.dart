@@ -36,6 +36,12 @@ class TaskItemValues {
     done: AssistantValue.boolean(f['done']),
     cleared: {...cleared},
   );
+
+  Map<String, Object?> _toJson() => {
+    if (title case final v?) 'title': v,
+    if (due case final v?) 'due': AssistantValue.encodeDate(v),
+    if (done case final v?) 'done': v,
+  };
 }
 
 /// Applies the changes Siri makes to `TaskItem` items through
@@ -65,6 +71,11 @@ class MemoryItemValues {
     pinned: AssistantValue.boolean(f['pinned']),
     cleared: {...cleared},
   );
+
+  Map<String, Object?> _toJson() => {
+    if (text case final v?) 'text': v,
+    if (pinned case final v?) 'pinned': v,
+  };
 }
 
 /// Applies the changes Siri makes to `MemoryItem` items through
@@ -115,6 +126,14 @@ class JournalItemValues {
     place: AssistantValue.place(f['place']),
     cleared: {...cleared},
   );
+
+  Map<String, Object?> _toJson() => {
+    if (title case final v?) 'title': v,
+    if (text case final v?) 'text': v,
+    if (date case final v?) 'date': AssistantValue.encodeDate(v),
+    if (media case final v?) 'media': v.map((e) => AssistantValue.encodeFile(e)).toList(),
+    if (place case final v?) 'place': AssistantValue.encodePlace(v),
+  };
 }
 
 /// Applies the changes Siri makes to `JournalItem` items through
@@ -155,6 +174,13 @@ class CountdownValues {
     state: AssistantValue.enumeration(ClockTimerState.values, f['state']),
     cleared: {...cleared},
   );
+
+  Map<String, Object?> _toJson() => {
+    if (length case final v?) 'length': AssistantValue.encodeDuration(v),
+    if (left case final v?) 'left': AssistantValue.encodeDuration(v),
+    if (label case final v?) 'label': v,
+    if (state case final v?) 'state': AssistantValue.encodeEnum(v),
+  };
 }
 
 /// Applies the changes Siri makes to `Countdown` items through
@@ -278,6 +304,7 @@ abstract interface class VisualIntelligenceAssistantHandler {
 /// Pass to `AssistantActions.start`.
 AssistantActionsRegistry assistantActionsRegistry({
   required FutureOr<a1.Recipe?> Function(String id) findRecipe,
+  required FutureOr<a1.TaskItem?> Function(String id) findTaskItem,
   required TaskItemAssistantHandler taskItem,
   required MemoryItemAssistantHandler memoryItem,
   required JournalItemAssistantHandler journalItem,
@@ -343,6 +370,25 @@ AssistantActionsRegistry assistantActionsRegistry({
     'archiveDoneTasks': (args) async {
       return await a0.archiveDoneTasks();
     },
+    'completeTask': (args) async {
+      final _task = args['task'] is String ? await findTaskItem(args['task'] as String) : null;
+      final _note = AssistantValue.string(args['note']);
+      return await a0.completeTask(task: _task, note: _note);
+    },
+    'logGroceryRun': (args) async {
+      final _spent =
+          AssistantValue.currency(args['spent']) ?? (throw ArgumentError.notNull('spent'));
+      final _distance = AssistantValue.length(args['distance']);
+      final _store = AssistantValue.string(args['store']) ?? 'Farmers Market';
+      final result = await a0.logGroceryRun(spent: _spent, distance: _distance, store: _store);
+      return AssistantValue.encodeResult(
+        AssistantValue.encodeCurrency(result.value),
+        dialog: result.dialog,
+      );
+    },
+    'options.logGroceryRun.store': (args) async {
+      return jsonEncode((await a0.suggestGroceryStores()).toList());
+    },
     'stopRecording': (args) async {
       await a0.stopRecording();
       return null;
@@ -351,6 +397,13 @@ AssistantActionsRegistry assistantActionsRegistry({
       final _hideTasks = AssistantValue.boolean(args['hideTasks']) ?? false;
       final _note = AssistantValue.string(args['note']);
       await a0.applyFocus(hideTasks: _hideTasks, note: _note);
+      return null;
+    },
+    'addToShoppingList.undo': (args) async {
+      final _u0 = args['recipe'] is String ? await findRecipe(args['recipe'] as String) : null;
+      if (_u0 == null) return null;
+      final _u1 = AssistantValue.integer(args['servings']);
+      await a0.undoAddToShoppingList(_u0, servings: _u1);
       return null;
     },
     'JournalItem.startAudioEntry': (args) async {
@@ -480,7 +533,7 @@ AssistantActionsRegistry assistantActionsRegistry({
       id: (e) => e.id,
       title: (e) => e.name,
       subtitle: (e) => e.subtitle,
-      fields: (e) => {'name': e.name, 'minutes': e.minutes},
+      fields: (e) => {'name': e.name, 'minutes': e.minutes, 'tags': e.tags, 'notes': e.notes},
     ),
     a1.TaskItem: EntityCodec<a1.TaskItem>(
       'TaskItem',
@@ -573,6 +626,41 @@ AssistantActionsRegistry assistantActionsRegistry({
       }
     },
   },
+  decoders: {
+    a1.Recipe: (v) => v is String ? findRecipe(v) : null,
+    List<a1.Recipe>: (v) async => [
+      for (final id
+          in AssistantValue.list(v is List ? v : [v], AssistantValue.string) ?? const <String>[])
+        if (await findRecipe(id) case final item?) item,
+    ],
+    a1.TaskItem: (v) => v is String ? findTaskItem(v) : null,
+    List<a1.TaskItem>: (v) async => [
+      for (final id
+          in AssistantValue.list(v is List ? v : [v], AssistantValue.string) ?? const <String>[])
+        if (await findTaskItem(id) case final item?) item,
+    ],
+    CaptureDelay: (v) => AssistantValue.enumeration(CaptureDelay.values, v),
+    List<CaptureDelay>: (v) => AssistantValue.list(
+      v is List ? v : [v],
+      (e) => AssistantValue.enumeration(CaptureDelay.values, e),
+    ),
+    CaptureMode: (v) => AssistantValue.enumeration(CaptureMode.values, v),
+    List<CaptureMode>: (v) => AssistantValue.list(
+      v is List ? v : [v],
+      (e) => AssistantValue.enumeration(CaptureMode.values, e),
+    ),
+    ClockTimerState: (v) => AssistantValue.enumeration(ClockTimerState.values, v),
+    List<ClockTimerState>: (v) => AssistantValue.list(
+      v is List ? v : [v],
+      (e) => AssistantValue.enumeration(ClockTimerState.values, e),
+    ),
+    Lens: (v) => AssistantValue.enumeration(Lens.values, v),
+    List<Lens>: (v) =>
+        AssistantValue.list(v is List ? v : [v], (e) => AssistantValue.enumeration(Lens.values, e)),
+    Meal: (v) => AssistantValue.enumeration(Meal.values, v),
+    List<Meal>: (v) =>
+        AssistantValue.list(v is List ? v : [v], (e) => AssistantValue.enumeration(Meal.values, e)),
+  },
 );
 
 /// Run by the headless Flutter engine that Swift starts when Siri needs Dart
@@ -644,6 +732,21 @@ abstract final class AssistantDonations {
   static Future<bool> archiveDoneTasks() =>
       AssistantActions.donateAction('archiveDoneTasks', const {});
 
+  /// The user ran `completeTask` ("Complete Task") in the app.
+  static Future<bool> completeTask({a1.TaskItem? task, String? note}) =>
+      AssistantActions.donateAction('completeTask', {'task': task?.id, 'note': note});
+
+  /// The user ran `logGroceryRun` ("Log Grocery Run") in the app.
+  static Future<bool> logGroceryRun({
+    required AssistantCurrency spent,
+    AssistantLength? distance,
+    String store = 'Farmers Market',
+  }) => AssistantActions.donateAction('logGroceryRun', {
+    'spent': AssistantValue.encodeCurrency(spent),
+    'distance': AssistantValue.encodeLength(distance),
+    'store': store,
+  });
+
   /// The user ran `stopRecording` ("Stop Recording") in the app.
   static Future<bool> stopRecording() => AssistantActions.donateAction('stopRecording', const {});
 
@@ -652,4 +755,115 @@ abstract final class AssistantDonations {
 
   /// The user looked at what `quickRecipes` ("Quick Recipes") answers, in the app.
   static Future<bool> quickRecipes() => AssistantActions.donateAction('quickRecipes', const {});
+
+  /// The user ran `reminders.createReminder` ("Create Reminder") in the app.
+  static Future<bool> createReminder(TaskItemValues values) =>
+      AssistantActions.donateAction('TaskItem.createReminder', values._toJson());
+
+  /// The user ran `reminders.deleteReminders` ("Delete Reminders") in the app.
+  static Future<bool> deleteReminders(String id) =>
+      AssistantActions.donateAction('TaskItem.deleteReminders', {'id': id});
+
+  /// The user ran `reminders.updateReminder` ("Update Reminder") in the app.
+  static Future<bool> updateReminder(String id, TaskItemValues changes) =>
+      AssistantActions.donateAction('TaskItem.updateReminder', {
+        'id': id,
+        'fields': changes._toJson(),
+      });
+
+  /// The user ran `notes.createNote` ("Create Note") in the app.
+  static Future<bool> createNote(MemoryItemValues values) =>
+      AssistantActions.donateAction('MemoryItem.createNote', values._toJson());
+
+  /// The user ran `notes.updateNote` ("Update Note") in the app.
+  static Future<bool> updateNote(String id, MemoryItemValues changes) =>
+      AssistantActions.donateAction('MemoryItem.updateNote', {
+        'id': id,
+        'fields': changes._toJson(),
+      });
+
+  /// The user ran `notes.appendText` ("Append Text to Note") in the app.
+  static Future<bool> appendText(String id, MemoryItemValues changes) =>
+      AssistantActions.donateAction('MemoryItem.appendText', {
+        'id': id,
+        'fields': changes._toJson(),
+      });
+
+  /// The user ran `journal.createEntry` ("Create Entry") in the app.
+  static Future<bool> createEntry(JournalItemValues values) =>
+      AssistantActions.donateAction('JournalItem.createEntry', values._toJson());
+
+  /// The user ran `journal.createAudioEntry` ("Create Audio Entry") in the app.
+  static Future<bool> startAudioEntry() =>
+      AssistantActions.donateAction('JournalItem.startAudioEntry', const {});
+
+  /// The user ran `journal.updateEntry` ("Update Journal") in the app.
+  static Future<bool> updateEntry(String id, JournalItemValues changes) =>
+      AssistantActions.donateAction('JournalItem.updateEntry', {
+        'id': id,
+        'fields': changes._toJson(),
+      });
+
+  /// The user ran `journal.deleteEntry` ("Delete Journal Entries") in the app.
+  static Future<bool> deleteEntry(String id) =>
+      AssistantActions.donateAction('JournalItem.deleteEntry', {'id': id});
+
+  /// The user ran `clock.createTimer` ("Start Timer") in the app.
+  static Future<bool> createTimer(CountdownValues values) =>
+      AssistantActions.donateAction('Countdown.createTimer', values._toJson());
+
+  /// The user ran `clock.pauseTimer` ("Pause Timer") in the app.
+  static Future<bool> pauseTimer({required String timer}) =>
+      AssistantActions.donateAction('Countdown.pauseTimer', {'timer': timer});
+
+  /// The user ran `clock.resumeTimer` ("Resume Timer") in the app.
+  static Future<bool> resumeTimer({required String timer}) =>
+      AssistantActions.donateAction('Countdown.resumeTimer', {'timer': timer});
+
+  /// The user ran `files.openFile` ("Open Item") in the app.
+  static Future<bool> openFile({required String target}) =>
+      AssistantActions.donateAction('DocItem.openFile', {'target': target});
+
+  /// The user ran `files.moveFiles` ("Move Items to Folder") in the app.
+  static Future<bool> moveFiles({
+    required List<String> entities,
+    required String destinationFolder,
+  }) => AssistantActions.donateAction('DocItem.moveFiles', {
+    'entities': entities,
+    'destinationFolder': destinationFolder,
+  });
+
+  /// The user ran `files.createFolder` ("Create Folder") in the app.
+  static Future<bool> createFolder({String? fileName, required String target}) =>
+      AssistantActions.donateAction('DocItem.createFolder', {
+        'fileName': fileName,
+        'target': target,
+      });
+
+  /// The user ran `files.renameFile` ("Rename Item") in the app.
+  static Future<bool> renameFile({required String target, required String newName}) =>
+      AssistantActions.donateAction('DocItem.renameFile', {'target': target, 'newName': newName});
+
+  /// The user ran `files.deleteFiles` ("Delete Items") in the app.
+  static Future<bool> deleteFiles(String id) =>
+      AssistantActions.donateAction('DocItem.deleteFiles', {'id': id});
+
+  /// The user ran `system.searchInApp` ("Search") in the app.
+  static Future<bool> searchInApp({required String criteria}) =>
+      AssistantActions.donateAction('system.searchInApp', {'criteria': criteria});
+
+  /// The user ran `camera.startCapture` ("Start Capture") in the app.
+  static Future<bool> startCapture({
+    required CaptureMode captureMode,
+    Lens? device,
+    CaptureDelay? timerDuration,
+  }) => AssistantActions.donateAction('camera.startCapture', {
+    'captureMode': AssistantValue.encodeEnum(captureMode),
+    'device': AssistantValue.encodeEnum(device),
+    'timerDuration': AssistantValue.encodeEnum(timerDuration),
+  });
+
+  /// The user ran `camera.stopCapture` ("Stop Capture") in the app.
+  static Future<bool> stopCapture() =>
+      AssistantActions.donateAction('camera.stopCapture', const {});
 }

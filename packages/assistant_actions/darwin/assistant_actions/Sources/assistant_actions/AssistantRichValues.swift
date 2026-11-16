@@ -99,9 +99,8 @@ extension AssistantValues {
   /// `AssistantFile` map (or NSNull if writing failed).
   public static func saveFile(named name: String, type: UTType?, write: (URL) throws -> Void) -> Any {
     do {
-      let folder = try FileManager.default
-        .url(for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
-        .appendingPathComponent("assistant_actions/files/\(UUID().uuidString)", isDirectory: true)
+      let folder = try AssistantAppGroup.directoryURL()
+        .appendingPathComponent("files/\(UUID().uuidString)", isDirectory: true)
       try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
       let name = name.isEmpty ? "file" : name
       let destination = folder.appendingPathComponent(name)

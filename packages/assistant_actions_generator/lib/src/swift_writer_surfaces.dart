@@ -84,17 +84,22 @@ extension _Surfaces on SwiftWriter {
     final opt = _optional(p);
     if (p.entity != null) {
       if (p.entityList) return opt ? '$n?.map(\\.id)' : 'Optional($n.map(\\.id))';
-      return opt ? '$n.map { [\$0.id] }' : '[$n.id]';
+      return opt ? '$n.map({ [\$0.id] })' : '[$n.id]';
+    }
+    if (p.schemaEntity case final s?) {
+      final idPath = _dartIDPath(s.schema.id);
+      if (p.entityList) return opt ? '$n?.map($idPath)' : 'Optional($n.map($idPath))';
+      return opt ? '$n.map({ [${_dartID(s.schema.id, r'$0')}] })' : '[${_dartID(s.schema.id, n)}]';
     }
     final v = p.value!;
     return switch (v.kind) {
       ValueKind.enumeration => v.list
           ? (opt ? '$n?.map(\\.rawValue)' : 'Optional($n.map(\\.rawValue))')
-          : (opt ? '$n.map { [\$0.rawValue] }' : '[$n.rawValue]'),
-      ValueKind.string => v.list ? (opt ? n : 'Optional($n)') : (opt ? '$n.map { [\$0] }' : '[$n]'),
+          : (opt ? '$n.map({ [\$0.rawValue] })' : '[$n.rawValue]'),
+      ValueKind.string => v.list ? (opt ? n : 'Optional($n)') : (opt ? '$n.map({ [\$0] })' : '[$n]'),
       _ => v.list
-          ? (opt ? '$n?.map { "\\(\$0)" }' : 'Optional($n.map { "\\(\$0)" })')
-          : (opt ? '$n.map { ["\\(\$0)"] }' : '["\\($n)"]'),
+          ? (opt ? '$n?.map({ "\\(\$0)" })' : 'Optional($n.map({ "\\(\$0)" }))')
+          : (opt ? '$n.map({ ["\\(\$0)"] })' : '["\\($n)"]'),
     };
   }
 

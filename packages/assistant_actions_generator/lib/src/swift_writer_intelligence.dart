@@ -267,7 +267,7 @@ ${_unlockMember(_entityUnlock(className).forSchema(_systemOpen))}  var target: $
     if (a.params.isEmpty || a.params.length > 15) {
       _out.writeln('    IntentPrediction(displayRepresentation: { DisplayRepresentation(title: $title) })');
     } else {
-      final paths = [for (final p in a.params) '\\.\$${swiftName(p.name)}'];
+      final paths = [for (final p in a.params) '\\.\$${p.name}'];
       final keys = paths.length == 1 ? paths.single : '(${paths.join(', ')})';
       _out
         ..writeln('    IntentPrediction(parameters: $keys) { ${a.params.map((p) => swiftName(p.name)).join(', ')} in')

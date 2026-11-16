@@ -13,6 +13,7 @@ import 'error.dart';
 import 'host.dart';
 import 'live_activity.dart';
 import 'live_call.dart';
+import 'param_options.dart';
 import 'registry.dart';
 import 'values.dart';
 
@@ -291,6 +292,13 @@ abstract final class AssistantActions {
     if (_sameOrNullable<T, AssistantFile>()) return AssistantValue.file(raw) as T?;
     if (_sameOrNullable<T, AssistantRecurrence>()) return AssistantValue.recurrence(raw) as T?;
     if (_sameOrNullable<T, AssistantUnion>()) return AssistantValue.union(raw) as T?;
+    if (_sameOrNullable<T, AssistantCurrency>()) return AssistantValue.currency(raw) as T?;
+    if (_sameOrNullable<T, AssistantLength>()) return AssistantValue.length(raw) as T?;
+    if (_sameOrNullable<T, AssistantMass>()) return AssistantValue.mass(raw) as T?;
+    if (_sameOrNullable<T, AssistantTemperature>()) return AssistantValue.temperature(raw) as T?;
+    if (_sameOrNullable<T, AssistantVolume>()) return AssistantValue.volume(raw) as T?;
+    if (_sameOrNullable<T, AssistantSpeed>()) return AssistantValue.speed(raw) as T?;
+    if (_sameOrNullable<T, AssistantEnergy>()) return AssistantValue.energy(raw) as T?;
     final listInput = raw is List ? raw : [raw];
     if (_sameOrNullable<T, List<String>>()) return AssistantValue.list(listInput, AssistantValue.string) as T?;
     if (_sameOrNullable<T, List<int>>()) return AssistantValue.list(listInput, AssistantValue.integer) as T?;
@@ -302,6 +310,13 @@ abstract final class AssistantActions {
     if (_sameOrNullable<T, List<AssistantPerson>>()) return AssistantValue.list(listInput, AssistantValue.person) as T?;
     if (_sameOrNullable<T, List<AssistantPlace>>()) return AssistantValue.list(listInput, AssistantValue.place) as T?;
     if (_sameOrNullable<T, List<AssistantFile>>()) return AssistantValue.list(listInput, AssistantValue.file) as T?;
+    if (_sameOrNullable<T, List<AssistantCurrency>>()) return AssistantValue.list(listInput, AssistantValue.currency) as T?;
+    if (_sameOrNullable<T, List<AssistantLength>>()) return AssistantValue.list(listInput, AssistantValue.length) as T?;
+    if (_sameOrNullable<T, List<AssistantMass>>()) return AssistantValue.list(listInput, AssistantValue.mass) as T?;
+    if (_sameOrNullable<T, List<AssistantTemperature>>()) return AssistantValue.list(listInput, AssistantValue.temperature) as T?;
+    if (_sameOrNullable<T, List<AssistantVolume>>()) return AssistantValue.list(listInput, AssistantValue.volume) as T?;
+    if (_sameOrNullable<T, List<AssistantSpeed>>()) return AssistantValue.list(listInput, AssistantValue.speed) as T?;
+    if (_sameOrNullable<T, List<AssistantEnergy>>()) return AssistantValue.list(listInput, AssistantValue.energy) as T?;
     if (raw is T) return raw as T;
     return null;
   }

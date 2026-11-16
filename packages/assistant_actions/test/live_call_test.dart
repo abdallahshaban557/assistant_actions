@@ -193,6 +193,70 @@ void main() {
     expect(disambiguateCalls[1].$2['choices'], ['small', 'extraLarge'], reason: 'enums encode as case names');
   });
 
+  test('requestValue and disambiguate support currency, all 6 measurements, and list variants', () async {
+    final host = _Host(onPrompt: (args) => switch ((args['kind'], args['param'])) {
+          ('requestValue', 'cost') => const {
+              'value': {'amount': 12.5, 'currencyCode': 'usd'}
+            },
+          ('requestValue', 'distance') => const {
+              'value': {'value': 5.0, 'unit': 'kilometers'}
+            },
+          ('requestValue', 'mass') => const {
+              'value': {'value': 250.0, 'unit': 'grams'}
+            },
+          ('requestValue', 'temp') => const {
+              'value': {'value': 93.0, 'unit': 'celsius'}
+            },
+          ('requestValue', 'vol') => const {
+              'value': {'value': 500.0, 'unit': 'milliliters'}
+            },
+          ('requestValue', 'speed') => const {
+              'value': {'value': 10.0, 'unit': 'metersPerSecond'}
+            },
+          ('requestValue', 'energy') => const {
+              'value': {'value': 400.0, 'unit': 'kilocalories'}
+            },
+          ('disambiguate', 'cost') => {'value': (args['choices'] as List).last},
+          _ => const {'cancelled': true},
+        });
+
+    await AssistantActions.start(
+      AssistantActionsRegistry(
+        actions: {
+          'measure': (args) async {
+            final call = AssistantCall.current!;
+            final cost = await call.requestValue<AssistantCurrency>('cost');
+            final dist = await call.requestValue<AssistantLength>('distance');
+            final mass = await call.requestValue<AssistantMass>('mass');
+            final temp = await call.requestValue<AssistantTemperature>('temp');
+            final vol = await call.requestValue<AssistantVolume>('vol');
+            final speed = await call.requestValue<AssistantSpeed>('speed');
+            final energy = await call.requestValue<AssistantEnergy>('energy');
+            final picked = await call.disambiguate<AssistantCurrency>('cost', const [
+              AssistantCurrency(amount: 5, currencyCode: 'USD'),
+              AssistantCurrency(amount: 9.5, currencyCode: 'EUR'),
+            ]);
+            return '${cost?.amount}:${cost?.currencyCode},'
+                '${dist?.value}:${dist?.unit.name},'
+                '${mass?.value}:${mass?.unit.name},'
+                '${temp?.value}:${temp?.unit.name},'
+                '${vol?.value}:${vol?.unit.name},'
+                '${speed?.value}:${speed?.unit.name},'
+                '${energy?.value}:${energy?.unit.name},'
+                '${picked?.amount}:${picked?.currencyCode}';
+          },
+        },
+      ),
+      host: host,
+    );
+
+    final out = await AssistantActions.perform('measure', jsonEncode({AssistantCall.argument: 'c4_rich'}));
+    expect(
+      out,
+      '12.5:USD,5.0:kilometers,250.0:grams,93.0:celsius,500.0:milliliters,10.0:metersPerSecond,400.0:kilocalories,9.5:EUR',
+    );
+  });
+
   test('cancelling a choose prompt or cancelling the call unblocks pending prompts cleanly', () async {
     final promptSent = Completer<void>();
     final host = _Host(onPrompt: (args) async {

@@ -78,12 +78,12 @@ extension _Polish on SwiftWriter {
   String _renderSummaryLeaf(String summary, List<String> params, String indent) {
     final named = summaryPlaceholders(summary).toSet();
     final text = SwiftWriter._escape(summary)
-        .replaceAllMapped(RegExp(r'\{(\w+)\}'), (m) => '\\(\\.\$${swiftName(m[1]!)})');
+        .replaceAllMapped(RegExp(r'\{(\w+)\}'), (m) => '\\(\\.\$${m[1]!})');
     final rest = [for (final p in params) if (!named.contains(p)) p];
     if (rest.isEmpty) return '${indent}Summary("$text")';
     return [
       '${indent}Summary("$text") {',
-      for (final p in rest) '$indent  \\.\$${swiftName(p)}',
+      for (final p in rest) '$indent  \\.\$$p',
       '$indent}',
     ].join('\n');
   }
@@ -92,15 +92,15 @@ extension _Polish on SwiftWriter {
         SummaryLeaf(:final template) => _renderSummaryLeaf(template, params, indent),
         SummaryWhenModel(:final param, :final comparison, :final swiftValue, :final then, :final otherwise) => [
             comparison.takesValue
-                ? '${indent}When(\\Self.\$${swiftName(param)}, ${comparison.swift}, $swiftValue, {'
-                : '${indent}When(\\Self.\$${swiftName(param)}, ${comparison.swift}, {',
+                ? '${indent}When(\\Self.\$$param, ${comparison.swift}, $swiftValue, {'
+                : '${indent}When(\\Self.\$$param, ${comparison.swift}, {',
             _renderSummaryNode(then, params, '$indent  '),
             '$indent}, otherwise: {',
             _renderSummaryNode(otherwise, params, '$indent  '),
             '$indent})',
           ].join('\n'),
         SummarySwitchModel(:final param, :final cases, :final defaultSummary) => [
-            '${indent}Switch(\\.\$${swiftName(param)}) {',
+            '${indent}Switch(\\.\$$param) {',
             for (final MapEntry(key: c, value: tmpl) in cases.entries) ...[
               '$indent  Case(.$c) {',
               _renderSummaryLeaf(tmpl, params, '$indent    '),

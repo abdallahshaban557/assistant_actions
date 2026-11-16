@@ -214,8 +214,11 @@ String writeDart(AppModel app) {
     for (final a in app.actions) ...{
       for (final p in a.params)
         if (p.isEntity) p.entityClassName: (p.entityLibrary, p.entityClassName),
-      if (a.undo != null && a.undo!.takesResult && a.result?.entity != null)
-        a.result!.entity!.className: (a.result!.entity!.library, a.result!.entity!.className),
+      if (a.undo != null &&
+          a.result != null &&
+          a.result!.isEntity &&
+          (a.result!.entity != null ? a.undo!.takesResult : a.undo!.params.any((p) => p.isResult && p.resultAsEntity)))
+        a.result!.entityClassName: (a.result!.entityLibrary, a.result!.entityClassName),
     },
   }.values;
   final args = [

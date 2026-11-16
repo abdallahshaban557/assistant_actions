@@ -192,6 +192,22 @@ extension _Modern on SwiftWriter {
           ..writeln('      let resolved = try await $paramVar.requestDisambiguation(among: candidates, dialog: prompt.map { IntentDialog(stringLiteral: \$0) })')
           ..writeln('      return resolved.id')
           ..writeln('    }');
+      } else if (p.schemaEntity case final s?) {
+        final schemaId = s.schema.id;
+        final entityName = s.swiftName;
+        out
+          ..writeln('    call.onRequestValue("${p.name}") { prompt in')
+          ..writeln('      let resolved = try await $paramVar.requestValue(prompt.map { IntentDialog(stringLiteral: \$0) })')
+          ..writeln('      return ${_dartID(schemaId, 'resolved')}')
+          ..writeln('    }')
+          ..writeln('    call.onDisambiguate("${p.name}") { rawChoices, prompt in')
+          ..writeln('      let ids = rawChoices.compactMap(AssistantValues.string)')
+          ..writeln('      let found = ${_lookup(entityName, schemaId, 'ids')}')
+          ..writeln('      let candidates = ids.compactMap { id in found.first { ${_dartID(schemaId, r'$0')} == id } }')
+          ..writeln('      guard !candidates.isEmpty else { throw CancellationError() }')
+          ..writeln('      let resolved = try await $paramVar.requestDisambiguation(among: candidates, dialog: prompt.map { IntentDialog(stringLiteral: \$0) })')
+          ..writeln('      return ${_dartID(schemaId, 'resolved')}')
+          ..writeln('    }');
       } else {
         final each = _decodeValue(p.value!.element, r'$0');
         out

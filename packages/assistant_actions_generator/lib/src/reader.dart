@@ -21,7 +21,7 @@ const _package = 'assistant_actions';
 
 /// The `api` this generator needs in assistant_actions'
 /// `lib/src/catalog/generator_api.json`.
-const _runtimeApi = 13;
+const _runtimeApi = 14;
 
 /// Reads the app's annotations from the definitions library and everything
 /// it imports from the app's own package.
@@ -352,7 +352,7 @@ class ModelReader {
         : 0;
     if (api < _runtimeApi) {
       throw InvalidGenerationSourceError(
-          'This version of assistant_actions_generator needs assistant_actions 0.0.20 or later. '
+          'This version of assistant_actions_generator needs assistant_actions 0.0.21 or later. '
           'Run `flutter pub upgrade assistant_actions`.',
           element: library);
     }
