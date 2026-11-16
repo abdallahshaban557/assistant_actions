@@ -35,6 +35,8 @@ extension _Actions on SwiftWriter {
     _out
       ..writeln('  ]')
       ..writeln('}')
+      ..writeln()
+      ..writeln('extension $name: AssistantComparable {}')
       ..writeln();
   }
 

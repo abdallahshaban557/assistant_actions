@@ -775,6 +775,7 @@ public final class AssistantBackground {
         final sources = p.join(_runtimeRoot, 'darwin', 'assistant_actions', 'Sources', 'assistant_actions');
         final runtimeFiles = [
           for (final f in [
+            'AssistantAppGroup',
             'AssistantValues',
             'AssistantInbox',
             'AssistantSnapshot',
@@ -795,6 +796,7 @@ public final class AssistantBackground {
             'AssistantUndo',
             'AssistantContext',
             'AssistantVisualIntelligence',
+            'AssistantPlatformViews',
           ])
             p.join(sources, '$f.swift'),
         ];

@@ -290,15 +290,20 @@ String writeDart(AppModel app) {
     ..writeln('  codecs: {');
   for (final e in app.entities) {
     final type = ref(e.library, e.className);
+    final seenFields = <String>{e.idField};
+    final encodedFields = [
+      for (final f in [...e.fields, ?e.image, ?e.keywords, ?e.body, ?e.createdAt, ?e.updatedAt])
+        if (seenFields.add(f.name)) f,
+    ];
     out
       ..writeln("    $type: EntityCodec<$type>('${e.className}',")
       ..writeln('      id: (e) => e.${e.idField},')
       ..writeln('      title: (e) => e.${e.titleGetter},')
       ..writeln(e.subtitleGetter == null ? '' : '      subtitle: (e) => e.${e.subtitleGetter},')
-      // The `@EntityImage()` crosses with the fields; Swift reads it by name.
-      ..writeln([...e.fields, ?e.image].isEmpty
+      // `@EntityImage()` and Spotlight getters cross with the fields; Swift reads them by name.
+      ..writeln(encodedFields.isEmpty
           ? '      fields: (e) => const {},'
-          : "      fields: (e) => {${[...e.fields, ?e.image].map((f) => "'${f.name}': ${f.type.encodeDart('e.${f.name}')}").join(', ')}},")
+          : "      fields: (e) => {${encodedFields.map((f) => "'${f.name}': ${f.type.encodeDart('e.${f.name}')}").join(', ')}},")
       ..writeln('    ),');
   }
   for (final s in app.schemaEntities) {

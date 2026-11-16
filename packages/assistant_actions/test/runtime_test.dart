@@ -662,6 +662,63 @@ void main() {
       expect(action.summaries, hasLength(2));
     });
   });
+
+  group('Spotlight annotations and SnapshotFilter', () {
+    test('Spotlight field annotations are const', () {
+      expect(const EntityKeywords(), isA<EntityKeywords>());
+      expect(const EntityBody(), isA<EntityBody>());
+      expect(const EntityCreatedAt(), isA<EntityCreatedAt>());
+      expect(const EntityUpdatedAt(), isA<EntityUpdatedAt>());
+    });
+
+    test('SnapshotFilter const constructors preserve field, operator and value', () {
+      // Order matches SnapshotFilterOp in assistant_actions_generator.
+      expect(SnapshotOperator.values, [
+        SnapshotOperator.equals,
+        SnapshotOperator.notEquals,
+        SnapshotOperator.lessThan,
+        SnapshotOperator.lessOrEqual,
+        SnapshotOperator.greaterThan,
+        SnapshotOperator.greaterOrEqual,
+        SnapshotOperator.contains,
+        SnapshotOperator.startsWith,
+        SnapshotOperator.isNull,
+        SnapshotOperator.isNotNull,
+        SnapshotOperator.isToday,
+        SnapshotOperator.isPast,
+        SnapshotOperator.isFuture,
+      ]);
+      const answer = SnapshotAnswer<_Item>(
+        where: {'done': false},
+        filters: [
+          SnapshotFilter.equals('meal', _Meal.dinner),
+          SnapshotFilter.notEquals('status', 'archived'),
+          SnapshotFilter.lessThan('minutes', 30),
+          SnapshotFilter.lessOrEqual('rating', 4.5),
+          SnapshotFilter.greaterThan('prep', Duration(minutes: 5)),
+          SnapshotFilter.greaterOrEqual('due', '2026-11-03T09:00:00Z'),
+          SnapshotFilter.contains('title', 'soup'),
+          SnapshotFilter.startsWith('title', 'tom'),
+          SnapshotFilter.isNull('deletedAt'),
+          SnapshotFilter.isNotNull('due'),
+          SnapshotFilter.isToday('due'),
+          SnapshotFilter.isPast('due'),
+          SnapshotFilter.isFuture('due'),
+        ],
+        item: '{title}',
+        dialog: '{items}',
+        empty: 'None.',
+      );
+      expect(answer.where, {'done': false});
+      expect(answer.filters, hasLength(13));
+      expect((answer.filters[0].field, answer.filters[0].operator, answer.filters[0].value),
+          ('meal', SnapshotOperator.equals, _Meal.dinner));
+      expect((answer.filters[6].field, answer.filters[6].operator, answer.filters[6].value),
+          ('title', SnapshotOperator.contains, 'soup'));
+      expect((answer.filters[10].field, answer.filters[10].operator, answer.filters[10].value),
+          ('due', SnapshotOperator.isToday, null));
+    });
+  });
 }
 
 class _FocusHost extends _FakeHost implements AssistantHostCalls {

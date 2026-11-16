@@ -17,5 +17,7 @@ export 'src/registry.dart';
 export 'src/reply.dart';
 export 'src/runtime.dart';
 export 'src/schema.dart';
+export 'src/snapshot_filter.dart';
+export 'src/spotlight_annotations.dart';
 export 'src/values.dart';
 export 'src/widgets.dart';

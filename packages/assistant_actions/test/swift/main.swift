@@ -672,6 +672,110 @@ check("\(firstToggle.label)|\(firstToggle.value)|\(firstToggle.action)|\(firstTo
   "Milk|true|setDone|cart", "toggle fields decode")
 let _ = AssistantCardView(toggleReply.card)
 
+// Richer SnapshotFilter predicates and relative DateTime checks.
+do {
+  let refNow = Calendar.current.date(from: DateComponents(year: 2026, month: 11, day: 3, hour: 12))!
+  let yesterday = Calendar.current.date(from: DateComponents(year: 2026, month: 11, day: 2, hour: 15))!
+  let morningToday = Calendar.current.date(from: DateComponents(year: 2026, month: 11, day: 3, hour: 9))!
+  let eveningToday = Calendar.current.date(from: DateComponents(year: 2026, month: 11, day: 3, hour: 18))!
+  let tomorrow = Calendar.current.date(from: DateComponents(year: 2026, month: 11, day: 4, hour: 10))!
+
+  let rich = records("""
+    [
+      {"id":"t1","title":"Crème Brûlée","fields":{"title":"Crème Brûlée","done":false,"priority":"high","minutes":45,"rating":4.8,"prep":900.0,"due":\(yesterday.timeIntervalSince1970),"note":"Caramelize sugar"}},
+      {"id":"t2","title":"Café Latte","fields":{"title":"Café Latte","done":false,"priority":"medium","minutes":10,"rating":4.2,"prep":180.0,"due":\(morningToday.timeIntervalSince1970),"note":null}},
+      {"id":"t3","title":"Zoë's Soup","fields":{"title":"Zoë's Soup","done":false,"priority":"high","minutes":30,"rating":4.5,"prep":600.0,"due":\(eveningToday.timeIntervalSince1970)}},
+      {"id":"t4","title":"Overnight Oats","fields":{"title":"Overnight Oats","done":true,"priority":"low","minutes":5,"rating":3.9,"prep":60.0,"due":\(tomorrow.timeIntervalSince1970),"note":"Chill"}}
+    ]
+    """)
+
+  func filterIDs(_ filters: [AssistantQuery.Filter], where eq: [String: Any] = [:]) -> String {
+    AssistantQuery.answer(
+      records: rich, where: eq, filters: filters, sortBy: nil, descending: false, limit: 10,
+      dateFields: ["due"], titleField: "title", item: "{title}", dialog: "{items}", empty: "-", separator: "|",
+      now: refNow
+    ).items.joined(separator: "|")
+  }
+
+  check(filterIDs([.equals("done", false), .equals("priority", "high")]), "Crème Brûlée|Zoë's Soup",
+    "SnapshotFilter.equals on bool and enum case name")
+  check(filterIDs([.notEquals("done", true), .notEquals("priority", "medium")]), "Crème Brûlée|Zoë's Soup",
+    "SnapshotFilter.notEquals on bool and enum case name")
+  check(filterIDs([.equals("minutes", 30)]), "Zoë's Soup", "SnapshotFilter.equals on int")
+  check(filterIDs([.notEquals("minutes", 30)]), "Crème Brûlée|Café Latte|Overnight Oats", "SnapshotFilter.notEquals on int")
+  check(filterIDs([.equals("rating", 4.5)]), "Zoë's Soup", "SnapshotFilter.equals on double")
+  check(filterIDs([.notEquals("rating", 4.5)]), "Crème Brûlée|Café Latte|Overnight Oats", "SnapshotFilter.notEquals on double")
+  check(filterIDs([.equals("due", morningToday)]), "Café Latte", "SnapshotFilter.equals on Date")
+  check(filterIDs([.notEquals("due", morningToday)]), "Crème Brûlée|Zoë's Soup|Overnight Oats", "SnapshotFilter.notEquals on Date")
+
+  check(filterIDs([.lessThan("minutes", 30)]), "Café Latte|Overnight Oats", "SnapshotFilter.lessThan on int")
+  check(filterIDs([.lessOrEqual("minutes", 30)]), "Café Latte|Zoë's Soup|Overnight Oats", "SnapshotFilter.lessOrEqual on int")
+  check(filterIDs([.greaterThan("rating", 4.2)]), "Crème Brûlée|Zoë's Soup", "SnapshotFilter.greaterThan on double")
+  check(filterIDs([.greaterOrEqual("prep", 600.0)]), "Crème Brûlée|Zoë's Soup", "SnapshotFilter.greaterOrEqual on Duration seconds")
+  check(filterIDs([.lessThan("due", refNow)]), "Crème Brûlée|Café Latte", "SnapshotFilter.lessThan on Date")
+  check(filterIDs([.lessOrEqual("due", morningToday)]), "Crème Brûlée|Café Latte", "SnapshotFilter.lessOrEqual on Date")
+  check(filterIDs([.greaterThan("due", eveningToday)]), "Overnight Oats", "SnapshotFilter.greaterThan on Date")
+  check(filterIDs([.greaterOrEqual("due", eveningToday)]), "Zoë's Soup|Overnight Oats", "SnapshotFilter.greaterOrEqual on Date")
+
+  check(filterIDs([.contains("title", "brulee")]), "Crème Brûlée", "SnapshotFilter.contains folds case and diacritics")
+  check(filterIDs([.startsWith("title", "creme")]), "Crème Brûlée", "SnapshotFilter.startsWith folds case and diacritics")
+  check(filterIDs([.startsWith("title", "zoe")]), "Zoë's Soup", "SnapshotFilter.startsWith matches Zoë")
+
+  check(filterIDs([.isNull("note")]), "Café Latte|Zoë's Soup", "SnapshotFilter.isNull matches null and missing fields")
+  check(filterIDs([.isNotNull("note")]), "Crème Brûlée|Overnight Oats", "SnapshotFilter.isNotNull matches present fields")
+
+  check(filterIDs([.isToday("due")]), "Café Latte|Zoë's Soup", "SnapshotFilter.isToday evaluates calendar day against now")
+  check(filterIDs([.isPast("due")]), "Crème Brûlée|Café Latte", "SnapshotFilter.isPast finds items strictly before now")
+  check(filterIDs([.isFuture("due")]), "Zoë's Soup|Overnight Oats", "SnapshotFilter.isFuture finds items strictly after now")
+  check(filterIDs([.isToday("due")], where: ["done": false, "priority": "high"]), "Zoë's Soup",
+    "where map and SnapshotFilter compose together")
+}
+
+// Richer plain EntityPropertyQuery comparators: String prefix/suffix/equal/notEqual, AppEnum, Measurement<UnitDuration> & Duration.
+do {
+  enum PriorityEnum: String, AssistantComparable { case low, medium, high }
+  struct PlainRecipe {
+    let id: String
+    var title: String
+    var cuisine: String?
+    var priority: PriorityEnum?
+    var prepTime: Measurement<UnitDuration>?
+    var rest: Duration?
+  }
+  let recipes = [
+    PlainRecipe(id: "r1", title: "Crème Brûlée", cuisine: "Français", priority: .high,
+      prepTime: Measurement(value: 2, unit: .minutes), rest: .seconds(120)),
+    PlainRecipe(id: "r2", title: "Café au Lait", cuisine: "Bistro", priority: .low,
+      prepTime: Measurement(value: 45, unit: .seconds), rest: .seconds(30)),
+    PlainRecipe(id: "r3", title: "Tacos", cuisine: nil, priority: nil,
+      prepTime: Measurement(value: 10, unit: .minutes), rest: nil),
+  ]
+  typealias RP = AssistantPredicate<PlainRecipe>
+  func rids(_ preds: [RP], sortedBy sorts: [(key: (PlainRecipe) -> AssistantKey?, ascending: Bool)] = []) -> String {
+    RP.apply(preds, all: true, to: recipes, sortedBy: sorts, limit: nil).map(\.id).joined(separator: ",")
+  }
+
+  check(rids([RP({ $0.title }, .hasPrefix, "creme")]), "r1", "String HasPrefixComparator folds case and accents")
+  check(rids([RP({ $0.title }, .hasSuffix, "brulee")]), "r1", "String HasSuffixComparator folds case and accents")
+  check(rids([RP({ $0.cuisine }, .equal, "francais")]), "r1", "String EqualToComparator folds case and accents")
+  check(rids([RP({ $0.cuisine }, .notEqual, "bistro")]), "r1,r3", "String NotEqualToComparator keeps other and nil values")
+  check(rids([RP({ $0.priority }, .equal, PriorityEnum.high)]), "r1", "@AssistantEnum EqualToComparator")
+  check(rids([RP({ $0.priority }, .notEqual, PriorityEnum.low)]), "r1,r3", "@AssistantEnum NotEqualToComparator")
+  check(rids([RP({ $0.prepTime }, .equal, Measurement(value: 120, unit: UnitDuration.seconds))]), "r1",
+    "Measurement<UnitDuration> EqualToComparator normalizes units to seconds")
+  check(rids([RP({ $0.prepTime }, .less, Measurement(value: 2, unit: UnitDuration.minutes))]), "r2",
+    "Measurement<UnitDuration> LessThanComparator")
+  check(rids([RP({ $0.prepTime }, .lessOrEqual, Measurement(value: 2, unit: UnitDuration.minutes))]), "r1,r2",
+    "Measurement<UnitDuration> LessThanOrEqualToComparator")
+  check(rids([RP({ $0.prepTime }, .greater, Measurement(value: 2, unit: UnitDuration.minutes))]), "r3",
+    "Measurement<UnitDuration> GreaterThanComparator")
+  check(rids([RP({ $0.prepTime }, .greaterOrEqual, Measurement(value: 2, unit: UnitDuration.minutes))]), "r1,r3",
+    "Measurement<UnitDuration> GreaterThanOrEqualToComparator")
+  check(rids([], sortedBy: [({ $0.prepTime?.assistantKey }, true)]), "r2,r1,r3",
+    "Measurement<UnitDuration> sorts by duration in seconds")
+  check(rids([RP({ $0.rest }, .greaterOrEqual, Duration.seconds(60))]), "r1", "Swift Duration comparator support")
+}
+
 if failures > 0 {
   print("\(failures) failed")
   exit(1)

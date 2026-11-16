@@ -2,7 +2,7 @@ import Foundation
 
 /// A value Siri can compare an entity property with, reduced to what the
 /// comparison needs.
-public enum AssistantKey: Equatable {
+public enum AssistantKey: Equatable, Sendable {
   case bool(Bool)
   case number(Double)
   case text(String)
@@ -51,6 +51,20 @@ extension DateComponents: AssistantComparable {
   }
 }
 
+extension Measurement: AssistantComparable where UnitType == UnitDuration {
+  public var assistantKey: AssistantKey { .number(converted(to: .seconds).value) }
+}
+
+extension Duration: AssistantComparable {
+  public var assistantKey: AssistantKey {
+    .number(Double(components.seconds) + Double(components.attoseconds) / 1e18)
+  }
+}
+
+extension RawRepresentable where RawValue == String {
+  public var assistantKey: AssistantKey { .text(rawValue) }
+}
+
 /// App Intents' `LessThanComparator` and friends need a `Comparable` value,
 /// and schema dates such as `reminders.reminder.dueDate` are
 /// `DateComponents`. Ordered by the date they name in the current calendar.
@@ -62,9 +76,9 @@ extension DateComponents: @retroactive Comparable {
 
 /// One of Siri's property comparisons ("is completed", "due before Friday",
 /// "name contains milk"), evaluated in Swift.
-public struct AssistantComparison: Equatable {
-  public enum Operator: Equatable {
-    case equal, notEqual, less, lessOrEqual, greater, greaterOrEqual, between, contains
+public struct AssistantComparison: Equatable, Sendable {
+  public enum Operator: Equatable, Sendable {
+    case equal, notEqual, less, lessOrEqual, greater, greaterOrEqual, between, contains, hasPrefix, hasSuffix
   }
 
   public let op: Operator
@@ -91,6 +105,12 @@ public struct AssistantComparison: Equatable {
     case .contains:
       guard case .text(let text)? = value, case .text(let part)? = operand else { return false }
       return part.isEmpty || Self.fold(text).contains(Self.fold(part))
+    case .hasPrefix:
+      guard case .text(let text)? = value, case .text(let prefix)? = operand else { return false }
+      return prefix.isEmpty || Self.fold(text).hasPrefix(Self.fold(prefix))
+    case .hasSuffix:
+      guard case .text(let text)? = value, case .text(let suffix)? = operand else { return false }
+      return suffix.isEmpty || Self.fold(text).hasSuffix(Self.fold(suffix))
     case .between:
       guard operands.count == 2 else { return false }
       return Self.order(value, .greaterOrEqual, operands[0]) && Self.order(value, .lessOrEqual, operands[1])
