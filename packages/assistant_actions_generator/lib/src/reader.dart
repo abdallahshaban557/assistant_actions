@@ -687,6 +687,9 @@ class ModelReader {
     if (annotation.peek('summary')?.stringValue != null) {
       throw error('summary is for functions: a SnapshotAnswer has no parameters for Shortcuts to show.');
     }
+    if (annotation.peek('undo') != null && !annotation.peek('undo')!.isNull) {
+      throw error('undo is for functions; a SnapshotAnswer changes nothing.');
+    }
     final target = type.typeArguments.single;
     final name = target is InterfaceType ? target.element.displayName : null;
     final entity = entities.where((e) => e.className == name).firstOrNull;

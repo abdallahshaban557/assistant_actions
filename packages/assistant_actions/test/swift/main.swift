@@ -414,6 +414,59 @@ MainActor.assumeIsolated {
     "finished calls take no progress")
 }
 
+// User-facing errors and mid-call conversational prompts.
+MainActor.assumeIsolated {
+  let userErr = AssistantBridge.mapError(
+    PigeonError(code: AssistantBridge.userErrorCode, message: "Sign in to send messages.", details: nil))
+  check(String(localized: userErr.localizedStringResource), "Sign in to send messages.",
+    "AssistantError maps to a verbatim user-facing LocalizedStringResource")
+  let crashErr = AssistantBridge.mapError(
+    PigeonError(code: "error", message: "Exception: boom", details: nil))
+  check(String(localized: crashErr.localizedStringResource), "Something went wrong: Exception: boom",
+    "unexpected Dart exceptions keep the failure prefix")
+
+  let call = AssistantLiveCall(progress: nil)
+  var replies: [[String: Any]] = []
+  call.replySender = { payload in replies.append(payload) }
+  call.onConfirm { prompt, label in prompt == "Delete?" && label == "Delete" }
+  call.onChoose { choices, prompt in
+    prompt == "Which?" ? choices.first(where: { $0["destructive"] as? Bool == true })?["id"] as? String : nil
+  }
+  call.onRequestValue("servings") { prompt in prompt == "How many?" ? 4 : 0 }
+  call.onDisambiguate("recipe") { choices, _ in choices.last ?? NSNull() }
+
+  let done = DispatchSemaphore(value: 0)
+  Task { @MainActor in
+    _ = try? await call.run("cook", args: [:]) { _, _ in
+      _ = try? AssistantHostCalls.invoke("call.prompt",
+        argsJson: #"{"call":"\#(call.id)","promptId":"p1","kind":"confirm","prompt":"Delete?","actionLabel":"Delete"}"#)
+      _ = try? AssistantHostCalls.invoke("call.prompt",
+        argsJson: #"{"call":"\#(call.id)","promptId":"p2","kind":"choose","prompt":"Which?","choices":[{"id":"a","title":"A"},{"id":"b","title":"B","destructive":true}]}"#)
+      _ = try? AssistantHostCalls.invoke("call.prompt",
+        argsJson: #"{"call":"\#(call.id)","promptId":"p3","kind":"requestValue","param":"servings","prompt":"How many?"}"#)
+      _ = try? AssistantHostCalls.invoke("call.prompt",
+        argsJson: #"{"call":"\#(call.id)","promptId":"p4","kind":"disambiguate","param":"recipe","choices":["r1","r2"]}"#)
+      _ = try? AssistantHostCalls.invoke("call.prompt",
+        argsJson: #"{"call":"\#(call.id)","promptId":"p5","kind":"requestValue","param":"missing"}"#)
+      while replies.count < 5 {
+        try? await Task.sleep(nanoseconds: 5_000_000)
+      }
+      return "ok"
+    }
+    done.signal()
+  }
+  while done.wait(timeout: .now()) == .timedOut { RunLoop.main.run(until: Date().addingTimeInterval(0.01)) }
+  func replyFor(_ id: String) -> [String: Any] { replies.first { $0["promptId"] as? String == id } ?? [:] }
+  check("\(replyFor("p1")["value"] as? Bool ?? false)", "true", "mid-call confirm resolves through onConfirm")
+  check(replyFor("p2")["value"] as? String ?? "nil", "b", "mid-call choose returns the selected choice id")
+  check("\(replyFor("p3")["value"] as? Int ?? -1)", "4", "mid-call requestValue resolves parameter handler")
+  check(replyFor("p4")["value"] as? String ?? "nil", "r2", "mid-call disambiguate resolves among choices")
+  check((replyFor("p5")["error"] as? String)?.contains("missing") == true ? "error" : "ok", "error",
+    "unknown prompt parameters report an error")
+  check((try? AssistantHostCalls.invoke("call.prompt", argsJson: #"{"call":"\#(call.id)","promptId":"p6","kind":"confirm"}"#)) ?? "nil",
+    #"{"cancelled":true}"#, "prompts after a call ends report cancelled")
+}
+
 // File entities: Dart paths ↔ FileEntityIdentifier.
 if #available(macOS 15.0, *) {
   let dir = FileManager.default.temporaryDirectory.appendingPathComponent("aa-files-\(UUID().uuidString)")

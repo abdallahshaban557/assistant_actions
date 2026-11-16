@@ -101,14 +101,25 @@ extension _Actions on SwiftWriter {
         ..writeln('    assistantReloadControl("$cid")');
     }
     final dialog = a.dialog == null ? '"Done."' : _spokenDialog(a.dialog!, a);
+    String undoRegister(String? resultExpr) {
+      if (a.undo == null) return '';
+      if (resultExpr == null || !a.undo!.takesResult) {
+        return '${_undoLines(floor, a.title, 'AssistantUndo.call("${a.id}", args: args)')}\n';
+      }
+      return '    var undoArgs = args\n'
+          '    undoArgs["result"] = $resultExpr\n'
+          '${_undoLines(floor, a.title, 'AssistantUndo.call("${a.id}", args: undoArgs)')}\n';
+    }
+
     if (a.liveActivity) {
       // The reader allows no Shortcuts value here.
       _out.writeln(_liveActivityPerform(a, dialog, modes));
     } else if (!foreground) {
-      _out.writeln('''
-    AssistantInbox.call("${a.id}", args: args)
-    $_inboxChanged
-    return .result(dialog: IntentDialog(stringLiteral: $dialog))''');
+      _out
+        ..writeln('    AssistantInbox.call("${a.id}", args: args)')
+        ..writeln('    $_inboxChanged')
+        ..write(undoRegister(null))
+        ..writeln('    return .result(dialog: IntentDialog(stringLiteral: $dialog))');
     } else {
       final forward = _foregroundLines(modes,
           activateOnMac: a.opensApp,
@@ -119,19 +130,31 @@ extension _Actions on SwiftWriter {
       if (reply) {
         _out.writeln('    let reply = AssistantReply(json: try await callDart("${a.id}", args: args))');
         if (result != null) _out.write(_decodeResult(result, a, source: 'reply.value', reply: true));
-        _out.write(_replyReturn(
-            value: result == null ? null : 'value',
-            dialog: 'reply.dialog ?? $dialog',
-            floor: floor,
-            interactive: a.cardButtons));
+        final undoResult = result == null
+            ? null
+            : result.isEntity && !result.list
+                ? (result.nullable
+                    ? '(${_dartID(result.schemaEntity?.schema.id, 'value?')} ?? reply.ids.first as Any? ?? NSNull())'
+                    : _dartID(result.schemaEntity?.schema.id, 'value'))
+                : 'reply.value ?? NSNull()';
+        _out
+          ..write(undoRegister(undoResult))
+          ..write(_replyReturn(
+              value: result == null ? null : 'value',
+              dialog: 'reply.dialog ?? $dialog',
+              floor: floor,
+              interactive: a.cardButtons));
       } else {
         _out.writeln('    let reply = try await callDart("${a.id}", args: args)');
         if (result == null) {
-          _out.writeln('    return .result(dialog: IntentDialog(stringLiteral: reply ?? $dialog))');
+          _out
+            ..write(undoRegister(a.returnsString ? 'reply ?? NSNull()' : null))
+            ..writeln('    return .result(dialog: IntentDialog(stringLiteral: reply ?? $dialog))');
         } else {
           _out
             ..writeln('    let result = AssistantValues.result(reply)')
             ..write(_decodeResult(result, a, source: 'result.value'))
+            ..write(undoRegister('result.value ?? NSNull()'))
             ..writeln('    return .result(value: value, dialog: IntentDialog(stringLiteral: result.dialog ?? $dialog))');
         }
       }
@@ -152,6 +175,16 @@ extension _Actions on SwiftWriter {
     if (foreground) _out.write(_continuableExtension(a.swiftName, modes, _above(floor) ? _availability(floor) : ''));
     if (foreground || a.liveActivity) {
       _out.writeln(_liveConformances(a.swiftName, _above(floor) ? floor : null, longRunning: a.longRunning));
+      if (a.params.isNotEmpty) {
+        _out
+          ..writeln(_actionPromptingConformance(a, _above(floor) ? floor : null))
+          ..writeln();
+      }
+    }
+    if (a.undo != null) {
+      _out
+        ..writeln(_actionUndoConformance(a.swiftName, floor))
+        ..writeln();
     }
   }
 

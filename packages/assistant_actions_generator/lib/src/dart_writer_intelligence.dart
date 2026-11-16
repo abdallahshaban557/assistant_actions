@@ -77,7 +77,8 @@ void _intelligenceTail(StringBuffer out, AppModel app, _Ref ref) {
   }
 
   final actions = [for (final a in app.actions) if (a.focusFilter == null) a];
-  if (actions.isEmpty && app.snapshotActions.isEmpty) return;
+  final schemaDonations = _schemaDonations(app);
+  if (actions.isEmpty && app.snapshotActions.isEmpty && schemaDonations.isEmpty) return;
   out
     ..writeln()
     ..writeln('/// Tells Siri the user just ran an action in the app, so Siri suggestions and')
@@ -131,5 +132,110 @@ void _intelligenceTail(StringBuffer out, AppModel app, _Ref ref) {
       ..writeln('  /// The user looked at what `${a.name}` ("${a.title}") answers, in the app.')
       ..writeln("  static Future<bool> ${a.name}() => AssistantActions.donateAction('${a.id}', const {});");
   }
+  final taken = <String>{
+    for (final a in actions) a.functionName,
+    for (final a in app.snapshotActions) a.name,
+  };
+  final baseCounts = <String, int>{};
+  for (final d in schemaDonations) {
+    baseCounts[d.baseName] = (baseCounts[d.baseName] ?? 0) + 1;
+  }
+  for (final d in schemaDonations) {
+    var method = d.baseName;
+    if (taken.contains(method) || baseCounts[method]! > 1) {
+      final prefix = camel(d.owner?.className ?? pascal(d.intent.domain));
+      method = '$prefix${pascal(d.baseName)}';
+    }
+    while (!taken.add(method)) {
+      method = '${method}Donation';
+    }
+    out
+      ..writeln()
+      ..writeln('  /// The user ran `${d.intent.id}` ("${d.intent.title}") in the app.');
+    switch (d.kind) {
+      case IntentKind.create:
+        final valuesType = '${d.owner!.className}Values';
+        out
+          ..writeln('  static Future<bool> $method($valuesType values) =>')
+          ..writeln("      AssistantActions.donateAction('${d.actionKey}', values._toJson());");
+      case IntentKind.update || IntentKind.append:
+        final valuesType = '${d.owner!.className}Values';
+        out
+          ..writeln('  static Future<bool> $method(String id, $valuesType changes) =>')
+          ..writeln("      AssistantActions.donateAction('${d.actionKey}', {'id': id, 'fields': changes._toJson()});");
+      case IntentKind.delete:
+        out
+          ..writeln('  static Future<bool> $method(String id) =>')
+          ..writeln("      AssistantActions.donateAction('${d.actionKey}', {'id': id});");
+      case IntentKind.record:
+        out
+          ..writeln('  static Future<bool> $method() =>')
+          ..writeln("      AssistantActions.donateAction('${d.actionKey}', const {});");
+      case IntentKind.call:
+        final callArgs = [
+          for (final p in d.intent.parameters) ?callArg(p, app.openEnumNames),
+        ];
+        final sig = [
+          for (final a in callArgs) a.optional ? '${a.dartType} ${a.name}' : 'required ${a.dartType} ${a.name}',
+        ];
+        final encoded = [
+          for (final a in callArgs)
+            "'${a.member.name}': ${a.shape == ArgShape.entity ? a.name : ValueType(valueTypeFor(a.element, app.openEnumNames).kind, nullable: a.optional, enumRef: a.element.ref, list: a.list, appEnum: app.openEnumNames[a.element.ref]).encodeDart(a.name)}",
+        ];
+        out
+          ..writeln('  static Future<bool> $method(${sig.isEmpty ? '' : '{${sig.join(', ')}}'}) =>')
+          ..writeln("      AssistantActions.donateAction('${d.actionKey}', ${encoded.isEmpty ? 'const {}' : '{${encoded.join(', ')}}'});");
+    }
+  }
   out.writeln('}');
+}
+
+class _SchemaDonation {
+  const _SchemaDonation({
+    required this.owner,
+    required this.intent,
+    required this.kind,
+    required this.actionKey,
+    required this.baseName,
+  });
+
+  final SchemaEntityModel? owner;
+  final IntentSchema intent;
+  final IntentKind kind;
+  final String actionKey;
+  final String baseName;
+}
+
+List<_SchemaDonation> _schemaDonations(AppModel app) {
+  String baseNameOf(SchemaEntityModel? owner, IntentSchema intent, IntentKind kind) {
+    if (kind == IntentKind.record) return recordMethod(intent);
+    final name = intent.name;
+    if (const {'create', 'update', 'delete', 'open'}.contains(name) || dartReserved.contains(name)) {
+      return '$name${pascal(owner?.className ?? intent.domain)}';
+    }
+    return dartName(name);
+  }
+
+  return [
+    for (final s in app.schemaEntities)
+      for (final (intent, kind) in s.intents)
+        if (canDonateSchemaIntent(app, s, intent, kind))
+          _SchemaDonation(
+            owner: s,
+            intent: intent,
+            kind: kind,
+            actionKey: kind == IntentKind.record ? recordActionId(s, intent) : callActionId(s, intent),
+            baseName: baseNameOf(s, intent, kind),
+          ),
+    for (final d in app.schemaDomains)
+      for (final intent in d.intents)
+        if (canDonateSchemaIntent(app, null, intent, IntentKind.call))
+          _SchemaDonation(
+            owner: null,
+            intent: intent,
+            kind: IntentKind.call,
+            actionKey: callActionId(null, intent),
+            baseName: baseNameOf(null, intent, IntentKind.call),
+          ),
+  ];
 }

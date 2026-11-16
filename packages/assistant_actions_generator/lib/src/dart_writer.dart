@@ -48,8 +48,7 @@ String writeDart(AppModel app) {
   }
   final appEnums = <Uri, Set<String>>{};
   void useAppEnum(String ref) {
-    final e = app.openEnums[ref]!;
-    (appEnums[e.library] ??= {}).add(e.className);
+    if (app.openEnums[ref] case final e?) (appEnums[e.library] ??= {}).add(e.className);
   }
 
   for (final s in app.schemaEntities) {
@@ -117,6 +116,31 @@ String writeDart(AppModel app) {
       out
         ..writeln('        cleared: {...cleared},')
         ..writeln('      );');
+    }
+    final donatesValues = s.intents.any(
+        (e) => (e.$2 == IntentKind.create || e.$2 == IntentKind.update || e.$2 == IntentKind.append) &&
+            canDonateSchemaIntent(app, s, e.$1, e.$2));
+    if (donatesValues) {
+      if (s.fields.isEmpty) {
+        out
+          ..writeln()
+          ..writeln('  Map<String, Object?> _toJson() => const {};');
+      } else {
+        out
+          ..writeln()
+          ..writeln('  Map<String, Object?> _toJson() => {');
+        for (final f in s.fields) {
+          final nonNullType = ValueType(
+            f.type.kind,
+            enumRef: f.type.enumRef,
+            entityRef: f.type.entityRef,
+            list: f.type.list,
+            appEnum: f.type.appEnum,
+          );
+          out.writeln("        if (${f.name} case final v?) '${f.name}': ${nonNullType.encodeDart('v')},");
+        }
+        out.writeln('      };');
+      }
     }
     out
       ..writeln('}')
@@ -186,10 +210,13 @@ String writeDart(AppModel app) {
   }
 
   // ── Registry ──
-  final finders = {
-    for (final a in app.actions)
+  final finders = <String, EntityModel>{
+    for (final a in app.actions) ...{
       for (final p in a.params)
         if (p.entity != null) p.entity!.className: p.entity!,
+      if (a.undo != null && a.undo!.takesResult && a.result?.entity != null)
+        a.result!.entity!.className: a.result!.entity!,
+    },
   }.values;
   final args = [
     for (final e in finders) 'required FutureOr<${ref(e.library, e.className)}?> Function(String id) find${e.className},',
@@ -205,6 +232,7 @@ String writeDart(AppModel app) {
         : 'AssistantActionsRegistry assistantActionsRegistry({${args.join(' ')}}) => AssistantActionsRegistry(')
     ..writeln('  actions: {');
   _actionEntries(out, app, ref);
+  _actionUndoEntries(out, app, ref);
   // Record intents (`journal.createAudioEntry`) call the handler live, once
   // Swift has brought the app forward. A `.` keeps the ids apart from
   // function names.
@@ -317,9 +345,31 @@ String writeDart(AppModel app) {
       ..writeln('      }')
       ..writeln('    },');
   }
-  out
-    ..writeln('  },')
-    ..writeln(');');
+  out.writeln('  },');
+  final decodedEnums = {
+    for (final names in enums.values) ...names,
+    for (final names in appEnums.values) ...names,
+  }.toList()
+    ..sort();
+  if (finders.isNotEmpty || decodedEnums.isNotEmpty) {
+    out.writeln('  decoders: {');
+    for (final e in finders) {
+      final type = ref(e.library, e.className);
+      out
+        ..writeln('    $type: (v) => v is String ? find${e.className}(v) : null,')
+        ..writeln('    List<$type>: (v) async => [')
+        ..writeln('      for (final id in AssistantValue.list(v is List ? v : [v], AssistantValue.string) ?? const <String>[])')
+        ..writeln('        if (await find${e.className}(id) case final item?) item,')
+        ..writeln('    ],');
+    }
+    for (final name in decodedEnums) {
+      out
+        ..writeln('    $name: (v) => AssistantValue.enumeration($name.values, v),')
+        ..writeln('    List<$name>: (v) => AssistantValue.list(v is List ? v : [v], (e) => AssistantValue.enumeration($name.values, e)),');
+    }
+    out.writeln('  },');
+  }
+  out.writeln(');');
   if (app.background case final b?) _backgroundEntrypoint(out, b, ref);
   _intelligenceTail(out, app, ref);
   return out.toString();

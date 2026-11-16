@@ -5,13 +5,16 @@ import 'dart:io';
 import 'dart:ui' show DartPluginRegistrant;
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart' show PlatformException;
 import 'package:flutter/widgets.dart';
 
 import 'bridge/assistant_api.g.dart';
+import 'error.dart';
 import 'host.dart';
 import 'live_activity.dart';
 import 'live_call.dart';
 import 'registry.dart';
+import 'values.dart';
 
 /// Connects the generated App Intents to the app.
 ///
@@ -258,6 +261,54 @@ abstract final class AssistantActions {
     return result == null ? null : jsonDecode(result);
   }
 
+  /// Encodes a mid-call disambiguation choice for Swift.
+  @internal
+  static Object? encodePromptValue<T>(T value) {
+    if (value == null) return null;
+    final codecs = _registry?.codecs ?? const {};
+    final codec = codecs[T] ?? codecs[value.runtimeType];
+    if (codec != null) return codec.idOf(value);
+    return AssistantValue.encodeAny(value);
+  }
+
+  /// Decodes a mid-call prompt value Swift returned into [T].
+  @internal
+  static Future<T?> decodePromptValue<T>(Object? raw) async {
+    if (raw == null) return null;
+    if (_registry?.decoders[T] case final decoder?) {
+      return (await decoder(raw)) as T?;
+    }
+    if (_sameOrNullable<T, String>()) return AssistantValue.string(raw) as T?;
+    if (_sameOrNullable<T, int>()) return AssistantValue.integer(raw) as T?;
+    if (_sameOrNullable<T, double>()) return AssistantValue.decimal(raw) as T?;
+    if (_sameOrNullable<T, num>()) return (raw is num ? raw : null) as T?;
+    if (_sameOrNullable<T, bool>()) return AssistantValue.boolean(raw) as T?;
+    if (_sameOrNullable<T, DateTime>()) return AssistantValue.date(raw) as T?;
+    if (_sameOrNullable<T, Duration>()) return AssistantValue.duration(raw) as T?;
+    if (_sameOrNullable<T, Uri>()) return AssistantValue.uri(raw) as T?;
+    if (_sameOrNullable<T, AssistantPerson>()) return AssistantValue.person(raw) as T?;
+    if (_sameOrNullable<T, AssistantPlace>()) return AssistantValue.place(raw) as T?;
+    if (_sameOrNullable<T, AssistantFile>()) return AssistantValue.file(raw) as T?;
+    if (_sameOrNullable<T, AssistantRecurrence>()) return AssistantValue.recurrence(raw) as T?;
+    if (_sameOrNullable<T, AssistantUnion>()) return AssistantValue.union(raw) as T?;
+    final listInput = raw is List ? raw : [raw];
+    if (_sameOrNullable<T, List<String>>()) return AssistantValue.list(listInput, AssistantValue.string) as T?;
+    if (_sameOrNullable<T, List<int>>()) return AssistantValue.list(listInput, AssistantValue.integer) as T?;
+    if (_sameOrNullable<T, List<double>>()) return AssistantValue.list(listInput, AssistantValue.decimal) as T?;
+    if (_sameOrNullable<T, List<bool>>()) return AssistantValue.list(listInput, AssistantValue.boolean) as T?;
+    if (_sameOrNullable<T, List<DateTime>>()) return AssistantValue.list(listInput, AssistantValue.date) as T?;
+    if (_sameOrNullable<T, List<Duration>>()) return AssistantValue.list(listInput, AssistantValue.duration) as T?;
+    if (_sameOrNullable<T, List<Uri>>()) return AssistantValue.list(listInput, AssistantValue.uri) as T?;
+    if (_sameOrNullable<T, List<AssistantPerson>>()) return AssistantValue.list(listInput, AssistantValue.person) as T?;
+    if (_sameOrNullable<T, List<AssistantPlace>>()) return AssistantValue.list(listInput, AssistantValue.place) as T?;
+    if (_sameOrNullable<T, List<AssistantFile>>()) return AssistantValue.list(listInput, AssistantValue.file) as T?;
+    if (raw is T) return raw as T;
+    return null;
+  }
+
+  static bool _sameOrNullable<T, U>() => T == U || T == _typeOf<U?>();
+  static Type _typeOf<X>() => X;
+
   /// The action Swift performs to apply the inbox and wait until it's done
   /// (`AssistantBackground.applyInbox`), unlike `inboxChanged`, which
   /// doesn't wait.
@@ -290,11 +341,21 @@ abstract final class AssistantActions {
       }
       return null;
     }
+    if (action == AssistantCall.promptReplyAction) {
+      AssistantCall.completePrompt(args);
+      return null;
+    }
     final handler = _registry?.actions[action];
     if (handler == null) throw ArgumentError.value(action, 'action', 'Unknown action');
     // Live calls carry their id, for `AssistantCall.current`.
     final call = args.remove(AssistantCall.argument) as String?;
-    return AssistantCall.run(call, () => handler(args));
+    try {
+      return await AssistantCall.run(call, () => handler(args));
+    } on AssistantError catch (e) {
+      throw PlatformException(code: AssistantError.code, message: e.message);
+    } on AssistantPromptCancelled {
+      throw PlatformException(code: AssistantCall.cancelledErrorCode, message: 'Cancelled');
+    }
   }
 }
 

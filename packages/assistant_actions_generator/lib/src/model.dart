@@ -367,6 +367,40 @@ class ShortcutModel {
   final String systemImage;
 }
 
+/// A parameter of an `@AssistantAction`'s `undo:` function.
+class ActionUndoParam {
+  const ActionUndoParam({
+    required this.name,
+    required this.named,
+    required this.nullable,
+    this.sourceParam,
+    this.isResult = false,
+    this.defaultDart,
+  });
+
+  final String name;
+  final bool named;
+  final bool nullable;
+  final ParamModel? sourceParam;
+  final bool isResult;
+  final String? defaultDart;
+}
+
+/// The `undo:` top-level function of a plain `@AssistantAction`.
+class ActionUndoModel {
+  const ActionUndoModel({
+    required this.functionName,
+    required this.library,
+    required this.params,
+  });
+
+  final String functionName;
+  final Uri library;
+  final List<ActionUndoParam> params;
+
+  bool get takesResult => params.any((p) => p.isResult);
+}
+
 /// `@AssistantAction` on a top-level function.
 class ActionModel {
   ActionModel({
@@ -384,6 +418,7 @@ class ActionModel {
     this.liveActivity = false,
     this.focusFilter,
     this.result,
+    this.undo,
     this.searchKeywords = const [],
     this.isDiscoverable = true,
     this.opensApp = false,
@@ -395,6 +430,7 @@ class ActionModel {
   });
 
   final String functionName;
+  final ActionUndoModel? undo;
 
   /// `@AssistantControl(...)` on this action, if any.
   final ControlModel? control;
@@ -861,11 +897,56 @@ class AppModel {
       schemaEntities.any((s) => s.className == className && s.url != null);
 
   Iterable<Uri> get libraries => {
-        for (final a in actions) a.library,
+        for (final a in actions) ...[a.library, if (a.undo case final u?) u.library],
         for (final e in entities) e.library,
         for (final s in schemaEntities) s.library,
         if (background case final b?) b.library,
       };
+}
+
+/// Fixed container schema ids across every adopted schema entity in [app].
+Set<String> fixedContainerSchemas(AppModel app) {
+  final found = <String>{};
+  void visit(FixedInstance f) {
+    found.add(f.schema);
+    f.nested.values.forEach(visit);
+  }
+
+  for (final s in app.schemaEntities) {
+    s.containers.values.forEach(visit);
+  }
+  return found;
+}
+
+/// Whether [intent] can be constructed from Dart arguments and donated via
+/// `IntentDonationManager` (`AssistantDonations`).
+bool canDonateSchemaIntent(AppModel app, SchemaEntityModel? owner, IntentSchema intent, IntentKind kind) {
+  if (intent.id == 'system.open') return false;
+  if (kind == IntentKind.record || kind == IntentKind.delete) return true;
+  final adopted = {for (final s in app.schemaEntities) s.schema.id};
+  final fixed = fixedContainerSchemas(app);
+  for (final p in intent.parameters) {
+    if (p.type.isOptional) continue;
+    if (p.type.element.kind == 'sceneDescriptor') return false;
+    if (kind == IntentKind.create || kind == IntentKind.update || kind == IntentKind.append) {
+      if (p.name == 'target' || (owner != null && owner.mapping.containsKey(p.name))) continue;
+      if (p.type.base.isList) continue;
+      if (p.type.base.kind == 'entity') {
+        final ref = p.type.base.ref;
+        if (ref == null || (!adopted.contains(ref) && !fixed.contains(ref))) return false;
+      }
+      continue;
+    }
+    if (callArg(p) == null) {
+      if (!p.type.base.isList) return false;
+      continue;
+    }
+    if (p.type.base.kind == 'entity') {
+      final ref = p.type.base.ref;
+      if (ref == null || (!adopted.contains(ref) && !fixed.contains(ref))) return false;
+    }
+  }
+  return true;
 }
 
 /// `@AssistantBackground()` on a top-level function returning the registry.

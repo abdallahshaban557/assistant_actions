@@ -148,6 +148,16 @@ extension _Actions on ModelReader {
           '(its card has the buttons).',
           element: fn);
     }
+    final undo = await _readUndo(
+      fn,
+      annotation.peek('undo'),
+      params: params,
+      runs: runs,
+      returnsString: returnsString,
+      returnsReply: returnsReply,
+      result: result,
+      entities: entities,
+    );
     return ActionModel(
       functionName: fn.displayName,
       library: fn.library.uri,
@@ -162,6 +172,7 @@ extension _Actions on ModelReader {
       returnsReply: returnsReply,
       liveActivity: liveActivity,
       result: result,
+      undo: undo,
       searchKeywords: _strings(annotation, 'searchKeywords'),
       isDiscoverable: discoverable,
       opensApp: opensApp,
@@ -171,6 +182,192 @@ extension _Actions on ModelReader {
       cardButtons: cardButtons,
       control: _control(fn, _annotation(fn, 'AssistantControl'), params, entities, schemaEntities),
     );
+  }
+
+  /// Reads and type-checks `@AssistantAction(undo: ...)`.
+  Future<ActionUndoModel?> _readUndo(
+    TopLevelFunctionElement fn,
+    ConstantReader? undoReader, {
+    required List<ParamModel> params,
+    required RunsModel runs,
+    required bool returnsString,
+    required bool returnsReply,
+    required ResultModel? result,
+    required List<EntityModel> entities,
+  }) async {
+    if (undoReader == null || undoReader.isNull) return null;
+    final undoFn = undoReader.objectValue.toFunctionValue();
+    if (undoFn is! TopLevelFunctionElement) {
+      throw InvalidGenerationSourceError(
+          '${fn.displayName}: undo must be a top-level function.',
+          element: fn);
+    }
+    var undoReturn = undoFn.returnType;
+    if (undoReturn.isDartAsyncFuture || undoReturn.isDartAsyncFutureOr) {
+      undoReturn = (undoReturn as InterfaceType).typeArguments.single;
+    }
+    if (undoReturn is! VoidType && undoReturn is! DynamicType && !undoReturn.isDartCoreNull) {
+      throw InvalidGenerationSourceError(
+          '${undoFn.displayName}: an undo function must return void or Future<void>, '
+          'not ${undoFn.returnType.getDisplayString()}.',
+          element: fn);
+    }
+    final positional = [for (final p in params) if (!p.named) p];
+    final undoParams = <ActionUndoParam>[];
+    var posIndex = 0;
+    var seenResult = false;
+    final seenNames = <String>{};
+
+    for (final up in undoFn.formalParameters) {
+      final isNamedResult = up.isNamed && up.displayName == 'result' && !params.any((p) => p.name == 'result');
+      final isPositionalResult = !up.isNamed && posIndex == positional.length;
+      if (isNamedResult || isPositionalResult) {
+        if (seenResult) {
+          throw InvalidGenerationSourceError(
+              '${undoFn.displayName} takes too many positional arguments for ${fn.displayName}.',
+              element: fn);
+        }
+        seenResult = true;
+        if (!up.isNamed) posIndex++;
+        final hasRuntimeResult = result != null || (returnsString && runs == RunsModel.withFlutter);
+        if (!hasRuntimeResult) {
+          throw InvalidGenerationSourceError(
+              '${fn.displayName} returns no value to undo, so ${undoFn.displayName} '
+              'cannot take "${up.displayName}".',
+              element: fn);
+        }
+        final upNullable = up.type.nullabilitySuffix == NullabilitySuffix.question;
+        final resultMayBeNull = returnsReply || (result?.nullable ?? true);
+        if (resultMayBeNull && !upNullable && !up.hasDefaultValue) {
+          throw InvalidGenerationSourceError(
+              '${undoFn.displayName}: "${up.displayName}" must be nullable because '
+              '${fn.displayName} may return no value.',
+              element: fn);
+        }
+        await _checkUndoResultType(fn, undoFn, up, result: result, entities: entities);
+        String? defaultDart;
+        if (up.hasDefaultValue) {
+          final v = await _actionValue(up.type, undoFn);
+          if (v != null) (_, defaultDart) = _defaults(undoFn, up, v);
+        }
+        undoParams.add(ActionUndoParam(
+          name: up.displayName,
+          named: up.isNamed,
+          nullable: upNullable,
+          isResult: true,
+          defaultDart: defaultDart,
+        ));
+        continue;
+      }
+
+      final ParamModel source;
+      if (!up.isNamed) {
+        if (posIndex >= positional.length) {
+          throw InvalidGenerationSourceError(
+              '${undoFn.displayName} takes too many positional arguments for ${fn.displayName}.',
+              element: fn);
+        }
+        source = positional[posIndex++];
+      } else {
+        final found = params.where((p) => p.name == up.displayName).firstOrNull;
+        if (found == null) {
+          throw InvalidGenerationSourceError(
+              '${undoFn.displayName}: parameter "${up.displayName}" is not a parameter of ${fn.displayName}.',
+              element: fn);
+        }
+        source = found;
+      }
+      if (!seenNames.add(source.name)) {
+        throw InvalidGenerationSourceError(
+            '${undoFn.displayName}: parameter "${source.name}" is mapped twice.',
+            element: fn);
+      }
+      final parsed = await _param(undoFn, up, entities);
+      final sameType = source.entity != null
+          ? parsed.entity?.className == source.entity!.className && parsed.entityList == source.entityList
+          : parsed.value != null &&
+              parsed.value!.kind == source.value!.kind &&
+              parsed.value!.list == source.value!.list &&
+              parsed.value!.enumRef == source.value!.enumRef &&
+              parsed.value!.appEnum == source.value!.appEnum;
+      if (!sameType) {
+        final expected = source.entity != null
+            ? (source.entityList ? 'List<${source.entity!.className}>' : source.entity!.className)
+            : source.value!.dart;
+        throw InvalidGenerationSourceError(
+            '${undoFn.displayName}: parameter "${up.displayName}" is ${up.type.getDisplayString()}, '
+            'expected $expected.',
+            element: fn);
+      }
+      if (source.nullable && source.defaultDart == null && !parsed.nullable && parsed.defaultDart == null) {
+        throw InvalidGenerationSourceError(
+            '${undoFn.displayName}: parameter "${up.displayName}" must be nullable because '
+            '"${source.name}" on ${fn.displayName} is nullable.',
+            element: fn);
+      }
+      undoParams.add(ActionUndoParam(
+        name: up.displayName,
+        named: up.isNamed,
+        nullable: parsed.nullable,
+        sourceParam: source,
+        defaultDart: parsed.defaultDart ?? source.defaultDart,
+      ));
+    }
+
+    return ActionUndoModel(
+      functionName: undoFn.displayName,
+      library: undoFn.library.uri,
+      params: undoParams,
+    );
+  }
+
+  Future<void> _checkUndoResultType(
+    TopLevelFunctionElement fn,
+    TopLevelFunctionElement undoFn,
+    FormalParameterElement up, {
+    required ResultModel? result,
+    required List<EntityModel> entities,
+  }) async {
+    if (result == null) {
+      if (_valueType(up.type)?.kind != ValueKind.string) {
+        throw InvalidGenerationSourceError(
+            '${undoFn.displayName}: "${up.displayName}" is ${up.type.getDisplayString()}, expected String?.',
+            element: fn);
+      }
+      return;
+    }
+    if (result.entity case final entity?) {
+      final parsed = await _param(undoFn, up, entities);
+      if (parsed.entity?.className != entity.className || parsed.entityList != result.list) {
+        final expected = result.list ? 'List<${entity.className}>' : entity.className;
+        throw InvalidGenerationSourceError(
+            '${undoFn.displayName}: "${up.displayName}" is ${up.type.getDisplayString()}, expected $expected.',
+            element: fn);
+      }
+      return;
+    }
+    if (result.schemaEntity case final schemaEntity?) {
+      final v = await _actionValue(up.type, undoFn);
+      if (v == null || v.kind != ValueKind.string || v.list != result.list) {
+        final expected = result.list ? 'List<String>' : 'String';
+        throw InvalidGenerationSourceError(
+            '${undoFn.displayName}: "${up.displayName}" is ${up.type.getDisplayString()}, '
+            'expected $expected (${schemaEntity.className} id).',
+            element: fn);
+      }
+      return;
+    }
+    final want = result.value!;
+    final got = await _actionValue(up.type, undoFn);
+    if (got == null ||
+        got.kind != want.kind ||
+        got.list != want.list ||
+        got.enumRef != want.enumRef ||
+        got.appEnum != want.appEnum) {
+      throw InvalidGenerationSourceError(
+          '${undoFn.displayName}: "${up.displayName}" is ${up.type.getDisplayString()}, expected ${want.dart}.',
+          element: fn);
+    }
   }
 
   /// Parameters a dialog can say.
