@@ -42,3 +42,79 @@ void _undoEntry(
     ..writeln('      return null;')
     ..writeln('    },');
 }
+
+/// The registry entries for undoing plain `@AssistantAction`s (`<id>.undo`).
+void _actionUndoEntries(StringBuffer out, AppModel app, String Function(Uri library, String name) ref) {
+  for (final a in app.actions) {
+    final u = a.undo;
+    if (u == null) continue;
+    out.writeln("    '${a.id}.undo': (args) async {");
+    final callArgs = <String>[];
+    var index = 0;
+    for (final up in u.params) {
+      final local = '_u${index++}';
+      if (up.isResult) {
+        const raw = "args['result']";
+        final r = a.result;
+        if (r == null) {
+          const decode = 'AssistantValue.string($raw)';
+          out.writeln(switch (up.defaultDart) {
+            final d? => '      final $local = $decode ?? $d;',
+            _ when up.nullable => '      final $local = $decode;',
+            _ => "      final $local = $decode ?? (throw ArgumentError.notNull('${up.name}'));",
+          });
+        } else if (r.entity != null || (r.schemaEntity != null && up.resultAsEntity)) {
+          final className = r.entityClassName;
+          if (r.list) {
+            final items = '[for (final id in AssistantValue.list($raw, AssistantValue.string) ?? const <String>[]) '
+                'if (await find$className(id) case final e?) e]';
+            out.writeln(up.nullable ? '      final $local = $raw is List ? $items : null;' : '      final $local = $items;');
+          } else {
+            out.writeln('      final $local = $raw is String ? await find$className($raw as String) : null;');
+            if (!up.nullable) out.writeln('      if ($local == null) return null;');
+          }
+        } else if (r.schemaEntity != null) {
+          final decode = r.list
+              ? 'AssistantValue.list($raw, AssistantValue.string)'
+              : 'AssistantValue.string($raw)';
+          out.writeln(up.nullable
+              ? '      final $local = $decode;'
+              : "      final $local = $decode ?? (throw ArgumentError.notNull('${up.name}'));");
+        } else {
+          final decode = r.value!.decodeDart(raw);
+          out.writeln(switch (up.defaultDart) {
+            final d? => '      final $local = $decode ?? $d;',
+            _ when up.nullable => '      final $local = $decode;',
+            _ => "      final $local = $decode ?? (throw ArgumentError.notNull('${up.name}'));",
+          });
+        }
+      } else {
+        final p = up.sourceParam!;
+        final raw = "args['${p.name}']";
+        if (p.isEntity) {
+          final className = p.entityClassName;
+          if (p.entityList) {
+            final items = '[for (final id in AssistantValue.list($raw, AssistantValue.string) ?? const <String>[]) '
+                'if (await find$className(id) case final e?) e]';
+            out.writeln(up.nullable ? '      final $local = $raw is List ? $items : null;' : '      final $local = $items;');
+          } else {
+            out.writeln('      final $local = $raw is String ? await find$className($raw as String) : null;');
+            if (!up.nullable) out.writeln('      if ($local == null) return null;');
+          }
+        } else {
+          final decode = p.value!.decodeDart(raw);
+          out.writeln(switch (up.defaultDart) {
+            final d? => '      final $local = $decode ?? $d;',
+            _ when up.nullable => '      final $local = $decode;',
+            _ => "      final $local = $decode ?? (throw ArgumentError.notNull('${up.name}'));",
+          });
+        }
+      }
+      callArgs.add(up.named ? '${up.name}: $local' : local);
+    }
+    out
+      ..writeln('      await ${ref(u.library, u.functionName)}(${callArgs.join(', ')});')
+      ..writeln('      return null;')
+      ..writeln('    },');
+  }
+}

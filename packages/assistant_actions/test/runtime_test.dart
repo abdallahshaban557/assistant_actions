@@ -5,6 +5,7 @@ import 'package:assistant_actions/assistant_actions.dart';
 import 'package:assistant_actions/schemas/journal.dart';
 import 'package:assistant_actions/schemas/notes.dart';
 import 'package:assistant_actions/schemas/reminders.dart';
+import 'package:flutter/services.dart' show PlatformException;
 import 'package:flutter_test/flutter_test.dart';
 
 class _Item {
@@ -68,6 +69,35 @@ void main() {
     );
     expect(await AssistantActions.perform('count', jsonEncode({'n': 3})), 'You have 3.');
     expect(() => AssistantActions.perform('missing', '{}'), throwsArgumentError);
+  });
+
+  test('AssistantError crosses perform as a user-facing PlatformException without wrapping other errors', () async {
+    const err = AssistantError('Sign in to send messages.');
+    expect(err.message, 'Sign in to send messages.');
+    expect('$err', 'Sign in to send messages.');
+    expect(err, const AssistantError('Sign in to send messages.'));
+
+    await AssistantActions.start(
+      AssistantActionsRegistry(actions: {
+        'failCleanly': (args) async => throw const AssistantError('No network connection.'),
+        'crash': (args) async => throw StateError('unexpected'),
+      }),
+      host: _FakeHost([]),
+    );
+    await expectLater(
+      () => AssistantActions.perform('failCleanly', '{}'),
+      throwsA(
+        isA<PlatformException>()
+            .having((e) => e.code, 'code', AssistantError.code)
+            .having((e) => e.message, 'message', 'No network connection.'),
+      ),
+    );
+    await expectLater(() => AssistantActions.perform('crash', '{}'), throwsStateError);
+  });
+
+  test('AssistantAction accepts a const top-level undo function', () {
+    const action = AssistantAction(title: 'Archive', undo: _undoArchive);
+    expect(action.undo, _undoArchive);
   });
 
   test('publish sends the encoded snapshot for the entity collection', () async {
@@ -419,6 +449,292 @@ void main() {
       expect((catalog['queries'] as Map)['entryTransferable']['property'], 'location');
     });
   });
+
+  group('System surfaces runtime & annotations', () {
+    test('AssistantApp typedef, appGroup, AssistantControl, AssistantWidgetConfig and Focus filter criteria', () {
+      const app = AssistantApp(name: 'Mira', appGroup: 'group.dev.mira');
+      expect(app, isA<AssistantActionsApp>());
+      expect(app.appGroup, 'group.dev.mira');
+
+      const control = AssistantControl(
+        id: 'focus_mode',
+        title: 'Focus Mode',
+        systemImage: 'moon.fill',
+        subtitle: 'Toggle focus',
+        toggleSnapshotCollection: 'Settings',
+        toggleEntityId: 'default',
+        toggleField: 'enabled',
+      );
+      expect((control.id, control.toggleSnapshotCollection, control.toggleField), ('focus_mode', 'Settings', 'enabled'));
+
+      const widgetConfig = AssistantWidgetConfig(
+        id: 'pinned_note',
+        title: 'Pinned Note',
+        description: 'Pick a note for your widget.',
+      );
+      expect((widgetConfig.id, widgetConfig.title), ('pinned_note', 'Pinned Note'));
+
+      const filter = AssistantFocusFilter(title: 'Work Focus', filterCriteriaParam: 'account');
+      expect(filter.filterCriteriaParam, 'account');
+    });
+
+    test('openShortcutsApp invokes shortcuts.open on the Swift host', () async {
+      final host = _CallingHost(reply: 'true');
+      await AssistantActions.start(const AssistantActionsRegistry(), host: host);
+      expect(await AssistantActions.openShortcutsApp(), isTrue);
+      expect(host.invoked, [
+        ['shortcuts.open', <String, Object?>{}],
+      ]);
+    });
+
+    test('currentFocusFilter and syncCurrentFocusFilter resolve async FocusFilter.current results', () async {
+      final applied = <Map<String, Object?>>[];
+      final host = _FocusHost();
+      await AssistantActions.start(
+        AssistantActionsRegistry(
+          actions: {
+            'applyFocus': (args) async {
+              applied.add(args);
+              return null;
+            },
+          },
+        ),
+        host: host,
+      );
+
+      final pendingQuery = AssistantActions.currentFocusFilter();
+      await Future<void>.delayed(Duration.zero);
+      expect(host.lastRequestId, isNotNull);
+      await AssistantActions.perform(
+        'assistant_actions.focusFilterResult',
+        jsonEncode({
+          'requestId': host.lastRequestId,
+          'action': 'applyFocus',
+          'params': {'hideBadges': true, 'account': 'work'},
+        }),
+      );
+      expect(await pendingQuery, {'hideBadges': true, 'account': 'work'});
+      expect(applied, isEmpty, reason: 'currentFocusFilter only inspects without running the handler');
+
+      final pendingSync = AssistantActions.syncCurrentFocusFilter();
+      await Future<void>.delayed(Duration.zero);
+      await AssistantActions.perform(
+        'assistant_actions.focusFilterResult',
+        jsonEncode({
+          'requestId': host.lastRequestId,
+          'action': 'applyFocus',
+          'params': {'hideBadges': false, 'account': 'personal'},
+        }),
+      );
+      expect(await pendingSync, {'hideBadges': false, 'account': 'personal'});
+      expect(applied, [
+        {'hideBadges': false, 'account': 'personal'},
+      ]);
+
+      final pendingNone = AssistantActions.syncCurrentFocusFilter();
+      await Future<void>.delayed(Duration.zero);
+      await AssistantActions.perform(
+        'assistant_actions.focusFilterResult',
+        jsonEncode({'requestId': host.lastRequestId, 'none': true}),
+      );
+      expect(await pendingNone, isNull);
+      expect(applied, hasLength(1));
+    });
+  });
+
+  group('Currency, measurements, card toggles and param options', () {
+    test('AssistantCurrency and typed measurements round-trip through AssistantValue', () {
+      const usd = AssistantCurrency(amount: 19.95, currencyCode: 'USD');
+      expect(AssistantValue.encodeCurrency(usd), {'amount': 19.95, 'currencyCode': 'USD'});
+      expect(AssistantValue.currency({'amount': 20, 'currencyCode': 'eur'}),
+          const AssistantCurrency(amount: 20.0, currencyCode: 'EUR'));
+      expect(AssistantValue.currency({'amount': 10}), isNull);
+      expect(AssistantValue.encodeAny(usd), {'amount': 19.95, 'currencyCode': 'USD'});
+
+      const length = AssistantLength(value: 5, unit: LengthUnit.kilometers);
+      const mass = AssistantMass(value: 250, unit: MassUnit.grams);
+      const temp = AssistantTemperature(value: 72, unit: TemperatureUnit.fahrenheit);
+      const vol = AssistantVolume(value: 500, unit: VolumeUnit.milliliters);
+      const speed = AssistantSpeed(value: 60, unit: SpeedUnit.milesPerHour);
+      const energy = AssistantEnergy(value: 420, unit: EnergyUnit.kilocalories);
+
+      expect(AssistantValue.length(AssistantValue.encodeAny(length)), length);
+      expect(AssistantValue.mass(AssistantValue.encodeAny(mass)), mass);
+      expect(AssistantValue.temperature(AssistantValue.encodeAny(temp)), temp);
+      expect(AssistantValue.volume(AssistantValue.encodeAny(vol)), vol);
+      expect(AssistantValue.speed(AssistantValue.encodeAny(speed)), speed);
+      expect(AssistantValue.energy(AssistantValue.encodeAny(energy)), energy);
+
+      // Unknown unit names fall back to each dimension's base unit.
+      expect(AssistantValue.length({'value': 12, 'unit': 'furlongs'}),
+          const AssistantLength(value: 12, unit: LengthUnit.meters));
+      expect(AssistantValue.mass({'value': 2, 'unit': 'unknown'}),
+          const AssistantMass(value: 2, unit: MassUnit.kilograms));
+      expect(AssistantValue.temperature({'value': 0, 'unit': 'rankine'}),
+          const AssistantTemperature(value: 0, unit: TemperatureUnit.celsius));
+      expect(AssistantValue.volume({'value': 1, 'unit': 'hogsheads'}),
+          const AssistantVolume(value: 1, unit: VolumeUnit.liters));
+      expect(AssistantValue.speed({'value': 3, 'unit': 'mach'}),
+          const AssistantSpeed(value: 3, unit: SpeedUnit.metersPerSecond));
+      expect(AssistantValue.energy({'value': 9, 'unit': 'ergs'}),
+          const AssistantEnergy(value: 9, unit: EnergyUnit.kilocalories));
+    });
+
+    test('AssistantCard encodes imageUrl and interactive toggles with flipped default value', () async {
+      await AssistantActions.start(
+        AssistantActionsRegistry(actions: {'setDone': (_) async => null}),
+        host: _FakeHost([]),
+      );
+      final reply = AssistantReply(
+        dialog: 'Updated.',
+        card: const AssistantCard(
+          title: 'Shopping',
+          imageUrl: 'https://example.com/banner.png',
+          toggles: [
+            AssistantCardToggle(
+              label: 'Buy milk',
+              value: false,
+              actionId: 'setDone',
+              args: {'id': 'm1'},
+              systemImage: 'checkmark.circle',
+            ),
+            AssistantCardToggle(
+              label: 'Custom payload',
+              value: true,
+              actionId: 'setDone',
+              args: {'id': 'm2', 'value': 'override'},
+            ),
+          ],
+        ),
+      );
+      final decoded = jsonDecode(AssistantReply.encode(reply)) as Map<String, Object?>;
+      final card = decoded['card'] as Map<String, Object?>;
+      expect(card['imageUrl'], 'https://example.com/banner.png');
+      final toggles = (card['toggles'] as List).cast<Map<String, Object?>>();
+      expect(toggles[0], {
+        'label': 'Buy milk',
+        'value': false,
+        'action': 'setDone',
+        'args': {'id': 'm1', 'value': true},
+        'systemImage': 'checkmark.circle',
+      });
+      expect(toggles[1], {
+        'label': 'Custom payload',
+        'value': true,
+        'action': 'setDone',
+        'args': {'id': 'm2', 'value': 'override'},
+      });
+
+      const bad = AssistantReply(
+        card: AssistantCard(
+          title: 'Bad',
+          toggles: [AssistantCardToggle(label: 'X', value: false, actionId: 'missingAction')],
+        ),
+      );
+      expect(() => AssistantReply.encode(bad), throwsArgumentError);
+    });
+
+    test('Param and conditional summary annotations store constraints and branches', () {
+      const p = Param(
+        title: 'Amount',
+        min: 0,
+        max: 100,
+        controlStyle: ParamControlStyle.slider,
+        multiline: true,
+        capitalization: TextCapitalizationMode.sentences,
+        keyboardType: ParamKeyboardType.url,
+        supportedContentTypes: ['public.image'],
+        snapshotField: 'Recipe.title',
+      );
+      expect((p.min, p.max, p.controlStyle), (0, 100, ParamControlStyle.slider));
+      expect((p.multiline, p.capitalization, p.keyboardType),
+          (true, TextCapitalizationMode.sentences, ParamKeyboardType.url));
+      expect(p.supportedContentTypes, ['public.image']);
+      expect(p.snapshotField, 'Recipe.title');
+
+      const action = AssistantAction(
+        title: 'Cook',
+        summaries: [
+          SummaryWhen('quick', value: true, then: 'Quickly cook {dish}', otherwise: 'Cook {dish}'),
+          SummarySwitch('meal', cases: {_Meal.dinner: 'Cook {dish} for dinner'}, defaultSummary: 'Cook {dish}'),
+        ],
+      );
+      expect(action.summaries, hasLength(2));
+    });
+  });
+
+  group('Spotlight annotations and SnapshotFilter', () {
+    test('Spotlight field annotations are const', () {
+      expect(const EntityKeywords(), isA<EntityKeywords>());
+      expect(const EntityBody(), isA<EntityBody>());
+      expect(const EntityCreatedAt(), isA<EntityCreatedAt>());
+      expect(const EntityUpdatedAt(), isA<EntityUpdatedAt>());
+    });
+
+    test('SnapshotFilter const constructors preserve field, operator and value', () {
+      // Order matches SnapshotFilterOp in assistant_actions_generator.
+      expect(SnapshotOperator.values, [
+        SnapshotOperator.equals,
+        SnapshotOperator.notEquals,
+        SnapshotOperator.lessThan,
+        SnapshotOperator.lessOrEqual,
+        SnapshotOperator.greaterThan,
+        SnapshotOperator.greaterOrEqual,
+        SnapshotOperator.contains,
+        SnapshotOperator.startsWith,
+        SnapshotOperator.isNull,
+        SnapshotOperator.isNotNull,
+        SnapshotOperator.isToday,
+        SnapshotOperator.isPast,
+        SnapshotOperator.isFuture,
+      ]);
+      const answer = SnapshotAnswer<_Item>(
+        where: {'done': false},
+        filters: [
+          SnapshotFilter.equals('meal', _Meal.dinner),
+          SnapshotFilter.notEquals('status', 'archived'),
+          SnapshotFilter.lessThan('minutes', 30),
+          SnapshotFilter.lessOrEqual('rating', 4.5),
+          SnapshotFilter.greaterThan('prep', Duration(minutes: 5)),
+          SnapshotFilter.greaterOrEqual('due', '2026-11-03T09:00:00Z'),
+          SnapshotFilter.contains('title', 'soup'),
+          SnapshotFilter.startsWith('title', 'tom'),
+          SnapshotFilter.isNull('deletedAt'),
+          SnapshotFilter.isNotNull('due'),
+          SnapshotFilter.isToday('due'),
+          SnapshotFilter.isPast('due'),
+          SnapshotFilter.isFuture('due'),
+        ],
+        item: '{title}',
+        dialog: '{items}',
+        empty: 'None.',
+      );
+      expect(answer.where, {'done': false});
+      expect(answer.filters, hasLength(13));
+      expect((answer.filters[0].field, answer.filters[0].operator, answer.filters[0].value),
+          ('meal', SnapshotOperator.equals, _Meal.dinner));
+      expect((answer.filters[6].field, answer.filters[6].operator, answer.filters[6].value),
+          ('title', SnapshotOperator.contains, 'soup'));
+      expect((answer.filters[10].field, answer.filters[10].operator, answer.filters[10].value),
+          ('due', SnapshotOperator.isToday, null));
+    });
+  });
+}
+
+class _FocusHost extends _FakeHost implements AssistantHostCalls {
+  _FocusHost() : super([]);
+
+  String? lastRequestId;
+
+  @override
+  Future<String?> invoke(String method, String argsJson) async {
+    if (method == 'focusFilter.current') {
+      final args = (jsonDecode(argsJson) as Map).cast<String, Object?>();
+      lastRequestId = args['requestId'] as String?;
+      return jsonEncode({'pending': true});
+    }
+    return null;
+  }
 }
 
 class _BackgroundHost extends _FakeHost implements AssistantHostCalls {
@@ -436,6 +752,8 @@ class _BackgroundHost extends _FakeHost implements AssistantHostCalls {
 enum _Case { a, b, this$ }
 
 enum _Meal { dinner }
+
+Future<void> _undoArchive() async {}
 
 class _CallingHost extends _FakeHost implements AssistantHostCalls {
   _CallingHost({this.reply}) : super([]);

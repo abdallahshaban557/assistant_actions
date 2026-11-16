@@ -22,7 +22,7 @@ Then, once, from the app's root:
 
 ```bash
 dart run assistant_actions:install   # generated plugin, Runner wiring, deployment targets
-                                     # add --widgets for Live Activities (iOS widget extension)
+                                     # add --widgets for Live Activities, Controls & Widgets (iOS extension)
 flutter pub get
 dart run build_runner build
 ```
@@ -220,19 +220,34 @@ Every intent gets paths: `openFile({required String target})`,
   `@AssistantSyncable()` opts any other entity in (the example's reminders do),
   `@AssistantSyncable(false)` opts out. Keep the ids stable.
 - **Undo** (`UndoableIntent`, iOS / macOS 26): with `@AssistantUndoable()` on a
-  schema class, the user can undo what Siri did. Creates, updates and deletes
-  are undone for you, through the same handler (`delete` undoes a create,
-  `create` brings back a deleted item with its id and published fields).
-  Other intents get an `undo…` method with the same arguments
-  (`undoPauseTimer({required String timer})`).
-- **Live calls** (`Runs.withFlutter` actions and schema intents that wait for
-  Dart) report progress and can be cancelled (`ProgressReportingIntent`, and
-  `CancellableIntent` from 26.4):
+  schema class, or `undo: myUndoFunction` on a plain `@AssistantAction`, the
+  user can undo what Siri did. Schema creates, updates and deletes are undone
+  for you through the same handler (`delete` undoes a create, `create` brings
+  back a deleted item with its id and published fields); other schema intents
+  get an `undo…` method (`undoPauseTimer({required String timer})`). On a plain
+  action, `undo:` names a top-level function taking the action's parameters
+  plus an optional `result` parameter when the action returns a value:
+
+  ```dart
+  @AssistantAction(title: 'Add to Shopping List', undo: undoAddToShoppingList)
+  Future<void> addToShoppingList(Recipe recipe, {int? servings}) async { ... }
+
+  Future<void> undoAddToShoppingList(Recipe recipe, {int? servings}) async { ... }
+  ```
+
+- **Live calls, mid-call prompts and errors** (`Runs.withFlutter` actions and
+  schema intents that wait for Dart) report progress, notice cancellation
+  (`ProgressReportingIntent`, and `CancellableIntent` from 26.4), ask Siri
+  follow-up questions mid-execution, and surface clean user-facing errors:
 
   ```dart
   @AssistantAction(title: 'Archive Done Tasks', runs: Runs.withFlutter, longRunning: true)
-  Future<String> archiveDoneTasks() async {
+  Future<String> archiveDoneTasks({TaskItem? extra}) async {
     final call = AssistantCall.current;
+    // Ask Siri mid-call and resume Dart with the answer:
+    final ok = await call?.confirm('Archive completed tasks?', actionLabel: 'Archive') ?? true;
+    if (!ok) throw const AssistantError('Archiving was cancelled.');
+    // Also available on AssistantCall: choose(...), requestValue<T>('extra'), disambiguate<T>('extra', choices).
     for (final (i, task) in done.indexed) {
       if (call?.isCancelled ?? false) break;
       await archive(task);
@@ -242,8 +257,11 @@ Every intent gets paths: `openFile({required String target})`,
   }
   ```
 
-  `longRunning: true` (or `@AssistantLongRunning()` on a schema class) makes
-  them `LongRunningIntent`s (27), which keep running in the background.
+  Throwing `AssistantError('...')` fails the intent cleanly in Swift (stopping
+  multi-step Shortcuts) and speaks your exact message without a generic
+  exception prefix. `longRunning: true` (or `@AssistantLongRunning()` on a
+  schema class) makes live intents `LongRunningIntent`s (27), which keep
+  running in the background.
 
 ### Deployment targets
 
@@ -267,6 +285,11 @@ Flutter doesn't start, on iOS or macOS:
 @AssistantAction(title: 'Show Tasks', shortcut: AppShortcut(...))
 const showTasks = SnapshotAnswer<TaskItem>(
   where: {'done': false},
+  filters: [
+    SnapshotFilter.isToday('due'),              // also isPast, isFuture, isNull, isNotNull
+    SnapshotFilter.contains('title', 'call'),   // case & diacritic insensitive; also startsWith
+    // plus equals, notEquals (including enums), lessThan, lessOrEqual, greaterThan, greaterOrEqual
+  ],
   sortBy: 'due',                      // items without a due date come last
   item: '{title}[ ({due})]',          // [...] is left out when {due} is empty
   dialog: 'You have {count} {count|task|tasks}: {items}[, and {rest} more].',
@@ -274,8 +297,8 @@ const showTasks = SnapshotAnswer<TaskItem>(
 );
 ```
 
-The generator checks that every field exists and that `where` values match
-the field types.
+The generator checks that every field exists and that `where` and `filters`
+values match the field types.
 
 ### Confirm, speak and show results
 
@@ -407,11 +430,13 @@ app forward if Flutter isn't running.
 
 How it works: the generated plugin has a `SnippetIntent`
 (`AssistantCardSnippetIntent`) holding the card, and an
-`AssistantCardButtonIntent` for its buttons (`Button(intent:)`); Apple only
-registers intents of the app's own module. After a press Siri performs the snippet intent again,
-which shows the newest card the button's action replied with
-(`AssistantCardStore`, the last 20 cards). Toggles (`Toggle(intent:)`) aren't
-supported; use a button whose title says the state.
+`AssistantCardButtonIntent` for its buttons (`Button(intent:)`) and interactive
+toggles (`AssistantCardToggle` on `toggles:`, rendered with
+`Toggle(isOn:intent:)` on iOS / macOS 26+, sending `'value': !current` by
+default). Cards can also display remote HTTPS artwork via `imageUrl:` alongside
+local `imagePath:` and `systemImage:`. After a press or toggle Siri performs
+the snippet intent again, which shows the newest card the action replied with
+(`AssistantCardStore`, the last 20 cards).
 
 Queued intents (`Runs.deferred`, inbox creates, updates and deletes, and
 queued calls) run after Siri has answered, so they can confirm and use
@@ -481,8 +506,23 @@ replaces it, by intent name:
 @RemindersReminder(createReminder: true, summaries: {'createReminder': 'Add {title} to my tasks, due {dueDate}'}, ...)
 ```
 
-The generator checks the names. Conditional sentences (`When` / `Switch`)
-aren't supported.
+The generator checks the names. For conditional Shortcuts sentences (`When` /
+`Switch`), pass `summaries:` on `@AssistantAction` with `SummaryWhen` and
+`SummarySwitch`:
+
+```dart
+@AssistantAction(
+  title: 'Plan a Meal',
+  summaries: [
+    SummaryWhen('quick', value: true, then: 'Quickly plan {recipe} for {meal}'),
+    SummarySwitch(
+      'meal',
+      cases: {Meal.snack: 'Save {recipe} as a snack'},
+      defaultSummary: 'Plan {recipe} for {meal}',
+    ),
+  ],
+)
+```
 
 ### Item images
 
@@ -515,8 +555,17 @@ show the `systemImage`, if any.
 * **Remote URLs** (`https:`) are passed to the system to load
   (`DisplayRepresentation.Image(url:)`) where it supports it. Spotlight has
   no thumbnail for them; it shows the app's icon.
+* **Spotlight metadata on plain entities.** Mark fields or getters on an
+  `@AssistantEntity` with `@EntityKeywords()` (`List<String>`), `@EntityBody()`
+  (`String`), `@EntityCreatedAt()` (`DateTime`) and `@EntityUpdatedAt()`
+  (`DateTime`) to populate `CSSearchableItemAttributeSet` (`keywords`,
+  `textContent`, `contentCreationDate`, `contentModificationDate`) when items
+  are indexed. Plain entities also expose richer `EntityPropertyQuery`
+  comparators to Shortcuts and Siri (`String` contains/equals/notEquals/prefix/suffix,
+  `@AssistantEnum` equals/notEquals, `Duration` comparisons and sorting, plus
+  numbers, booleans and dates).
 
-## Beyond Siri: Focus, Live Activities, controls, the Action button
+## Beyond Siri: Focus, Live Activities, controls, widgets, Siri tips
 
 ### Focus filters
 
@@ -531,21 +580,24 @@ every parameter at its default, so make the defaults mean "no Focus":
   title: 'Journal',
   description: 'Choose what the app shows during this Focus.',
   summary: 'Hide tasks: {hideTasks}',          // under the title in Settings
+  filterCriteriaParam: 'account',              // FocusFilterAppContext notificationFilterPredicate
 )
 Future<void> applyFocus({
   @Param(title: 'Hide tasks') bool hideTasks = false,
-  @Param(title: 'Note to show') String? note,
+  @Param(title: 'Account') String? account,
+  List<TaskItem> allowed = const [],           // plain or schema entity parameters
 }) async { ... }
 ```
 
-Parameters take the same types as actions (String, int, double, bool,
-DateTime, Uri, Duration, `@AssistantEntity` classes). Each must be nullable
-or have a bool, int, double or String default, because the system creates
-the filter from its defaults. The generator fails the build otherwise. The
-system can run the filter while the app is in the background or not running
-at all: if Dart is running, the function runs at once; if not, the call is
-queued like a `Runs.deferred` action and runs when the app next starts or
-resumes. It never brings the app forward. Works on iOS and macOS.
+Parameters take the same types as actions (including `@AssistantEntity` and
+adopted schema entity classes). Each must be nullable or have a constant
+default (or `const []` for an entity list), because the system creates the
+filter from its defaults. Setting `filterCriteriaParam:` generates
+`FocusFilterAppContext(notificationFilterPredicate:)` (`SELF IN %@`) so iOS /
+macOS filters matching `UNNotificationContent.filterCriteria`. On cold launch,
+call `AssistantActions.syncCurrentFocusFilter()` (or inspect
+`AssistantActions.currentFocusFilter()`) to read `SetFocusFilterIntent.current`
+and apply any active Focus right away. Works on iOS and macOS.
 
 ### Live Activities
 
@@ -556,12 +608,28 @@ and a `data` map for views of your own.
 
 ```dart
 final activity = await AssistantLiveActivity.start(
-  AssistantActivityContent(title: 'Recording', systemImage: 'mic.fill', timerStart: DateTime.now()),
+  AssistantActivityContent(
+    title: 'Recording',
+    systemImage: 'mic.fill',
+    timerStart: DateTime.now(),
+    buttons: const [
+      AssistantLiveActivityButton(label: 'Stop', actionId: 'stopRecording', systemImage: 'stop.fill'),
+    ],
+  ),
   kind: 'recording',
+  enablePush: true, // optional APNs push updates
 );
+// APNs hex tokens (iOS): AssistantLiveActivity.pushToStartTokens(), activity?.pushToken(), activity?.pushTokens()
 await activity?.update(const AssistantActivityContent(title: 'Recording', progress: 0.5));
 await activity?.end(dismissal: AssistantActivityDismissal.immediate);
 ```
+
+Up to 2 `AssistantLiveActivityButton`s render as interactive `Button(intent:)`
+controls on the Lock Screen and in the Dynamic Island expanded bottom region,
+dispatching to your live Dart engine (or headless background engine / shared
+inbox when the app isn't running). With `enablePush: true`, ActivityKit
+requests an APNs token (`pushToken()` / `pushTokens()`, plus
+`AssistantLiveActivity.pushToStartTokens()` for remote push-to-start).
 
 `start` returns null on macOS, and on iOS when the user has turned Live
 Activities off (`AssistantLiveActivity.areEnabled()`). iOS only starts them
@@ -614,47 +682,60 @@ starts the Flutter engine with a scene. On macOS the option does nothing.
 Future<void> stopRecording() => recorder.stop();
 ```
 
-### Controls and widgets
+### Controls, configurable widgets, App Groups and Siri tips
 
-Control Center controls (`ControlWidget`, iOS 18) and configurable widgets
-(`WidgetConfigurationIntent`) live in the widget extension, and so must the
-App Intents they run. The generated intents can't go there: they're in the
-`assistant_actions_app` plugin, which links Flutter. assistant_actions
-doesn't generate controls yet. Write them in Swift in `ios/AssistantWidgets/`
-and add them to the bundle:
+**Shared App Group (`appGroup:`).** Widget and control extensions run in their
+own sandbox. Set `appGroup:` on `@AssistantActionsApp` (or `@AssistantApp`),
+enable the same App Group capability on `Runner` and `AssistantWidgets` in
+Xcode, and `AssistantSnapshot`, `AssistantInbox` and `AssistantSpotlight`
+automatically share snapshots and queued calls through the App Group container
+and `UserDefaults(suiteName:)` (falling back to Application Support and
+`UserDefaults.standard` when unset):
 
-```swift
-@main
-struct AssistantWidgets: WidgetBundle {
-  var body: some Widget {
-    AssistantLiveActivityWidget()
-    if #available(iOS 18.0, *) { OpenJournalControl() }
-  }
-}
-
-@available(iOS 18.0, *)
-struct OpenJournalControl: ControlWidget {
-  var body: some ControlWidgetConfiguration {
-    StaticControlConfiguration(kind: "com.example.open-journal") {
-      ControlWidgetButton(action: OpenJournalIntent()) { Label("Journal", systemImage: "book") }
-    }
-    .displayName("Open Journal")
-  }
-}
-
-/// Add this file to both the Runner and AssistantWidgets targets.
-@available(iOS 18.0, *)
-struct OpenJournalIntent: AppIntent {
-  static let title: LocalizedStringResource = "Open Journal"
-  static let openAppWhenRun = true
-  func perform() async throws -> some IntentResult { .result() }
-}
+```dart
+@AssistantApp(name: 'Cookbook', appGroup: 'group.com.example.cookbook')
+library;
 ```
 
-This compiles in the extension. assistant_actions hasn't checked it on a
-device. The extension can't see the app's assistant_actions inbox or
-snapshots, which live in the app's own UserDefaults. A control that needs app
-data needs an App Group you set up yourself.
+**Controls (`@AssistantControl`) and configurable widgets (`@AssistantWidgetConfig`).**
+Because widget extensions can't link `FlutterFramework`, `build_runner` writes
+extension-safe Swift into `apple/AssistantWidgets.g.swift` (wired into
+`AssistantWidgets` by `dart run assistant_actions:install --widgets`):
+
+- `@AssistantControl` on an `@AssistantAction` generates an iOS 18+ / macOS 26+
+  `ControlWidget` for Control Center, the Lock Screen and the Action Button: a
+  `ControlWidgetButton` for void/defaulted actions, or a `ControlWidgetToggle`
+  (`SetValueIntent` + `ControlValueProvider`) when the action takes `bool value`
+  (optionally reading state from `toggleSnapshotCollection` / `toggleField`):
+
+  ```dart
+  @AssistantControl(
+    id: 'focus_timer',
+    title: 'Focus Timer',
+    systemImage: 'timer',
+    toggleSnapshotCollection: 'TimerState',
+    toggleField: 'running',
+  )
+  @AssistantAction(title: 'Toggle Focus Timer', dialog: 'Updated timer.')
+  Future<void> toggleFocusTimer(bool value) async { ... }
+  ```
+
+- `@AssistantWidgetConfig` on a top-level function or class generates a
+  `WidgetConfigurationIntent` (taking `@AssistantEntity`, `@AssistantEnum`,
+  schema enums, `String`, `bool`, `int` or `double` parameters) so your SwiftUI
+  widgets in `ios/AssistantWidgets/AssistantWidgets.swift` can let users pick
+  published entities and options. `AssistantWidgets.swift` includes
+  `assistantControlsBundle` out of the box.
+
+**In-app discovery (`AssistantSiriTip` & `AssistantShortcutsLink`).** Embed
+Apple's native `SiriTipView` / `ShortcutsLink` anywhere in your Flutter UI, or
+open the Shortcuts app programmatically:
+
+```dart
+const AssistantSiriTip(actionId: 'countOpenTasks')
+const AssistantShortcutsLink()
+await AssistantActions.openShortcutsApp();
+```
 
 ### Action button and Apple Pencil
 
@@ -666,10 +747,31 @@ squeeze. Both run it like Siri does, so the `runs` rules apply.
 ### Parameters, results and App Shortcuts
 
 Action parameters can be `String`, `int`, `double`, `bool`, `DateTime`, `Uri`,
-`Duration`, `AssistantPerson`, `AssistantPlace` (iOS / macOS 26),
-`AssistantFile`, an `@AssistantEntity` class, an enum (your own
+`Duration`, `AssistantCurrency` (`IntentCurrencyAmount`), typed measurements
+(`AssistantLength`, `AssistantMass`, `AssistantTemperature`, `AssistantVolume`,
+`AssistantSpeed`, `AssistantEnergy`), `AssistantPerson`, `AssistantPlace`
+(iOS / macOS 26), `AssistantFile`, an `@AssistantEntity` **or adopted schema
+entity** class (`@RemindersReminder`, `@JournalEntry`, …), an enum (your own
 `@AssistantEnum`, or a schema enum such as `ClockTimerState`), or a `List` of
-one of these. Dart defaults become App Intents defaults:
+one of these.
+
+`@Param` also supports native Shortcuts input controls, UTTypes, and dynamic
+options (`DynamicOptionsProvider`):
+
+- **Numbers (`int`, `double`)**: `min:`, `max:` (`inclusiveRange`) and
+  `controlStyle:` (`ParamControlStyle.field`, `stepper`, `slider`).
+- **Text (`String`)**: `multiline: true`, `capitalization:`
+  (`TextCapitalizationMode`), and `keyboardType:` (`ParamKeyboardType`).
+- **Files (`AssistantFile`, `List<AssistantFile>`)**:
+  `supportedContentTypes: ['public.image', 'com.adobe.pdf']` (iOS 18 / macOS 15).
+- **Dynamic options (`options:`, `snapshotField:`)**: pass a top-level Dart
+  function returning `List<T>` / `Future<List<T>>` (for `String`, `int`,
+  `double`, `@AssistantEntity` or schema entity parameters). Parameters of the
+  options function matching sibling parameter names become
+  `@IntentParameterDependency`s, and `snapshotField:` provides an offline
+  fallback when Flutter isn't running.
+
+Dart defaults become App Intents defaults:
 
 ```dart
 @AssistantEnum(title: 'Meal')
@@ -806,13 +908,23 @@ await AssistantDonations.addToShoppingList(recipe, servings: 2);   // ran an act
 
 `donate(item)` donates the item's `system.open` intent, so it needs
 `@SystemIntents(open: true)`. The generated `AssistantDonations` has one
-method per `@AssistantAction` (and snapshot answer), with the function's
-parameters and defaults (entities and lists of them, enums, lists,
-durations, people, places and files), whether it runs deferred, live or
-in the background. Actions are also `PredictableIntent`s, so Siri can
-suggest them with the values donated. Each returns whether Siri got the
+method per `@AssistantAction`, snapshot answer **and adopted schema intent**
+(`call`, `create`, `update`, `append`, `delete` and `record`, such as
+`AssistantDonations.createReminder(TaskItemValues(title: 'Buy milk'))` or
+`AssistantDonations.startCapture(captureMode: CaptureMode.photo)`), taking the
+same parameters and defaults. Actions are also `PredictableIntent`s, so Siri
+can suggest them with the values donated. Each returns whether Siri got the
 donation (`IntentDonationManager`). Focus filters are set by the system, so
 they aren't donated.
+
+**Apple Intelligence `FoundationModels.Tool` bridging (iOS / macOS 26+).**
+When compiled with an SDK that has `FoundationModels`, the generator emits a
+`<ActionName>Tool: FoundationModels.Tool` struct (with `@Generable` `Arguments`
+and `@Guide` parameter descriptions, resolving entity parameters by ID or
+forgiving title match) for every discoverable `@AssistantAction` and
+`SnapshotAnswer`, plus `AssistantFoundationTools.all` so your Swift code can
+hand every app action to an on-device model in one line:
+`LanguageModelSession(tools: AssistantFoundationTools.all)`.
 
 **Visual Intelligence.** `visualSearch: true` on entity annotations lets
 Visual Intelligence show the app's items for what the camera or a screenshot

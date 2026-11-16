@@ -3,16 +3,167 @@ import Foundation
 /// Answers a `SnapshotAnswer` action from the published snapshot plus pending
 /// inbox changes, in Swift, so Siri can reply without Flutter running.
 public enum AssistantQuery {
-  public struct Answer {
+  public struct Answer: Sendable {
     /// Each listed item, formatted with the item template.
     public let items: [String]
     /// What Siri says.
     public let dialog: String
   }
 
+  /// A predicate corresponding to Dart's `SnapshotFilter`.
+  public struct Filter: Equatable, Sendable {
+    private enum Predicate: Equatable, Sendable {
+      case equalsBool(Bool)
+      case equalsString(String)
+      case equalsNumber(Double)
+      case equalsDate(Date)
+      case notEqualsBool(Bool)
+      case notEqualsString(String)
+      case notEqualsNumber(Double)
+      case notEqualsDate(Date)
+      case lessThan(Double)
+      case lessOrEqual(Double)
+      case greaterThan(Double)
+      case greaterOrEqual(Double)
+      case beforeDate(Date, inclusive: Bool)
+      case afterDate(Date, inclusive: Bool)
+      case contains(String)
+      case startsWith(String)
+      case isNull
+      case isNotNull
+      case isToday
+      case isPast
+      case isFuture
+    }
+
+    public let field: String
+    private let predicate: Predicate
+
+    private init(_ field: String, _ predicate: Predicate) {
+      self.field = field
+      self.predicate = predicate
+    }
+
+    public static func equals(_ field: String, _ value: Bool) -> Filter { Filter(field, .equalsBool(value)) }
+    public static func equals(_ field: String, _ value: String) -> Filter { Filter(field, .equalsString(value)) }
+    public static func equals(_ field: String, _ value: Int) -> Filter { Filter(field, .equalsNumber(Double(value))) }
+    public static func equals(_ field: String, _ value: Double) -> Filter { Filter(field, .equalsNumber(value)) }
+    public static func equals(_ field: String, _ value: Date) -> Filter { Filter(field, .equalsDate(value)) }
+
+    public static func notEquals(_ field: String, _ value: Bool) -> Filter { Filter(field, .notEqualsBool(value)) }
+    public static func notEquals(_ field: String, _ value: String) -> Filter { Filter(field, .notEqualsString(value)) }
+    public static func notEquals(_ field: String, _ value: Int) -> Filter {
+      Filter(field, .notEqualsNumber(Double(value)))
+    }
+    public static func notEquals(_ field: String, _ value: Double) -> Filter { Filter(field, .notEqualsNumber(value)) }
+    public static func notEquals(_ field: String, _ value: Date) -> Filter { Filter(field, .notEqualsDate(value)) }
+
+    public static func lessThan(_ field: String, _ value: Int) -> Filter { Filter(field, .lessThan(Double(value))) }
+    public static func lessThan(_ field: String, _ value: Double) -> Filter { Filter(field, .lessThan(value)) }
+    public static func lessThan(_ field: String, _ value: Date) -> Filter {
+      Filter(field, .beforeDate(value, inclusive: false))
+    }
+
+    public static func lessOrEqual(_ field: String, _ value: Int) -> Filter {
+      Filter(field, .lessOrEqual(Double(value)))
+    }
+    public static func lessOrEqual(_ field: String, _ value: Double) -> Filter { Filter(field, .lessOrEqual(value)) }
+    public static func lessOrEqual(_ field: String, _ value: Date) -> Filter {
+      Filter(field, .beforeDate(value, inclusive: true))
+    }
+
+    public static func greaterThan(_ field: String, _ value: Int) -> Filter {
+      Filter(field, .greaterThan(Double(value)))
+    }
+    public static func greaterThan(_ field: String, _ value: Double) -> Filter { Filter(field, .greaterThan(value)) }
+    public static func greaterThan(_ field: String, _ value: Date) -> Filter {
+      Filter(field, .afterDate(value, inclusive: false))
+    }
+
+    public static func greaterOrEqual(_ field: String, _ value: Int) -> Filter {
+      Filter(field, .greaterOrEqual(Double(value)))
+    }
+    public static func greaterOrEqual(_ field: String, _ value: Double) -> Filter {
+      Filter(field, .greaterOrEqual(value))
+    }
+    public static func greaterOrEqual(_ field: String, _ value: Date) -> Filter {
+      Filter(field, .afterDate(value, inclusive: true))
+    }
+
+    public static func contains(_ field: String, _ substring: String) -> Filter { Filter(field, .contains(substring)) }
+    public static func startsWith(_ field: String, _ prefix: String) -> Filter { Filter(field, .startsWith(prefix)) }
+
+    public static func isNull(_ field: String) -> Filter { Filter(field, .isNull) }
+    public static func isNotNull(_ field: String) -> Filter { Filter(field, .isNotNull) }
+
+    public static func isToday(_ field: String) -> Filter { Filter(field, .isToday) }
+    public static func isPast(_ field: String) -> Filter { Filter(field, .isPast) }
+    public static func isFuture(_ field: String) -> Filter { Filter(field, .isFuture) }
+
+    fileprivate func matches(_ raw: Any?, now: Date) -> Bool {
+      let value: Any? = raw is NSNull ? nil : raw
+      switch predicate {
+      case .isNull:
+        return value == nil
+      case .isNotNull:
+        return value != nil
+      case .equalsBool(let expected):
+        return AssistantQuery.boolean(value) == expected
+      case .notEqualsBool(let expected):
+        return AssistantQuery.boolean(value) != expected
+      case .equalsString(let expected):
+        return (value as? String) == expected
+      case .notEqualsString(let expected):
+        return (value as? String) != expected
+      case .equalsNumber(let expected):
+        return AssistantQuery.number(value) == expected
+      case .notEqualsNumber(let expected):
+        return AssistantQuery.number(value) != expected
+      case .equalsDate(let expected):
+        return AssistantQuery.date(value) == expected
+      case .notEqualsDate(let expected):
+        return AssistantQuery.date(value) != expected
+      case .lessThan(let bound):
+        guard let n = AssistantQuery.number(value) else { return false }
+        return n < bound
+      case .lessOrEqual(let bound):
+        guard let n = AssistantQuery.number(value) else { return false }
+        return n <= bound
+      case .greaterThan(let bound):
+        guard let n = AssistantQuery.number(value) else { return false }
+        return n > bound
+      case .greaterOrEqual(let bound):
+        guard let n = AssistantQuery.number(value) else { return false }
+        return n >= bound
+      case .beforeDate(let bound, let inclusive):
+        guard let d = AssistantQuery.date(value) else { return false }
+        return inclusive ? d <= bound : d < bound
+      case .afterDate(let bound, let inclusive):
+        guard let d = AssistantQuery.date(value) else { return false }
+        return inclusive ? d >= bound : d > bound
+      case .contains(let substring):
+        guard let text = value as? String else { return false }
+        return AssistantComparison(.contains, [.text(substring)]).matches(.text(text))
+      case .startsWith(let prefix):
+        guard let text = value as? String else { return false }
+        return AssistantComparison(.hasPrefix, [.text(prefix)]).matches(.text(text))
+      case .isToday:
+        guard let d = AssistantQuery.date(value) else { return false }
+        return Calendar.current.isDate(d, inSameDayAs: now)
+      case .isPast:
+        guard let d = AssistantQuery.date(value) else { return false }
+        return d < now
+      case .isFuture:
+        guard let d = AssistantQuery.date(value) else { return false }
+        return d > now
+      }
+    }
+  }
+
   public static func answer(
     _ collection: String,
-    where filters: [String: Any] = [:],
+    where equality: [String: Any] = [:],
+    filters: [Filter] = [],
     sortBy: String? = nil,
     descending: Bool = false,
     limit: Int,
@@ -21,18 +172,20 @@ public enum AssistantQuery {
     item: String,
     dialog: String,
     empty: String,
-    separator: String
+    separator: String,
+    now: Date = Date()
   ) -> Answer {
     answer(
-      records: AssistantSnapshot.records(collection), where: filters, sortBy: sortBy,
+      records: AssistantSnapshot.records(collection), where: equality, filters: filters, sortBy: sortBy,
       descending: descending, limit: limit, dateFields: dateFields, titleField: titleField,
-      item: item, dialog: dialog, empty: empty, separator: separator)
+      item: item, dialog: dialog, empty: empty, separator: separator, now: now)
   }
 
   /// [answer] over given records; separate so it can be tested.
   static func answer(
     records: [AssistantRecord],
-    where filters: [String: Any],
+    where equality: [String: Any] = [:],
+    filters: [Filter] = [],
     sortBy: String?,
     descending: Bool,
     limit: Int,
@@ -41,10 +194,12 @@ public enum AssistantQuery {
     item: String,
     dialog: String,
     empty: String,
-    separator: String
+    separator: String,
+    now: Date = Date()
   ) -> Answer {
     var matching = records.filter { record in
-      filters.allSatisfy { key, value in matches(record.fields[key], value) }
+      equality.allSatisfy { key, value in matches(record.fields[key], value) }
+        && filters.allSatisfy { filter in filter.matches(record.fields[filter.field], now: now) }
     }
     if let sortBy {
       // Stable: equal items keep their published order.
@@ -130,6 +285,11 @@ public enum AssistantQuery {
     guard boolean(value) == nil else { return nil }
     if let n = value as? NSNumber { return n.doubleValue }
     return (value as? Int).map(Double.init) ?? (value as? Double)
+  }
+
+  private static func date(_ value: Any?) -> Date? {
+    if let d = value as? Date { return d }
+    return number(value).map(Date.init(timeIntervalSince1970:))
   }
 
   /// "Nov 3, 2026 at 9:00 AM", or the date alone at midnight.

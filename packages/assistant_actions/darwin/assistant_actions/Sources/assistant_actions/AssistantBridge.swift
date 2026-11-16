@@ -12,6 +12,19 @@ import Foundation
 public final class AssistantBridge {
   public static let shared = AssistantBridge()
 
+  /// Error code Dart sends for `AssistantError` (`AssistantError.code`).
+  public static let userErrorCode = "assistant_actions.user_error"
+
+  /// Error code Dart sends when a mid-call prompt was cancelled by the user.
+  public static let cancelledErrorCode = "assistant_actions.cancelled"
+
+  static func mapError(_ error: PigeonError) -> AssistantActionError {
+    if error.code == userErrorCode {
+      return .userFacing(error.message ?? "")
+    }
+    return .failed(error.message ?? error.code ?? "No answer")
+  }
+
   /// Set once Dart's `AssistantActions.start` has finished, so `perform`
   /// calls can be answered.
   public private(set) var isReady = false
@@ -54,7 +67,10 @@ public final class AssistantBridge {
     do {
       return try await dart.perform(action: action, argsJson: String(decoding: data, as: UTF8.self))
     } catch let error as PigeonError {
-      throw AssistantActionError.failed(error.message ?? error.code ?? "No answer")
+      if error.code == Self.cancelledErrorCode {
+        throw CancellationError()
+      }
+      throw Self.mapError(error)
     }
   }
 
@@ -65,14 +81,16 @@ public final class AssistantBridge {
   }
 }
 
-public enum AssistantActionError: Error, CustomLocalizedStringResourceConvertible {
+public enum AssistantActionError: Error, Equatable, CustomLocalizedStringResourceConvertible {
   case notRunning
   case failed(String)
+  case userFacing(String)
 
   public var localizedStringResource: LocalizedStringResource {
     switch self {
     case .notRunning: return "The app couldn't start. Open it and try again."
     case .failed(let message): return "Something went wrong: \(message)"
+    case .userFacing(let message): return "\(message)"
     }
   }
 }

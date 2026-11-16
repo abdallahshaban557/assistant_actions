@@ -52,15 +52,16 @@ public enum AssistantSpotlight {
   private static func reindex(_ collection: String) async {
     guard let indexer = indexer() else { return }
     let key = keyPrefix + collection
+    let defaults = AssistantAppGroup.userDefaults
     let current = AssistantSnapshot.records(collection).map(\.id)
-    let plan = plan(previous: UserDefaults.standard.stringArray(forKey: key), current: current)
+    let plan = plan(previous: defaults.stringArray(forKey: key), current: current)
     do {
       try await indexer.index(collection: collection, removedIDs: plan.removed, clearFirst: plan.clearFirst)
-      UserDefaults.standard.set(current, forKey: key)
+      defaults.set(current, forKey: key)
     } catch {
       // Spotlight is best-effort; queries still work without it. Forget what
       // was indexed so the next run starts clean.
-      UserDefaults.standard.removeObject(forKey: key)
+      defaults.removeObject(forKey: key)
       NSLog("assistant_actions: Spotlight indexing of %@ failed: %@", collection, "\(error)")
     }
   }

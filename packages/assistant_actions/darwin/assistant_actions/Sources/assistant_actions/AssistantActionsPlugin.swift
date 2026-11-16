@@ -14,6 +14,7 @@ public final class AssistantActionsPlugin: NSObject, FlutterPlugin {
     MainActor.assumeIsolated {
       AssistantBridge.shared.engineStarted()
       AssistantBackground.shared.engineRegistered()
+      AssistantPlatformViews.register(with: registrar)
       setUpBridge()
     }
   }
@@ -25,9 +26,11 @@ public final class AssistantActionsPlugin: NSObject, FlutterPlugin {
   static func setUpBridge() {
     // Registering also keeps the linker from stripping the generated setup class.
     AssistantHostApiSetup.register(api: AssistantHostApiImpl())
+    _ = AssistantAppGroup.identifier
     AssistantBackground.registerHostCalls()
     AssistantLiveActivities.register()
     AssistantContext.registerHostCalls()
+    AssistantPlatformViews.registerHostCalls()
   }
 }
 

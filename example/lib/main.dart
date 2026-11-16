@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:assistant_actions/assistant_actions.dart';
+// ignore: deprecated_member_use
 import 'package:flutter/material.dart';
 
 import 'assistant_actions.dart';
@@ -9,6 +12,7 @@ import 'store.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await AssistantActions.start(appRegistry());
+  unawaited(AssistantActions.syncCurrentFocusFilter());
   Store.instance.changed();
   runApp(const ExampleApp());
 }
@@ -52,6 +56,14 @@ class _ExampleAppState extends State<ExampleApp> with WidgetsBindingObserver {
               final store = Store.instance;
               return ListView(
                 children: [
+                  const Padding(
+                    padding: EdgeInsets.fromLTRB(16, 12, 16, 4),
+                    child: AssistantSiriTip(actionId: 'countOpenTasks'),
+                  ),
+                  const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                    child: AssistantShortcutsLink(),
+                  ),
                   if (store.focusNote case final note?) ListTile(leading: const Icon(Icons.nightlight), title: Text(note)),
                   const ListTile(title: Text('Recipes')),
                   for (final r in store.recipes)

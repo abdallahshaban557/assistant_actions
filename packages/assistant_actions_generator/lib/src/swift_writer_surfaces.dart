@@ -24,9 +24,12 @@ extension _Surfaces on SwiftWriter {
   /// the Dart defaults, which the system uses when the Focus turns off.
   void _focusFilter(ActionModel a) {
     final filter = a.focusFilter!;
+    final floor = _actionFloor(a);
     _out
       ..writeln('/// `${a.functionName}` in Dart: the app\'s Focus filter, run live when Dart is running and')
-      ..writeln('/// queued otherwise.')
+      ..writeln('/// queued otherwise.');
+    if (_above(floor)) _out.writeln(_availability(floor));
+    _out
       ..writeln('public struct ${a.swiftName}: SetFocusFilterIntent {')
       ..writeln('  public static let title: LocalizedStringResource = "${SwiftWriter._escape(a.title)}"');
     if (a.description != null) {
@@ -34,12 +37,7 @@ extension _Surfaces on SwiftWriter {
     }
     _out.writeln();
     for (final p in a.params) {
-      final options = [
-        'title: "${SwiftWriter._escape(p.title)}"',
-        if (p.swiftDefault case final d?) 'default: $d',
-        if (p.prompt case final prompt?) 'requestValueDialog: "${SwiftWriter._escape(prompt)}"',
-      ];
-      _out.writeln('  @Parameter(${options.join(', ')})\n  public var ${swiftName(p.name)}: ${_paramSwift(p)}\n');
+      _out.writeln('  ${_parameterAttr(a, p)}\n  public var ${swiftName(p.name)}: ${_paramSwift(p)}\n');
     }
     final summary = filter.summary == null ? null : _spokenDialog(filter.summary!, a);
     _out
@@ -49,7 +47,19 @@ extension _Surfaces on SwiftWriter {
       ..writeln(summary == null
           ? '    DisplayRepresentation(title: Self.title)'
           : '    let summary: String = $summary\n    return DisplayRepresentation(title: Self.title, subtitle: "\\(summary)")')
-      ..writeln('  }')
+      ..writeln('  }');
+    if (filter.filterCriteriaParam case final criteriaName?) {
+      final criteriaParam = a.params.firstWhere((p) => p.name == criteriaName);
+      _out
+        ..writeln()
+        ..writeln('  public var appContext: FocusFilterAppContext {')
+        ..writeln('    if let allowed: [String] = ${_focusCriteriaValues(criteriaParam)}, !allowed.isEmpty {')
+        ..writeln('      return FocusFilterAppContext(notificationFilterPredicate: NSPredicate(format: "SELF IN %@", allowed))')
+        ..writeln('    }')
+        ..writeln('    return FocusFilterAppContext()')
+        ..writeln('  }');
+    }
+    _out
       ..writeln()
       ..writeln('  @MainActor')
       ..writeln('  public func perform() async throws -> some IntentResult {')
@@ -64,6 +74,33 @@ extension _Surfaces on SwiftWriter {
       ..writeln('  }')
       ..writeln('}')
       ..writeln();
+    _optionsProviders(a, floor);
+  }
+
+  /// Swift expression of type `[String]?` extracting notification filter
+  /// criteria values from [p].
+  String _focusCriteriaValues(ParamModel p) {
+    final n = swiftName(p.name);
+    final opt = _optional(p);
+    if (p.entity != null) {
+      if (p.entityList) return opt ? '$n?.map(\\.id)' : 'Optional($n.map(\\.id))';
+      return opt ? '$n.map({ [\$0.id] })' : '[$n.id]';
+    }
+    if (p.schemaEntity case final s?) {
+      final idPath = _dartIDPath(s.schema.id);
+      if (p.entityList) return opt ? '$n?.map($idPath)' : 'Optional($n.map($idPath))';
+      return opt ? '$n.map({ [${_dartID(s.schema.id, r'$0')}] })' : '[${_dartID(s.schema.id, n)}]';
+    }
+    final v = p.value!;
+    return switch (v.kind) {
+      ValueKind.enumeration => v.list
+          ? (opt ? '$n?.map(\\.rawValue)' : 'Optional($n.map(\\.rawValue))')
+          : (opt ? '$n.map({ [\$0.rawValue] })' : '[$n.rawValue]'),
+      ValueKind.string => v.list ? (opt ? n : 'Optional($n)') : (opt ? '$n.map({ [\$0] })' : '[$n]'),
+      _ => v.list
+          ? (opt ? '$n?.map({ "\\(\$0)" })' : 'Optional($n.map({ "\\(\$0)" }))')
+          : (opt ? '$n.map({ ["\\(\$0)"] })' : '["\\($n)"]'),
+    };
   }
 
   /// The body of a `liveActivity: true` action's `perform`. It runs in the
@@ -75,16 +112,24 @@ extension _Surfaces on SwiftWriter {
   /// With `@AssistantBackground()`, a `Runs.withFlutter` one starts Dart on the
   /// headless engine instead, like any background action.
   String _liveActivityPerform(ActionModel a, String dialog, Map<String, _Mode> modes) {
+    final floor = _actionFloor(a);
     if (a.runs == RunsModel.deferred) {
+      final undo = a.undo == null ? '' : '\n${_undoLines(floor, a.title, 'AssistantUndo.call("${a.id}", args: args)')}';
       return '''
-${_performOrQueue(a)}
+${_performOrQueue(a)}$undo
     return .result(dialog: IntentDialog(stringLiteral: $dialog))''';
     }
     final call = a.returnsReply
         ? 'let reply = AssistantReply(json: try await callDart("${a.id}", args: args))'
         : 'let reply = try await callDart("${a.id}", args: args)';
+    final undo = a.undo == null
+        ? ''
+        : a.undo!.takesResult && a.returnsString && !a.returnsReply
+            ? '\n    var undoArgs = args\n    undoArgs["result"] = reply ?? NSNull()\n'
+                '${_undoLines(floor, a.title, 'AssistantUndo.call("${a.id}", args: undoArgs)')}'
+            : '\n${_undoLines(floor, a.title, 'AssistantUndo.call("${a.id}", args: args)')}';
     final result = a.returnsReply
-        ? _replyReturn(dialog: 'reply.dialog ?? $dialog', floor: _actionFloor(a), interactive: a.cardButtons).trimRight()
+        ? _replyReturn(dialog: 'reply.dialog ?? $dialog', floor: floor, interactive: a.cardButtons).trimRight()
         : '    return .result(dialog: IntentDialog(stringLiteral: reply ?? $dialog))';
     // Without background execution, iOS comes forward unless Dart already runs.
     final forward = _foregroundLines(modes,
@@ -94,7 +139,7 @@ ${_performOrQueue(a)}
             ? null
             : '      // A Live Activity intent can run in the background; the Flutter engine\n'
                 '      // only starts with a scene, so come forward unless Dart already runs.');
-    return '$forward\n    $call\n$result';
+    return '$forward\n    $call$undo\n$result';
   }
 
   /// `LiveActivityIntent` is iOS-only.

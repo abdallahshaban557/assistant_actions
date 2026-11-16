@@ -216,12 +216,29 @@ ${_unlockMember(_entityUnlock(className).forSchema(_systemOpen))}  var target: $
       }
       return optional ? '$n?.title ?? ""' : '$n.title';
     }
+    if (p.schemaEntity != null) {
+      const display = r'String(localized: $0.displayRepresentation.title)';
+      if (p.entityList) {
+        return optional
+            ? '$n?.map { $display }.joined(separator: ", ") ?? ""'
+            : '$n.map { $display }.joined(separator: ", ")';
+      }
+      return optional ? '$n.map { $display } ?? ""' : 'String(localized: $n.displayRepresentation.title)';
+    }
     final v = p.value!;
     String? one(String x) => switch (v.kind) {
           ValueKind.string => x,
           ValueKind.dateTime => '$x.formatted(date: .abbreviated, time: .shortened)',
           ValueKind.uri => '$x.absoluteString',
-          ValueKind.duration => '$x.formatted()',
+          ValueKind.duration ||
+          ValueKind.length ||
+          ValueKind.mass ||
+          ValueKind.temperature ||
+          ValueKind.volume ||
+          ValueKind.speed ||
+          ValueKind.energy =>
+            '$x.formatted()',
+          ValueKind.currency => '$x.amount.formatted(.currency(code: $x.currencyCode))',
           ValueKind.enumeration => '$x.rawValue',
           ValueKind.integer || ValueKind.decimal || ValueKind.boolean => '"\\($x)"',
           // People, places and files have no short text.
@@ -269,12 +286,14 @@ ${_unlockMember(_entityUnlock(className).forSchema(_systemOpen))}  var target: $
   /// decoded from [raw]: what Dart's `AssistantDonations` sent, encoded the
   /// way the registry decodes it.
   String _decodeDonated(ParamModel p, String raw) {
-    if (p.entity case final e?) {
-      String find(String id) => 'AssistantSnapshot.records("${e.className}").first(where: { \$0.id == $id })';
+    if (p.isEntity) {
+      final className = p.entityClassName;
+      final swift = p.entitySwiftName;
+      String find(String id) => 'AssistantSnapshot.records("$className").first(where: { \$0.id == $id })';
       if (p.entityList) {
-        return 'AssistantValues.strings($raw)?.compactMap({ id in ${find('id')} }).map({ \$0.map(${e.swiftName}.init(record:)) })';
+        return 'AssistantValues.strings($raw)?.compactMap({ id in ${find('id')}.map($swift.init(record:)) })';
       }
-      return 'AssistantValues.string($raw).flatMap({ id in ${find('id')} }).map(${e.swiftName}.init(record:))';
+      return 'AssistantValues.string($raw).flatMap({ id in ${find('id')} }).map($swift.init(record:))';
     }
     final v = p.value!;
     String one(String x) => switch (v.kind) {
@@ -312,15 +331,213 @@ ${_unlockMember(_entityUnlock(className).forSchema(_systemOpen))}  var target: $
     return iOS <= 17 && macOS <= 14;
   }
 
+  /// Default Swift value for an unmapped required parameter on a donated schema intent.
+  String _donatedFallback(SchemaType t, EntitySchema owner, FixedInstance? fixed) {
+    if (t.kind == 'entity') {
+      if (fixed != null) return _default(t, owner, fixed);
+      if (_adopted[t.ref] case final s?) return '${s.swiftName}.reference("", resolve: false)';
+    }
+    return _fallback(t, owner);
+  }
+
+  /// Swift lines populating and donating a schema [intent] of [kind] on [owner].
+  List<String> _donateSchemaLines(SchemaEntityModel? owner, IntentSchema intent, IntentKind kind) {
+    final structName = '${owner?.className ?? pascal(intent.domain)}${pascal(intent.name)}Intent';
+    switch (kind) {
+      case IntentKind.record:
+        return [
+          'let intent = $structName()',
+          'IntentDonationManager.shared.donate(intent: intent)',
+          'return true',
+        ];
+      case IntentKind.delete:
+        final s = owner!;
+        return [
+          'guard let id = AssistantValues.string(values["id"]) else { return false }',
+          'let intent = $structName()',
+          'intent.entities = [${s.swiftName}.reference(id, resolve: true)]',
+          'IntentDonationManager.shared.donate(intent: intent)',
+          'return true',
+        ];
+      case IntentKind.create:
+        final s = owner!;
+        final lines = <String>['let intent = $structName()'];
+        for (final p in intent.parameters) {
+          final n = swiftName(p.name);
+          if (s.mapping[p.name] case final field?) {
+            if (p.type.isOptional) {
+              lines.add('if let raw = values["${field.name}"], !(raw is NSNull) { intent.$n = ${_decode(p.type, 'raw', s.schema)} }');
+            } else {
+              lines.add('intent.$n = ${_decode(p.type, 'values["${field.name}"]', s.schema)}');
+            }
+          } else {
+            final fixed = s.containers[p.name] ?? _fixed[p.type.base.ref];
+            if (!p.type.isOptional) {
+              lines.add('intent.$n = ${_donatedFallback(p.type, s.schema, fixed)}');
+            } else if (fixed != null) {
+              lines.add('intent.$n = ${_default(p.type, s.schema, fixed)}');
+            }
+          }
+        }
+        lines.addAll([
+          'IntentDonationManager.shared.donate(intent: intent)',
+          'return true',
+        ]);
+        return lines;
+      case IntentKind.update || IntentKind.append:
+        final s = owner!;
+        final sets = <String>[];
+        var usesFields = false;
+        for (final p in intent.parameters) {
+          if (p.name == 'target') continue;
+          final n = swiftName(p.name);
+          if (s.mapping[p.name] case final field?) {
+            usesFields = true;
+            if (p.type.isOptional) {
+              sets.add('if let raw = fields["${field.name}"], !(raw is NSNull) { intent.$n = ${_decode(p.type, 'raw', s.schema)} }');
+            } else {
+              sets.add('intent.$n = ${_decode(p.type, 'fields["${field.name}"]', s.schema)}');
+            }
+          } else {
+            final fixed = s.containers[p.name] ?? _fixed[p.type.base.ref];
+            if (!p.type.isOptional) {
+              sets.add('intent.$n = ${_donatedFallback(p.type, s.schema, fixed)}');
+            } else if (fixed != null) {
+              sets.add('intent.$n = ${_default(p.type, s.schema, fixed)}');
+            }
+          }
+        }
+        return [
+          'guard let id = AssistantValues.string(values["id"]) else { return false }',
+          if (usesFields) 'let fields = values["fields"] as? [String: Any] ?? [:]',
+          'let intent = $structName()',
+          'intent.target = ${s.swiftName}.reference(id, resolve: true)',
+          ...sets,
+          'IntentDonationManager.shared.donate(intent: intent)',
+          'return true',
+        ];
+      case IntentKind.call:
+        final guards = <String>[];
+        final sets = <String>[];
+        for (final p in intent.parameters) {
+          final n = swiftName(p.name);
+          final raw = 'values["${p.name}"]';
+          if (callArg(p) == null) {
+            if (!p.type.isOptional && p.type.base.isList) sets.add('intent.$n = []');
+            continue;
+          }
+          final base = p.type.base;
+          if (!base.isList && base.kind == 'entity') {
+            final ref = base.ref!;
+            if (_adopted[ref] case final s?) {
+              final decode = 'AssistantValues.string($raw).map({ ${s.swiftName}.reference(\$0, resolve: true) })';
+              if (p.type.isOptional) {
+                sets.add('intent.$n = $decode');
+              } else {
+                guards.add('guard let ${p.name}Value = $decode else { return false }');
+                sets.add('intent.$n = ${p.name}Value');
+              }
+            } else if (_fixed.containsKey(ref)) {
+              if (p.type.isOptional) {
+                sets.add('if AssistantValues.string($raw) != nil { intent.$n = ${_containerName(ref)}.fixed }');
+              } else {
+                sets.add('intent.$n = ${_containerName(ref)}.fixed');
+              }
+            }
+            continue;
+          }
+          if (base.isList && base.of!.base.kind == 'entity') {
+            final ref = base.of!.base.ref!;
+            if (_adopted[ref] case final s?) {
+              var decode = 'AssistantValues.strings($raw)?.map({ ${s.swiftName}.reference(\$0, resolve: true) })';
+              if (base.kind == 'set') decode = '($decode).map(Set.init)';
+              if (p.type.isOptional) {
+                sets.add('intent.$n = $decode');
+              } else {
+                guards.add('guard let ${p.name}Value = $decode else { return false }');
+                sets.add('intent.$n = ${p.name}Value');
+              }
+            } else if (_fixed.containsKey(ref)) {
+              final fixedItem = '${_containerName(ref)}.fixed';
+              var decode = 'AssistantValues.strings($raw)?.map({ _ in $fixedItem })';
+              if (base.kind == 'set') decode = '($decode).map(Set.init)';
+              if (p.type.isOptional) {
+                sets.add('intent.$n = $decode');
+              } else {
+                sets.add('intent.$n = $decode ?? []');
+              }
+            } else if (!p.type.isOptional) {
+              sets.add('intent.$n = []');
+            }
+            continue;
+          }
+          if (base.isList) {
+            final each = _decodeSchemaScalar(base.of!.base, r'$0');
+            if (each == null) {
+              if (!p.type.isOptional) sets.add('intent.$n = []');
+              continue;
+            }
+            var decode = 'AssistantValues.items($raw)?.compactMap({ $each })';
+            if (base.kind == 'set') decode = '($decode).map(Set.init)';
+            if (p.type.isOptional) {
+              sets.add('intent.$n = $decode');
+            } else {
+              guards.add('guard let ${p.name}Value = $decode else { return false }');
+              sets.add('intent.$n = ${p.name}Value');
+            }
+            continue;
+          }
+          final decode = _decodeSchemaScalar(base, raw);
+          if (decode != null) {
+            if (p.type.isOptional) {
+              sets.add('intent.$n = $decode');
+            } else {
+              guards.add('guard let ${p.name}Value = $decode else { return false }');
+              sets.add('intent.$n = ${p.name}Value');
+            }
+          }
+        }
+        return [
+          ...guards,
+          'let intent = $structName()',
+          ...sets,
+          'IntentDonationManager.shared.donate(intent: intent)',
+          'return true',
+        ];
+    }
+  }
+
   /// The generated host calls (`AssistantActionsAppHostCalls`): how
   /// collections' ids become `EntityIdentifier`s for on-screen entities,
   /// and donations.
   void _hostCalls() {
     final opens = _openTargets;
+    final focusFilter = app.actions.where((a) => a.focusFilter != null).firstOrNull;
     final actions = [
       for (final a in _userActions) (a.id, a.swiftName, a.params, _actionFloor(a)),
       for (final a in app.snapshotActions) (a.id, a.swiftName, const <ParamModel>[], _none),
     ];
+    final schemaDonations = [
+      for (final s in app.schemaEntities)
+        for (final (intent, kind) in s.intents)
+          if (canDonateSchemaIntent(app, s, intent, kind))
+            (
+              key: kind == IntentKind.record ? recordActionId(s, intent) : callActionId(s, intent),
+              owner: s as SchemaEntityModel?,
+              intent: intent,
+              kind: kind,
+            ),
+      for (final d in app.schemaDomains)
+        for (final intent in d.intents)
+          if (canDonateSchemaIntent(app, null, intent, IntentKind.call))
+            (
+              key: callActionId(null, intent),
+              owner: null as SchemaEntityModel?,
+              intent: intent,
+              kind: IntentKind.call,
+            ),
+    ];
+    final hasActionDonations = actions.isNotEmpty || schemaDonations.isNotEmpty;
     _out
       ..writeln('/// Found by name by `AssistantHostCalls` in the runtime: what Dart\'s')
       ..writeln('/// `AssistantActions.showing`, `donate` and `AssistantDonations` need.')
@@ -344,7 +561,10 @@ ${_unlockMember(_entityUnlock(className).forSchema(_systemOpen))}  var target: $
       }
     }
     if (opens.isNotEmpty) _out.writeln('    AssistantHostCalls.register("donate.entity") { args in donateEntity(args) }');
-    if (actions.isNotEmpty) _out.writeln('    AssistantHostCalls.register("donate.action") { args in donateAction(args) }');
+    if (hasActionDonations) _out.writeln('    AssistantHostCalls.register("donate.action") { args in donateAction(args) }');
+    if (focusFilter != null) {
+      _out.writeln('    AssistantHostCalls.register("focusFilter.current") { args in queryFocusFilter(args) }');
+    }
     _out.writeln('  }');
 
     if (opens.isNotEmpty) {
@@ -373,18 +593,11 @@ ${_unlockMember(_entityUnlock(className).forSchema(_systemOpen))}  var target: $
         ..writeln('  }');
     }
 
-    if (actions.isNotEmpty) {
-      _out
-        ..writeln()
-        ..writeln('  /// Donates the action Dart ran, with its arguments.')
-        ..writeln('  @MainActor')
-        ..writeln('  private static func donateAction(_ args: [String: Any]) -> Bool {')
-        ..writeln('    guard let action = args["action"] as? String else { return false }');
-      if (actions.any((a) => a.$3.isNotEmpty)) _out.writeln('    let values = args["args"] as? [String: Any] ?? [:]');
-      _out.writeln('    switch action {');
+    if (hasActionDonations) {
+      final cases = StringBuffer();
       for (final (id, swift, params, floor) in actions) {
-        _out.writeln('    case "$id":');
-        if (_above(floor)) _out.writeln('      guard ${_available(floor)} else { return false }');
+        cases.writeln('    case "$id":');
+        if (_above(floor)) cases.writeln('      guard ${_available(floor)} else { return false }');
         final sets = <String>[];
         for (final p in params) {
           final n = swiftName(p.name);
@@ -392,30 +605,120 @@ ${_unlockMember(_entityUnlock(className).forSchema(_systemOpen))}  var target: $
           if (_optional(p)) {
             // Dart sent null, or left a default Swift can't state to Dart.
             sets.add('intent.$n = $decode');
-          } else if (p.swiftDefault != null) {
+          } else if (p.swiftDefault != null && p.options == null) {
             sets.add('if let value = $decode { intent.$n = value }');
           } else {
-            _out.writeln('      guard let ${p.name}Value = $decode else { return false }');
+            cases.writeln('      guard let ${p.name}Value = $decode else { return false }');
             sets.add('intent.$n = ${p.name}Value');
           }
         }
-        _out.writeln('      let intent = $swift()');
+        cases.writeln('      let intent = $swift()');
         for (final line in sets) {
-          _out.writeln('      $line');
+          cases.writeln('      $line');
         }
-        _out
+        cases
           ..writeln('      IntentDonationManager.shared.donate(intent: intent)')
           ..writeln('      return true');
       }
+      for (final d in schemaDonations) {
+        final floor = _schemaIntentFloor(d.owner, d.intent, d.kind);
+        final (iOS, macOS) = _versions(floor);
+        final osGuard = macOS.isInfinite ? 'iOS' : (iOS.isInfinite ? 'macOS' : null);
+        final bodyLines = <String>[
+          if (osGuard == 'iOS' && iOS > _baseFloor['iOS']!)
+            'guard #available(iOS ${SwiftWriter._version(iOS)}, *) else { return false }'
+          else if (osGuard == 'macOS' && macOS > _baseFloor['macOS']!)
+            'guard #available(macOS ${SwiftWriter._version(macOS)}, *) else { return false }'
+          else if (osGuard == null && _above(floor))
+            'guard ${_available(floor)} else { return false }',
+          ..._donateSchemaLines(d.owner, d.intent, d.kind),
+        ];
+        var wrapped = bodyLines;
+        if (osGuard != null) {
+          wrapped = ['#if os($osGuard)', for (final l in wrapped) '  $l', '#else', '  return false', '#endif'];
+        }
+        final framework = _optionalFramework(d.intent);
+        if (framework != null) {
+          wrapped = ['#if canImport($framework)', for (final l in wrapped) '  $l', '#else', '  return false', '#endif'];
+        }
+        cases.writeln('    case "${d.key}":');
+        for (final line in wrapped) {
+          cases.writeln('      $line');
+        }
+      }
+      final casesText = cases.toString();
       _out
+        ..writeln()
+        ..writeln('  /// Donates the action Dart ran, with its arguments.')
+        ..writeln('  @MainActor')
+        ..writeln('  private static func donateAction(_ args: [String: Any]) -> Bool {')
+        ..writeln('    guard let action = args["action"] as? String else { return false }');
+      if (casesText.contains('values[')) _out.writeln('    let values = args["args"] as? [String: Any] ?? [:]');
+      _out
+        ..writeln('    switch action {')
+        ..write(casesText)
         ..writeln('    default:')
         ..writeln('      return false')
         ..writeln('    }')
         ..writeln('  }');
     }
+    if (focusFilter != null) {
+      final focusFloor = _actionFloor(focusFilter);
+      _out
+        ..writeln()
+        ..writeln('  /// Queries `${focusFilter.swiftName}.current` on cold start.')
+        ..writeln('  @MainActor')
+        ..writeln('  private static func queryFocusFilter(_ args: [String: Any]) -> [String: Any] {');
+      if (_above(focusFloor)) {
+        _out.writeln('    guard ${_available(focusFloor)} else { return ["none": true] }');
+      }
+      _out
+        ..writeln('    let requestId = args["requestId"] as? String ?? ""')
+        ..writeln('    Task { @MainActor in')
+        ..writeln('      do {')
+        ..writeln('        let current = try await ${focusFilter.swiftName}.current')
+        ..writeln(focusFilter.params.isEmpty ? '        let params: [String: Any] = [:]' : '        let params: [String: Any] = [');
+      for (final p in focusFilter.params) {
+        final expr = _encodeFocusCurrentParam(p);
+        _out.writeln('          "${p.name}": $expr,');
+      }
+      if (focusFilter.params.isNotEmpty) _out.writeln('        ]');
+      _out
+        ..writeln('        _ = try? await AssistantBridge.shared.perform(')
+        ..writeln('          "assistant_actions.focusFilterResult",')
+        ..writeln('          args: ["requestId": requestId, "action": "${focusFilter.id}", "params": params])')
+        ..writeln('      } catch {')
+        ..writeln('        _ = try? await AssistantBridge.shared.perform(')
+        ..writeln('          "assistant_actions.focusFilterResult",')
+        ..writeln('          args: ["requestId": requestId, "none": true])')
+        ..writeln('      }')
+        ..writeln('    }')
+        ..writeln('    return ["pending": true]')
+        ..writeln('  }');
+    }
     _out
       ..writeln('}')
       ..writeln();
+  }
+
+  String _encodeFocusCurrentParam(ParamModel p) {
+    final n = 'current.${swiftName(p.name)}';
+    final optional = _optional(p);
+    if (p.entity != null) {
+      if (p.entityList) return optional ? 'AssistantValues.encode($n?.map(\\.id))' : '$n.map(\\.id)';
+      return optional ? 'AssistantValues.encode($n?.id)' : '$n.id';
+    }
+    if (p.schemaEntity case final s?) {
+      final idPath = _dartIDPath(s.schema.id);
+      if (p.entityList) return optional ? 'AssistantValues.encode($n?.map($idPath))' : '$n.map($idPath)';
+      return optional ? 'AssistantValues.encode(${_dartID(s.schema.id, '$n?')})' : _dartID(s.schema.id, n);
+    }
+    if (p.value!.list) {
+      return optional
+          ? '$n.map { \$0.map { AssistantValues.encode(\$0) } as Any } ?? NSNull()'
+          : '$n.map { AssistantValues.encode(\$0) }';
+    }
+    return 'AssistantValues.encode($n)';
   }
 
   // ── Queries ──

@@ -6,6 +6,7 @@ import 'package:assistant_actions/assistant_actions.dart';
 import 'package:assistant_actions_example/assistant_actions.g.dart';
 import 'package:assistant_actions_example/models/models.dart';
 import 'package:assistant_actions_example/store.dart';
+import 'package:flutter/services.dart' show PlatformException;
 import 'package:flutter_test/flutter_test.dart';
 
 /// Stands in for the Swift side, which tests don't have.
@@ -102,9 +103,14 @@ void main() {
     expect(const TaskItemValues().dueCleared, isFalse);
   });
 
-  test('plain entities publish their fields for snapshot answers', () {
+  test('plain entities publish their fields and Spotlight attributes for snapshot answers', () {
     final codec = registry.codecs[Recipe]!;
-    expect(codec.encode(store.recipes.first)['fields'], {'name': 'Pancakes', 'minutes': 20});
+    expect(codec.encode(store.recipes.first)['fields'], {
+      'name': 'Pancakes',
+      'minutes': 20,
+      'tags': ['breakfast', 'sweet'],
+      'notes': null,
+    });
   });
 
   test('createAudioEntry calls startAudioEntry live', () async {
@@ -372,6 +378,7 @@ void main() {
     await AssistantActions.stopShowing();
     expect(await AssistantActions.donate(pancakes), isTrue);
     expect(await AssistantDonations.addToShoppingList(pancakes, servings: 3), isTrue);
+    expect(await AssistantDonations.createReminder(const TaskItemValues(title: 'Buy flour')), isTrue);
     expect(host.calls, [
       ['context.showing', {'collection': 'Recipe', 'id': 'pancakes'}],
       ['context.stopShowing', <String, Object?>{}],
@@ -383,7 +390,49 @@ void main() {
           'args': {'recipe': 'pancakes', 'servings': 3},
         },
       ],
+      [
+        'donate.action',
+        {
+          'action': 'TaskItem.createReminder',
+          'args': {'title': 'Buy flour'},
+        },
+      ],
     ]);
+  });
+
+  test('plain action undo, schema entity params, currency, dynamic options and AssistantError work end-to-end', () async {
+    store.shopping.clear();
+    await registry.actions['addToShoppingList']!({'recipe': 'pancakes', 'servings': 4});
+    expect(store.shopping, ['Pancakes × 4']);
+    await registry.actions['addToShoppingList.undo']!({'recipe': 'pancakes', 'servings': 4});
+    expect(store.shopping, isEmpty);
+
+    store.tasks.add(TaskItem(id: 't_done', title: 'Prep batter'));
+    expect(await AssistantActions.perform('completeTask', '{"task":"t_done","note":"Used buttermilk"}'),
+        'Completed Prep batter.');
+    expect(store.tasks.single.done, isTrue);
+    expect(store.memories.single.text, 'Used buttermilk');
+
+    await expectLater(
+      () => AssistantActions.perform('completeTask', '{"task":"t_done"}'),
+      throwsA(isA<PlatformException>()
+          .having((e) => e.code, 'code', AssistantError.code)
+          .having((e) => e.message, 'message', 'Prep batter is already done.')),
+    );
+
+    final grocery = jsonDecode((await AssistantActions.perform(
+      'logGroceryRun',
+      jsonEncode({
+        'spent': {'amount': 24.5, 'currencyCode': 'USD'},
+        'distance': {'value': 2.0, 'unit': 'kilometers'},
+      }),
+    ))!);
+    expect(grocery, {
+      'value': {'amount': 24.5, 'currencyCode': 'USD'},
+      'dialog': 'Logged 24.5 USD at Farmers Market.',
+    });
+    final stores = jsonDecode((await AssistantActions.perform('options.logGroceryRun.store', '{}'))!);
+    expect(stores, ['Farmers Market', 'Corner Grocer']);
   });
 
   // Last: it switches the runtime to the headless engine's mode.

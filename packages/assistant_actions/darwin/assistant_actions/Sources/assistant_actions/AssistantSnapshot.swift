@@ -1,5 +1,9 @@
 import Foundation
 
+#if canImport(WidgetKit)
+  import WidgetKit
+#endif
+
 /// One item of an entity collection, as Dart last published it.
 public struct AssistantRecord {
   public let id: String
@@ -49,6 +53,12 @@ public enum AssistantSnapshot {
     let url = try fileURL(collection, create: true)
     try Data(json.utf8).write(to: url, options: .atomic)
     AssistantSpotlight.update(collection)
+    #if canImport(WidgetKit)
+      WidgetCenter.shared.reloadAllTimelines()
+      if #available(iOS 18.0, macOS 26.0, *) {
+        ControlCenter.shared.reloadAllControls()
+      }
+    #endif
   }
 
   private static func published(_ collection: String) -> [AssistantRecord] {
@@ -66,10 +76,6 @@ public enum AssistantSnapshot {
   }
 
   private static func fileURL(_ collection: String, create: Bool) throws -> URL {
-    let base = try FileManager.default.url(
-      for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: create)
-    let dir = base.appendingPathComponent("assistant_actions", isDirectory: true)
-    if create { try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true) }
-    return dir.appendingPathComponent("\(collection).json")
+    try AssistantAppGroup.directoryURL(create: create).appendingPathComponent("\(collection).json")
   }
 }

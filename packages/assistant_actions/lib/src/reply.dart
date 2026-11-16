@@ -88,7 +88,9 @@ class AssistantCard {
     this.subtitle,
     this.rows = const [],
     this.imagePath,
+    this.imageUrl,
     this.systemImage,
+    this.toggles = const [],
     this.buttons = const [],
   });
 
@@ -102,8 +104,16 @@ class AssistantCard {
   /// one in the app's documents or Application Support folder.
   final String? imagePath;
 
-  /// An SF Symbol name, shown when there's no [imagePath].
+  /// A remote `https://` or `http://` image URL shown beside the title when
+  /// [imagePath] is not set.
+  final String? imageUrl;
+
+  /// An SF Symbol name, shown when there's no [imagePath] or [imageUrl].
   final String? systemImage;
+
+  /// Interactive toggles under the rows that run an action in Dart and update
+  /// the card (interactive snippets, iOS 26 / macOS 26).
+  final List<AssistantCardToggle> toggles;
 
   /// Buttons under the rows that run an action in Dart and update the card
   /// (interactive snippets, iOS 26 / macOS 26). Keep it to one or two.
@@ -119,9 +129,49 @@ class AssistantCard {
         if (subtitle != null) 'subtitle': subtitle,
         if (rows.isNotEmpty) 'rows': [for (final r in rows) [r.label, r.value]],
         if (imagePath != null) 'imagePath': imagePath,
+        if (imageUrl != null) 'imageUrl': imageUrl,
         if (systemImage != null) 'systemImage': systemImage,
+        if (toggles.isNotEmpty) 'toggles': [for (final t in toggles) t.toJson()],
         if (buttons.isNotEmpty) 'buttons': [for (final b in buttons) b.toJson()],
       };
+}
+
+/// An interactive toggle on an [AssistantCard] (`Toggle(isOn:intent:)`,
+/// iOS 26 / macOS 26). Toggling it runs [actionId] in Dart with [args]
+/// (defaulting `'value'` to `!value` unless [args] sets `'value'`) and
+/// refreshes the card from the returned [AssistantReply].
+class AssistantCardToggle {
+  const AssistantCardToggle({
+    required this.label,
+    required this.value,
+    required this.actionId,
+    this.args = const {},
+    this.systemImage,
+  });
+
+  final String label;
+  final bool value;
+  final String actionId;
+  final Map<String, Object?> args;
+  final String? systemImage;
+
+  /// Throws an [ArgumentError] when the app has no action [actionId].
+  Map<String, Object?> toJson() {
+    if (AssistantActions.hasAction(actionId) == false) {
+      throw ArgumentError.value(actionId, 'actionId',
+          'Card toggle "$label" runs no known action. Use the id of an @AssistantAction function or a schema intent');
+    }
+    return {
+      'label': label,
+      'value': value,
+      'action': actionId,
+      'args': {
+        'value': !value,
+        for (final MapEntry(:key, :value) in args.entries) key: AssistantValue.encodeAny(value),
+      },
+      if (systemImage != null) 'systemImage': systemImage,
+    };
+  }
 }
 
 /// One row of an [AssistantCard].

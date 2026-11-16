@@ -1,3 +1,58 @@
+## 0.0.21
+
+* **App Group shared container**: `appGroup: 'group.…'` on
+  `@AssistantActionsApp` (and its new `@AssistantApp` alias) routes published
+  snapshots, queued inbox changes and Spotlight state through the shared App
+  Group container and `UserDefaults(suiteName:)` (`AssistantAppGroup.swift`),
+  falling back cleanly to Application Support and `UserDefaults.standard`.
+* **Controls & configurable widgets**: `@AssistantControl` generates
+  extension-safe `ControlWidget`s (`ControlWidgetButton` and `ControlWidgetToggle`)
+  for Control Center, Lock Screen and the Action Button, and
+  `@AssistantWidgetConfig` generates `WidgetConfigurationIntent`s into
+  `apple/AssistantWidgets.g.swift` (wired into `AssistantWidgets` by
+  `dart run assistant_actions:install --widgets`).
+* **Interactive Live Activities & APNs push tokens**:
+  `AssistantLiveActivityButton` on `AssistantActivityContent.buttons` renders up
+  to 2 interactive `Button(intent:)` controls on the Lock Screen and Dynamic
+  Island; `enablePush: true` on `start`, `AssistantLiveActivity.pushToStartTokens()`,
+  `pushToken()` and `pushTokens()` expose ActivityKit APNs hex tokens.
+* **Focus filters**: `filterCriteriaParam:` on `@AssistantFocusFilter` populates
+  `FocusFilterAppContext(notificationFilterPredicate:)`;
+  `AssistantActions.currentFocusFilter()` and `syncCurrentFocusFilter()` query
+  the active Focus filter on cold launch.
+* **In-app discovery widgets**: `AssistantSiriTip`, `AssistantShortcutsLink`,
+  and `AssistantActions.openShortcutsApp()` (`AssistantPlatformViews.swift`).
+* **User-facing errors & mid-call conversational prompts**: throwing
+  `AssistantError(message)` fails the intent cleanly in Swift with the exact
+  localized message (stopping multi-step Shortcuts without a generic prefix);
+  `AssistantCall.current` adds mid-execution `confirm`, `choose`,
+  `requestValue<T>` and `disambiguate<T>` prompts.
+* **Plain action undo & schema donations**: `undo: myUndoFn` on
+  `@AssistantAction` makes plain actions `UndoableIntent`s (forwarding inputs
+  and optional `result`), and `AssistantDonations` now includes typed donation
+  methods for adopted schema `call`, `create`, `update`, `append`, `delete` and
+  `record` intents.
+* **Schema entity parameters, rich `@Param` options & measurements**:
+  adopted schema entity classes work as parameters (`T`, `T?`, `List<T>`) on
+  `@AssistantAction` and `@AssistantFocusFilter`; `@Param` adds `min`/`max`,
+  `controlStyle`, `multiline`, `capitalization`, `keyboardType`,
+  `supportedContentTypes`, and `options:` + `snapshotField:` (`DynamicOptionsProvider`);
+  added `AssistantCurrency` and typed `AssistantLength`, `AssistantMass`,
+  `AssistantTemperature`, `AssistantVolume`, `AssistantSpeed` and
+  `AssistantEnergy` wrappers.
+* **Conditional summaries & richer result cards**: `summaries:` on
+  `@AssistantAction` (`SummaryWhen` and `SummarySwitch`), plus
+  `AssistantCardToggle` (`toggles:`) and remote `imageUrl:` on `AssistantCard`.
+* **Spotlight attributes, `SnapshotFilter` & richer property queries**:
+  `@EntityKeywords()`, `@EntityBody()`, `@EntityCreatedAt()` and
+  `@EntityUpdatedAt()` on `@AssistantEntity` classes; `SnapshotFilter`
+  predicates (`equals`, `notEquals`, comparisons, `contains`, `startsWith`,
+  `isNull`, `isNotNull`, `isToday`, `isPast`, `isFuture`) on
+  `SnapshotAnswer(filters: [...])`; richer `EntityPropertyQuery` comparators on
+  plain entities; and Apple Intelligence `FoundationModels.Tool` bridging
+  (`AssistantFoundationTools.all`). Generator API 14.
+* Needs assistant_actions_generator 0.0.18.
+
 ## 0.0.20
 
 * `requiresUnlock:` (`Unlock.notRequired` / `required` / `onThisDevice`) on

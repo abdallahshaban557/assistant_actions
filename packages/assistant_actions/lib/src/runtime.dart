@@ -5,12 +5,17 @@ import 'dart:io';
 import 'dart:ui' show DartPluginRegistrant;
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart' show PlatformException;
 import 'package:flutter/widgets.dart';
 
 import 'bridge/assistant_api.g.dart';
+import 'error.dart';
 import 'host.dart';
+import 'live_activity.dart';
 import 'live_call.dart';
+import 'param_options.dart';
 import 'registry.dart';
+import 'values.dart';
 
 /// Connects the generated App Intents to the app.
 ///
@@ -170,6 +175,72 @@ abstract final class AssistantActions {
   static Future<bool> donateAction(String action, Map<String, Object?> args) async =>
       await callSwift('donate.action', {'action': action, 'args': args}) == true;
 
+  /// Opens Apple's Shortcuts app (`shortcuts://`). Returns whether the OS
+  /// opened the URL.
+  static Future<bool> openShortcutsApp() async => await callSwift('shortcuts.open') == true;
+
+  static int _nextFocusRequest = 0;
+  static final _focusRequests = <String, Completer<({String? action, Map<String, Object?> params})?>>{};
+
+  /// Internal action Swift calls to deliver `MyFocusFilterIntent.current`.
+  @internal
+  static const focusFilterResultAction = 'assistant_actions.focusFilterResult';
+
+  /// Queries the currently active `@AssistantFocusFilter`'s parameters via
+  /// `SetFocusFilterIntent.current` on cold start, returning null when no
+  /// Focus filter is configured or active.
+  static Future<Map<String, Object?>?> currentFocusFilter() async => (await _queryFocusFilter())?.params;
+
+  /// Queries `SetFocusFilterIntent.current` and invokes the registered Dart
+  /// `@AssistantFocusFilter` handler with those parameters on cold launch.
+  /// Returns the applied parameters, or null when no Focus filter is active.
+  static Future<Map<String, Object?>?> syncCurrentFocusFilter() async {
+    final current = await _queryFocusFilter();
+    if (current == null) return null;
+    final actions = _registry?.actions;
+    if (actions != null) {
+      final handler = current.action != null ? actions[current.action] : null;
+      await handler?.call(Map<String, Object?>.of(current.params));
+    }
+    return current.params;
+  }
+
+  static Future<({String? action, Map<String, Object?> params})?> _queryFocusFilter() async {
+    final requestId = 'ff_${++_nextFocusRequest}';
+    final completer = Completer<({String? action, Map<String, Object?> params})?>();
+    _focusRequests[requestId] = completer;
+    try {
+      final raw = await callSwift('focusFilter.current', {'requestId': requestId});
+      if (raw == null) {
+        _focusRequests.remove(requestId);
+        return null;
+      }
+      if (raw is Map) {
+        final map = raw.cast<String, Object?>();
+        if (map['pending'] == true) {
+          return await completer.future;
+        }
+        _focusRequests.remove(requestId);
+        return _parseFocusFilter(map);
+      }
+      _focusRequests.remove(requestId);
+      return null;
+    } catch (_) {
+      _focusRequests.remove(requestId);
+      return null;
+    }
+  }
+
+  static ({String? action, Map<String, Object?> params})? _parseFocusFilter(Map<String, Object?> map) {
+    if (map['none'] == true) return null;
+    final action = map['action'] as String?;
+    final nested = map['params'];
+    if (nested is Map) {
+      return (action: action, params: nested.cast<String, Object?>());
+    }
+    return (action: action, params: map);
+  }
+
   static EntityCodec<Object?> _codec<T>(T item) {
     final codecs = _registry?.codecs ?? const {};
     final codec = codecs[T] ?? codecs[item.runtimeType];
@@ -191,6 +262,68 @@ abstract final class AssistantActions {
     return result == null ? null : jsonDecode(result);
   }
 
+  /// Encodes a mid-call disambiguation choice for Swift.
+  @internal
+  static Object? encodePromptValue<T>(T value) {
+    if (value == null) return null;
+    final codecs = _registry?.codecs ?? const {};
+    final codec = codecs[T] ?? codecs[value.runtimeType];
+    if (codec != null) return codec.idOf(value);
+    return AssistantValue.encodeAny(value);
+  }
+
+  /// Decodes a mid-call prompt value Swift returned into [T].
+  @internal
+  static Future<T?> decodePromptValue<T>(Object? raw) async {
+    if (raw == null) return null;
+    if (_registry?.decoders[T] case final decoder?) {
+      return (await decoder(raw)) as T?;
+    }
+    if (_sameOrNullable<T, String>()) return AssistantValue.string(raw) as T?;
+    if (_sameOrNullable<T, int>()) return AssistantValue.integer(raw) as T?;
+    if (_sameOrNullable<T, double>()) return AssistantValue.decimal(raw) as T?;
+    if (_sameOrNullable<T, num>()) return (raw is num ? raw : null) as T?;
+    if (_sameOrNullable<T, bool>()) return AssistantValue.boolean(raw) as T?;
+    if (_sameOrNullable<T, DateTime>()) return AssistantValue.date(raw) as T?;
+    if (_sameOrNullable<T, Duration>()) return AssistantValue.duration(raw) as T?;
+    if (_sameOrNullable<T, Uri>()) return AssistantValue.uri(raw) as T?;
+    if (_sameOrNullable<T, AssistantPerson>()) return AssistantValue.person(raw) as T?;
+    if (_sameOrNullable<T, AssistantPlace>()) return AssistantValue.place(raw) as T?;
+    if (_sameOrNullable<T, AssistantFile>()) return AssistantValue.file(raw) as T?;
+    if (_sameOrNullable<T, AssistantRecurrence>()) return AssistantValue.recurrence(raw) as T?;
+    if (_sameOrNullable<T, AssistantUnion>()) return AssistantValue.union(raw) as T?;
+    if (_sameOrNullable<T, AssistantCurrency>()) return AssistantValue.currency(raw) as T?;
+    if (_sameOrNullable<T, AssistantLength>()) return AssistantValue.length(raw) as T?;
+    if (_sameOrNullable<T, AssistantMass>()) return AssistantValue.mass(raw) as T?;
+    if (_sameOrNullable<T, AssistantTemperature>()) return AssistantValue.temperature(raw) as T?;
+    if (_sameOrNullable<T, AssistantVolume>()) return AssistantValue.volume(raw) as T?;
+    if (_sameOrNullable<T, AssistantSpeed>()) return AssistantValue.speed(raw) as T?;
+    if (_sameOrNullable<T, AssistantEnergy>()) return AssistantValue.energy(raw) as T?;
+    final listInput = raw is List ? raw : [raw];
+    if (_sameOrNullable<T, List<String>>()) return AssistantValue.list(listInput, AssistantValue.string) as T?;
+    if (_sameOrNullable<T, List<int>>()) return AssistantValue.list(listInput, AssistantValue.integer) as T?;
+    if (_sameOrNullable<T, List<double>>()) return AssistantValue.list(listInput, AssistantValue.decimal) as T?;
+    if (_sameOrNullable<T, List<bool>>()) return AssistantValue.list(listInput, AssistantValue.boolean) as T?;
+    if (_sameOrNullable<T, List<DateTime>>()) return AssistantValue.list(listInput, AssistantValue.date) as T?;
+    if (_sameOrNullable<T, List<Duration>>()) return AssistantValue.list(listInput, AssistantValue.duration) as T?;
+    if (_sameOrNullable<T, List<Uri>>()) return AssistantValue.list(listInput, AssistantValue.uri) as T?;
+    if (_sameOrNullable<T, List<AssistantPerson>>()) return AssistantValue.list(listInput, AssistantValue.person) as T?;
+    if (_sameOrNullable<T, List<AssistantPlace>>()) return AssistantValue.list(listInput, AssistantValue.place) as T?;
+    if (_sameOrNullable<T, List<AssistantFile>>()) return AssistantValue.list(listInput, AssistantValue.file) as T?;
+    if (_sameOrNullable<T, List<AssistantCurrency>>()) return AssistantValue.list(listInput, AssistantValue.currency) as T?;
+    if (_sameOrNullable<T, List<AssistantLength>>()) return AssistantValue.list(listInput, AssistantValue.length) as T?;
+    if (_sameOrNullable<T, List<AssistantMass>>()) return AssistantValue.list(listInput, AssistantValue.mass) as T?;
+    if (_sameOrNullable<T, List<AssistantTemperature>>()) return AssistantValue.list(listInput, AssistantValue.temperature) as T?;
+    if (_sameOrNullable<T, List<AssistantVolume>>()) return AssistantValue.list(listInput, AssistantValue.volume) as T?;
+    if (_sameOrNullable<T, List<AssistantSpeed>>()) return AssistantValue.list(listInput, AssistantValue.speed) as T?;
+    if (_sameOrNullable<T, List<AssistantEnergy>>()) return AssistantValue.list(listInput, AssistantValue.energy) as T?;
+    if (raw is T) return raw as T;
+    return null;
+  }
+
+  static bool _sameOrNullable<T, U>() => T == U || T == _typeOf<U?>();
+  static Type _typeOf<X>() => X;
+
   /// The action Swift performs to apply the inbox and wait until it's done
   /// (`AssistantBackground.applyInbox`), unlike `inboxChanged`, which
   /// doesn't wait.
@@ -211,11 +344,33 @@ abstract final class AssistantActions {
       AssistantCall.cancel(args['call'] as String?);
       return null;
     }
+    if (action == AssistantLiveActivity.pushTokenAction) {
+      AssistantLiveActivity.deliverPushToken(args);
+      return null;
+    }
+    if (action == focusFilterResultAction) {
+      final requestId = args['requestId'] as String?;
+      final completer = requestId == null ? null : _focusRequests.remove(requestId);
+      if (completer != null && !completer.isCompleted) {
+        completer.complete(_parseFocusFilter(args));
+      }
+      return null;
+    }
+    if (action == AssistantCall.promptReplyAction) {
+      AssistantCall.completePrompt(args);
+      return null;
+    }
     final handler = _registry?.actions[action];
     if (handler == null) throw ArgumentError.value(action, 'action', 'Unknown action');
     // Live calls carry their id, for `AssistantCall.current`.
     final call = args.remove(AssistantCall.argument) as String?;
-    return AssistantCall.run(call, () => handler(args));
+    try {
+      return await AssistantCall.run(call, () => handler(args));
+    } on AssistantError catch (e) {
+      throw PlatformException(code: AssistantError.code, message: e.message);
+    } on AssistantPromptCancelled {
+      throw PlatformException(code: AssistantCall.cancelledErrorCode, message: 'Cancelled');
+    }
   }
 }
 

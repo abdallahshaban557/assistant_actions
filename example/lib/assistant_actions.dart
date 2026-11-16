@@ -7,19 +7,26 @@ import 'models/models.dart';
 import 'store.dart';
 
 /// Level 1, deferred: works with the app closed. Siri answers at once and
-/// this runs the next time the app is open.
+/// this runs the next time the app is open. Undoable from iOS / macOS 26.
 @AssistantAction(
   title: 'Add to Shopping List',
   description: 'Adds a recipe’s ingredients to the shopping list.',
   dialog: 'Added {recipe} to your list.',
   // Shortcuts shows "Add Pancakes to the shopping list", with Servings under it.
   summary: 'Add {recipe} to the shopping list',
+  undo: undoAddToShoppingList,
 )
 Future<void> addToShoppingList(
   Recipe recipe, {
-  @Param(title: 'Servings', prompt: 'For how many people?') int? servings,
+  @Param(title: 'Servings', prompt: 'For how many people?', min: 1, max: 20, controlStyle: ParamControlStyle.stepper)
+  int? servings,
 }) async {
   Store.instance.shopping.add('${recipe.name} × ${servings ?? 2}');
+  Store.instance.changed();
+}
+
+Future<void> undoAddToShoppingList(Recipe recipe, {int? servings}) async {
+  Store.instance.shopping.remove('${recipe.name} × ${servings ?? 2}');
   Store.instance.changed();
 }
 
@@ -75,6 +82,15 @@ AssistantCard _recipeCard(Recipe recipe) {
         systemImage: onList ? 'cart.badge.minus' : 'cart.badge.plus',
       ),
     ],
+    toggles: [
+      AssistantCardToggle(
+        label: 'Shopping list',
+        value: onList,
+        actionId: 'toggleShoppingList',
+        args: {'recipe': recipe.id},
+        systemImage: 'cart',
+      ),
+    ],
   );
 }
 
@@ -118,7 +134,13 @@ Future<String> countOpenTasks() async {
   title: 'Plan a Meal',
   description: 'Adds a recipe to the meal plan.',
   dialog: 'Planned {recipe} for {meal}.',
-  summary: 'Plan {recipe} for {meal}',
+  summaries: [
+    SummarySwitch(
+      'meal',
+      cases: {Meal.snack: 'Save {recipe} as a snack'},
+      defaultSummary: 'Plan {recipe} for {meal}',
+    ),
+  ],
   searchKeywords: ['menu', 'meal plan'],
   shortcut: AppShortcut(
     phrases: ['Cook {recipe} for {meal} in {app}', 'Plan {meal} in {app}'],
@@ -197,9 +219,10 @@ const showOpenTasks = SnapshotAnswer<TaskItem>(
   empty: 'Your list is clear.',
 );
 
-/// The same for one of the app's own entity types.
+/// The same for one of the app's own entity types, narrowed with [SnapshotFilter].
 @AssistantAction(title: 'Quick Recipes')
 const quickRecipes = SnapshotAnswer<Recipe>(
+  filters: [SnapshotFilter.lessOrEqual('minutes', 30)],
   sortBy: 'minutes',
   limit: 3,
   item: '{title} ({minutes} min)',
@@ -207,9 +230,40 @@ const quickRecipes = SnapshotAnswer<Recipe>(
   empty: 'No recipes yet.',
 );
 
+Future<List<String>> suggestGroceryStores() async => const ['Farmers Market', 'Corner Grocer'];
+
+/// Schema entity parameter (`TaskItem`), mid-call `requestValue` and user-facing `AssistantError`.
+@AssistantAction(title: 'Complete Task', runs: Runs.withFlutter)
+Future<String> completeTask({
+  TaskItem? task,
+  @Param(multiline: true, capitalization: TextCapitalizationMode.sentences) String? note,
+}) async {
+  final resolved = task ?? await AssistantCall.current?.requestValue<TaskItem>('task', prompt: 'Which task?');
+  if (resolved == null) throw const AssistantError('Pick a task to complete.');
+  if (resolved.done) throw AssistantError('${resolved.title} is already done.');
+  resolved.done = true;
+  if (note != null && note.isNotEmpty) {
+    Store.instance.memories.add(MemoryItem(id: 'note_${resolved.id}', text: note));
+  }
+  Store.instance.changed();
+  return 'Completed ${resolved.title}.';
+}
+
+/// Currency, typed measurements and dynamic options (`DynamicOptionsProvider`).
+@AssistantAction(title: 'Log Grocery Run', runs: Runs.withFlutter)
+Future<ActionResult<AssistantCurrency>> logGroceryRun({
+  required AssistantCurrency spent,
+  AssistantLength? distance,
+  @Param(options: suggestGroceryStores, snapshotField: 'Recipe.name') String store = 'Farmers Market',
+}) async {
+  Store.instance.onScreen = 'grocery at $store: ${spent.amount} ${spent.currencyCode}';
+  Store.instance.changed();
+  return ActionResult(spent, dialog: 'Logged ${spent.amount} ${spent.currencyCode} at $store.');
+}
+
 /// Ends the recording `journal.createAudioEntry` started. A Live Activity
-/// intent on iOS: while the app records in the background, this runs at once,
-/// without bringing the app forward, and ends the Live Activity.
+/// intent on iOS and a Control Center / Action Button control (`ControlWidget`).
+@AssistantControl(id: 'stop_recording', title: 'Stop Recording', systemImage: 'stop.circle')
 @AssistantAction(
   title: 'Stop Recording',
   description: 'Stops recording the journal entry.',
@@ -218,6 +272,15 @@ const quickRecipes = SnapshotAnswer<Recipe>(
 )
 Future<void> stopRecording() => Store.instance.stopRecording();
 
+/// Configurable widget intent (`WidgetConfigurationIntent`) generated into
+/// `apple/AssistantWidgets.g.swift` for Home Screen / Desktop widgets.
+@AssistantWidgetConfig(
+  id: 'recipe_widget',
+  title: 'Pinned Recipe',
+  description: 'Pick a recipe to show in the widget.',
+)
+void configureRecipeWidget({Recipe? recipe, Meal meal = Meal.dinner}) {}
+
 /// The app's Focus filter: in Settings → Focus, add it to, say, a Work Focus
 /// and turn on "Hide tasks". Runs when that Focus turns on, and again with
 /// the defaults when it turns off.
@@ -225,6 +288,7 @@ Future<void> stopRecording() => Store.instance.stopRecording();
   title: 'Assistant Actions Example',
   description: 'Choose what the app shows during this Focus.',
   summary: 'Hide tasks: {hideTasks}',
+  filterCriteriaParam: 'note',
 )
 Future<void> applyFocus({
   @Param(title: 'Hide tasks') bool hideTasks = false,

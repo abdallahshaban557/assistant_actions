@@ -187,6 +187,84 @@ void main() {
       expect(swift, contains('case "TaskItem":'));
       expect(swift, contains('try await index.deleteAppEntities(identifiedBy: removed, ofType: E.self)'));
     });
+
+    test('plain @AssistantEntity indexes keywords, body, createdAt and updatedAt in CoreSpotlight', () {
+      const keywords = FieldModel('tags', ValueType(ValueKind.string, list: true));
+      const notes = FieldModel('notes', ValueType(ValueKind.string, nullable: true));
+      const created = FieldModel('createdAt', ValueType(ValueKind.dateTime));
+      const updated = FieldModel('updatedAt', ValueType(ValueKind.dateTime, nullable: true));
+      final article = EntityModel(
+        className: 'Article',
+        library: Uri.parse('package:app/models.dart'),
+        title: 'Article',
+        idField: 'id',
+        titleGetter: 'headline',
+        subtitleGetter: 'summary',
+        keywords: keywords,
+        body: notes,
+        createdAt: created,
+        updatedAt: updated,
+        fields: const [
+          FieldModel('headline', ValueType(ValueKind.string)),
+          keywords,
+          notes,
+          created,
+          updated,
+        ],
+      );
+      final app = AppModel(appName: 'Reader', actions: const [], entities: [article], schemaEntities: const []);
+      final swift = SwiftWriter(app).write();
+      final structEnd = swift.indexOf('\n}\n', swift.indexOf('public struct ArticleEntity: AppEntity {'));
+      final entityStruct = swift.substring(swift.indexOf('public struct ArticleEntity: AppEntity {'), structEnd);
+      expect(entityStruct, contains('  public let assistantKeywords: [String]?\n'));
+      expect(entityStruct, contains('    assistantKeywords = AssistantValues.strings(record.fields["tags"])\n'));
+      expect(entityStruct, isNot(contains('assistantBody')),
+          reason: 'stored body/date fields reuse their @Property members');
+      final indexed = swift.substring(
+        swift.indexOf('extension ArticleEntity: IndexedEntity {'),
+        swift.indexOf('\n}\n', swift.indexOf('extension ArticleEntity: IndexedEntity {')),
+      );
+      expect(indexed, contains('    attributes.keywords = assistantKeywords\n'));
+      expect(indexed, contains('    attributes.textContent = notes\n'));
+      expect(indexed, contains('    attributes.contentCreationDate = createdAt\n'));
+      expect(indexed, contains('    attributes.contentModificationDate = updatedAt\n'));
+      final dart = writeDart(app);
+      expect(dart, contains("'tags': e.tags"));
+      expect(dart, contains("'notes': e.notes"));
+      expect(dart, contains("'createdAt': AssistantValue.encodeDate(e.createdAt)"));
+      expect(dart, contains("'updatedAt': AssistantValue.encodeDate(e.updatedAt)"));
+      expect("'notes':".allMatches(dart), hasLength(1), reason: 'Spotlight fields are encoded once');
+    });
+
+    test('Spotlight getters not in fields get dedicated stored properties and codec entries', () {
+      final memo = EntityModel(
+        className: 'Memo',
+        library: Uri.parse('package:app/models.dart'),
+        title: 'Memo',
+        idField: 'id',
+        titleGetter: 'title',
+        keywords: const FieldModel('computedTags', ValueType(ValueKind.string, nullable: true, list: true)),
+        body: const FieldModel('fullBody', ValueType(ValueKind.string)),
+        createdAt: const FieldModel('bornOn', ValueType(ValueKind.dateTime)),
+        updatedAt: const FieldModel('touchedOn', ValueType(ValueKind.dateTime, nullable: true)),
+        fields: const [],
+      );
+      final app = AppModel(appName: 'Memo', actions: const [], entities: [memo], schemaEntities: const []);
+      final swift = SwiftWriter(app).write();
+      expect(swift, contains('  public let assistantKeywords: [String]?\n'));
+      expect(swift, contains('  public let assistantBody: String?\n'));
+      expect(swift, contains('  public let assistantCreatedAt: Date?\n'));
+      expect(swift, contains('  public let assistantUpdatedAt: Date?\n'));
+      expect(swift, contains('    attributes.keywords = assistantKeywords\n'));
+      expect(swift, contains('    attributes.textContent = assistantBody\n'));
+      expect(swift, contains('    attributes.contentCreationDate = assistantCreatedAt\n'));
+      expect(swift, contains('    attributes.contentModificationDate = assistantUpdatedAt\n'));
+      final dart = writeDart(app);
+      expect(dart, contains("'computedTags': e.computedTags"));
+      expect(dart, contains("'fullBody': e.fullBody"));
+      expect(dart, contains("'bornOn': AssistantValue.encodeDate(e.bornOn)"));
+      expect(dart, contains("'touchedOn': AssistantValue.encodeDate(e.touchedOn)"));
+    });
   });
 
   group('entity queries', () {
@@ -313,6 +391,72 @@ void main() {
       expect(q, contains('case \\RecipeEntity.\$minutes: return { \$0.minutes?.assistantKey }'));
       expect(q, isNot(contains('SortableBy(\\RecipeEntity.\$vegan)')));
     });
+
+    test('plain entities expose String prefix/suffix/equality, @AssistantEnum equality and Duration comparators', () {
+      final mealEnum = AppEnumModel(
+        className: 'Course',
+        library: Uri.parse('package:app/models.dart'),
+        title: 'Course',
+        cases: const [AppEnumCase(name: 'starter', title: 'Starter'), AppEnumCase(name: 'main', title: 'Main')],
+      );
+      final dish = EntityModel(
+        className: 'Dish',
+        library: Uri.parse('package:app/models.dart'),
+        title: 'Dish',
+        idField: 'id',
+        titleGetter: 'name',
+        fields: const [
+          FieldModel('name', ValueType(ValueKind.string)),
+          FieldModel('cuisine', ValueType(ValueKind.string, nullable: true)),
+          FieldModel('course', ValueType(ValueKind.enumeration, appEnum: 'Course')),
+          FieldModel('prepTime', ValueType(ValueKind.duration, nullable: true)),
+        ],
+      );
+      final app = AppModel(
+        appName: 'Cook',
+        actions: const [],
+        entities: [dish],
+        schemaEntities: const [],
+        appEnums: {'Course': mealEnum},
+      );
+      final swift = SwiftWriter(app).write();
+      expect(swift, contains('extension CourseEnum: AssistantComparable {}'));
+      expect(swift, contains('  @Property(title: "Cuisine")\n  public var cuisine: String?\n'));
+      expect(swift, contains('  @Property(title: "Course")\n  public var course: CourseEnum?\n'));
+      expect(swift, contains('  @Property(title: "Prep Time")\n  public var prepTime: Measurement<UnitDuration>?\n'));
+      expect(swift, contains('    course = AssistantValues.string(record.fields["course"]).flatMap(CourseEnum.init(rawValue:))\n'));
+      expect(swift, contains('    prepTime = AssistantValues.measurement(record.fields["prepTime"])\n'));
+
+      final q = query(swift, 'DishEntityQuery');
+      for (final member in ['title', 'cuisine']) {
+        for (final (comp, op) in [
+          ('ContainsComparator', 'contains'),
+          ('EqualToComparator', 'equal'),
+          ('NotEqualToComparator', 'notEqual'),
+          ('HasPrefixComparator', 'hasPrefix'),
+          ('HasSuffixComparator', 'hasSuffix'),
+        ]) {
+          expect(q, contains('$comp { value in AssistantPredicate({ \$0.$member }, .$op, value) }'));
+        }
+      }
+      expect(q, contains('''
+    Property(\\DishEntity.\$course) {
+      EqualToComparator { value in AssistantPredicate({ \$0.course }, .equal, value) }
+      NotEqualToComparator { value in AssistantPredicate({ \$0.course }, .notEqual, value) }
+    }'''));
+      expect(q, contains('''
+    Property(\\DishEntity.\$prepTime) {
+      EqualToComparator { value in AssistantPredicate({ \$0.prepTime }, .equal, value) }
+      LessThanComparator { value in AssistantPredicate({ \$0.prepTime }, .less, value) }
+      LessThanOrEqualToComparator { value in AssistantPredicate({ \$0.prepTime }, .lessOrEqual, value) }
+      GreaterThanComparator { value in AssistantPredicate({ \$0.prepTime }, .greater, value) }
+      GreaterThanOrEqualToComparator { value in AssistantPredicate({ \$0.prepTime }, .greaterOrEqual, value) }
+    }'''));
+      expect(q, contains('SortableBy(\\DishEntity.\$title)'));
+      expect(q, contains('SortableBy(\\DishEntity.\$prepTime)'));
+      expect(q, isNot(contains('SortableBy(\\DishEntity.\$cuisine)')));
+      expect(q, isNot(contains('SortableBy(\\DishEntity.\$course)')));
+    });
   });
 
   group('snapshot answers', () {
@@ -328,6 +472,55 @@ void main() {
 
     test('can have App Shortcuts', () {
       expect(writeShortcuts(_app()), contains('intent: ShowTasksAction(),'));
+    });
+
+    test('emit SnapshotFilter predicates alongside backwards-compatible where maps', () {
+      final base = _app();
+      final filtered = AppModel(
+        appName: base.appName,
+        actions: const [],
+        entities: const [],
+        schemaEntities: base.schemaEntities,
+        snapshotActions: [
+          SnapshotActionModel(
+            name: 'urgentTasks',
+            title: 'Urgent Tasks',
+            collection: 'TaskItem',
+            fields: const [
+              FieldModel('title', ValueType(ValueKind.string)),
+              FieldModel('due', ValueType(ValueKind.dateTime, nullable: true)),
+              FieldModel('done', ValueType(ValueKind.boolean)),
+              FieldModel('priority', ValueType(ValueKind.enumeration, appEnum: 'Priority')),
+              FieldModel('minutes', ValueType(ValueKind.integer)),
+            ],
+            where: const {'done': 'false'},
+            filters: const [
+              SnapshotFilterModel('priority', SnapshotFilterOp.equals, '"high"'),
+              SnapshotFilterModel('minutes', SnapshotFilterOp.lessOrEqual, '30'),
+              SnapshotFilterModel('title', SnapshotFilterOp.contains, '"rent"'),
+              SnapshotFilterModel('title', SnapshotFilterOp.startsWith, '"pay"'),
+              SnapshotFilterModel('due', SnapshotFilterOp.isNotNull),
+              SnapshotFilterModel('due', SnapshotFilterOp.isPast),
+            ],
+            limit: 5,
+            item: '{title}',
+            dialog: '{items}',
+            empty: 'None.',
+            separator: ', ',
+          ),
+        ],
+      );
+      final swift = SwiftWriter(filtered).write();
+      final action = swift.substring(
+        swift.indexOf('public struct UrgentTasksAction'),
+        swift.indexOf('\n}\n', swift.indexOf('public struct UrgentTasksAction')),
+      );
+      expect(action, contains('where: ["done": false],'));
+      expect(
+        action,
+        contains('filters: [.equals("priority", "high"), .lessOrEqual("minutes", 30), '
+            '.contains("title", "rent"), .startsWith("title", "pay"), .isNull("due")'.replaceFirst('.isNull("due")', '.isNotNull("due"), .isPast("due")]')),
+      );
     });
   });
 

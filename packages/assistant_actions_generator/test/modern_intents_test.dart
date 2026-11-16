@@ -5,10 +5,16 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:analyzer/dart/analysis/analysis_context_collection.dart';
+import 'package:analyzer/dart/analysis/results.dart';
 import 'package:assistant_actions_generator/src/catalog.dart';
 import 'package:assistant_actions_generator/src/dart_writer.dart';
 import 'package:assistant_actions_generator/src/model.dart';
+import 'package:assistant_actions_generator/src/reader.dart';
 import 'package:assistant_actions_generator/src/swift_writer.dart';
+import 'package:build/build.dart';
+import 'package:path/path.dart' as p;
+import 'package:source_gen/source_gen.dart';
 import 'package:test/test.dart';
 
 DomainCatalog _load(String domain) => DomainCatalog.fromJson(
@@ -407,4 +413,405 @@ void main() {
           const DeploymentTarget(iOS: 18, macOS: 15));
     });
   });
+
+  group('FoundationModels tools and end-to-end compilation', () {
+    test('higher-OS actions are availability-gated in AssistantFoundationTools.all and background tools prepare engine', () {
+      final setState = ActionModel(
+        functionName: 'setState',
+        library: Uri.parse('package:app/actions.dart'),
+        title: 'Set State',
+        runs: RunsModel.withFlutter,
+        params: [
+          ParamModel(name: 'state', title: 'State', named: true, value: const ValueType(ValueKind.enumeration, enumRef: 'clock.timerState')),
+        ],
+        returnsString: true,
+      );
+      final swift = SwiftWriter(_app(actions: [_live(), setState], background: true)).write();
+      final countTool = _block(swift, 'public struct CountTasksActionTool: FoundationModels.Tool');
+      expect(countTool, contains('_ = await AssistantBackground.shared.prepare()'));
+      expect(swift, contains('@available(iOS 27.0, macOS 27.0, *)\n@Generable\npublic enum ClockTimerStateEnumToolValue: String, Sendable {'));
+      expect(swift, contains('@available(iOS 27.0, macOS 27.0, *)\npublic struct SetStateActionTool: FoundationModels.Tool {'));
+      final catalog = _block(swift, 'public enum AssistantFoundationTools');
+      expect(catalog, contains('var tools: [any FoundationModels.Tool] = [\n      CountTasksActionTool(),\n    ]'));
+      expect(catalog, contains('if #available(iOS 27.0, macOS 27.0, *) {\n      tools.append(SetStateActionTool())\n    }'));
+    });
+
+    test('ModelReader reads Spotlight annotations, SnapshotFilter predicates and FoundationModels tools, and swiftc typechecks', () async {
+      final model = await _readAppFromSource('''
+@AssistantActionsApp(name: 'Mira')
+library;
+
+import 'package:assistant_actions/assistant_actions.dart';
+import 'package:assistant_actions/schemas/clock.dart';
+
+@AssistantEnum(title: 'Meal')
+enum Meal {
+  dinner,
+  @CaseTitle('Late-night snack', synonyms: ['snack'])
+  snack,
+}
+
+@AssistantEntity(title: 'Recipe')
+class Recipe {
+  const Recipe({
+    required this.id,
+    required this.name,
+    required this.category,
+    required this.meal,
+    required this.prepTime,
+    required this.minutes,
+    required this.rating,
+    required this.favorite,
+    required this.tags,
+    required this.createdAt,
+    this.scheduledFor,
+    this.updatedAt,
+  });
+
+  @EntityId()
+  final String id;
+
+  @DisplayTitle()
+  final String name;
+
+  final String category;
+  final Meal meal;
+  final Duration prepTime;
+  final int minutes;
+  final double rating;
+  final bool favorite;
+
+  @EntityKeywords()
+  final List<String> tags;
+
+  @EntityBody()
+  String get instructions => '\$name (\$category)';
+
+  @EntityCreatedAt()
+  final DateTime createdAt;
+
+  @EntityUpdatedAt()
+  final DateTime? updatedAt;
+
+  final DateTime? scheduledFor;
+}
+
+@AssistantAction(title: 'Quick Dinner Recipes')
+const quickDinnerRecipes = SnapshotAnswer<Recipe>(
+  where: {'favorite': true},
+  filters: [
+    SnapshotFilter.equals('meal', Meal.dinner),
+    SnapshotFilter.equals('meal', 'dinner'),
+    SnapshotFilter.notEquals('category', 'dessert'),
+    SnapshotFilter.lessThan('minutes', 45),
+    SnapshotFilter.lessOrEqual('prepTime', Duration(minutes: 20)),
+    SnapshotFilter.greaterThan('rating', 4),
+    SnapshotFilter.greaterOrEqual('scheduledFor', '2026-05-01T09:00:00Z'),
+    SnapshotFilter.contains('category', 'week'),
+    SnapshotFilter.startsWith('category', 'week'),
+    SnapshotFilter.isNotNull('scheduledFor'),
+    SnapshotFilter.isNull('updatedAt'),
+    SnapshotFilter.isToday('scheduledFor'),
+    SnapshotFilter.isPast('createdAt'),
+    SnapshotFilter.isFuture('scheduledFor'),
+  ],
+  sortBy: 'prepTime',
+  item: '{title}',
+  dialog: 'Found {count} recipes.',
+  empty: 'No matching recipes.',
+);
+
+@AssistantAction(title: 'Plan Meal', runs: Runs.deferred, dialog: 'Planned {recipe} for {meal}.')
+void planMeal(Recipe recipe, {Meal meal = Meal.dinner}) {}
+
+@AssistantAction(title: 'Count Matching', runs: Runs.withFlutter)
+Future<ActionResult<int>> countMatching({required List<String> tags, String? filter}) async =>
+    const ActionResult(3, dialog: 'Three matches.');
+
+@AssistantAction(title: 'Pick Recipe', runs: Runs.withFlutter)
+Future<AssistantReply<Recipe>> pickRecipe(Recipe candidate) async =>
+    throw UnimplementedError();
+
+@AssistantAction(title: 'Set Timer State', runs: Runs.withFlutter)
+Future<String> setTimerState({required ClockTimerState state}) async => 'Updated';
+''');
+
+      expect(model, isNotNull);
+      final recipe = model!.entities.single;
+      expect(recipe.keywords?.name, 'tags');
+      expect(recipe.body?.name, 'instructions');
+      expect(recipe.createdAt?.name, 'createdAt');
+      expect(recipe.updatedAt?.name, 'updatedAt');
+      expect(recipe.fields.map((f) => f.name), containsAll(['meal', 'prepTime', 'tags', 'createdAt', 'updatedAt']));
+
+      final snap = model.snapshotActions.single;
+      expect(snap.where, {'favorite': 'true'});
+      expect(snap.filters, hasLength(14));
+      expect(snap.filters[0].swiftValue, '"dinner"');
+      expect(snap.filters[1].swiftValue, '"dinner"');
+      expect(snap.filters[4].swiftValue, '1200.0');
+
+      final dartCode = writeDart(model);
+      expect(dartCode, contains("'instructions': e.instructions"));
+      expect(dartCode, contains("'tags': e.tags"));
+
+      final swiftCode = SwiftWriter(model).write();
+      final shortcutsCode = writeShortcuts(model);
+      expect(swiftCode, contains('public struct PlanMealActionTool: FoundationModels.Tool'));
+      expect(swiftCode, contains('public struct QuickDinnerRecipesActionTool: FoundationModels.Tool'));
+      expect(swiftCode, contains('public struct SetTimerStateActionTool: FoundationModels.Tool'));
+
+      if (Platform.isMacOS) {
+        final sdkRes = Process.runSync('xcrun', ['--show-sdk-path']);
+        expect(sdkRes.exitCode, 0, reason: '${sdkRes.stderr}');
+        final sdk = (sdkRes.stdout as String).trim();
+        final tempSwift = Directory.systemTemp.createTempSync('assistant_actions_swiftc_');
+        try {
+          final runtimeDir = Directory('../assistant_actions/darwin/assistant_actions/Sources/assistant_actions');
+          final runtimeFiles = runtimeDir
+              .listSync()
+              .whereType<File>()
+              .where((f) =>
+                  f.path.endsWith('.swift') &&
+                  !f.path.endsWith('AssistantActionsPlugin.swift') &&
+                  !f.path.endsWith('AssistantHeadlessEngine.swift'))
+              .map((f) => f.path)
+              .toList()
+            ..sort();
+          final modulePath = p.join(tempSwift.path, 'assistant_actions.swiftmodule');
+          final emit = Process.runSync('xcrun', [
+            'swiftc',
+            '-sdk',
+            sdk,
+            '-target',
+            'arm64-apple-macos14.0',
+            '-emit-module',
+            '-module-name',
+            'assistant_actions',
+            '-emit-module-path',
+            modulePath,
+            ...runtimeFiles,
+          ]);
+          expect(emit.exitCode, 0, reason: 'Failed emitting assistant_actions module:\n${emit.stderr}');
+
+          final genFile = File(p.join(tempSwift.path, 'AssistantActionsGenerated.swift'))..writeAsStringSync(swiftCode);
+          final shortFile = File(p.join(tempSwift.path, 'AssistantActionsShortcuts.swift'))..writeAsStringSync(shortcutsCode);
+
+          for (final target in ['arm64-apple-macos14.0', 'arm64-apple-macos26.0']) {
+            final check = Process.runSync('xcrun', [
+              'swiftc',
+              '-typecheck',
+              '-sdk',
+              sdk,
+              '-target',
+              target,
+              '-I',
+              tempSwift.path,
+              genFile.path,
+              shortFile.path,
+            ]);
+            expect(check.exitCode, 0, reason: 'swiftc -typecheck failed for $target:\n${check.stderr}');
+          }
+        } finally {
+          tempSwift.deleteSync(recursive: true);
+        }
+      }
+    });
+
+    test('ModelReader rejects invalid Spotlight annotations and SnapshotFilter definitions', () async {
+      await expectLater(
+        _readAppFromSource('''
+@AssistantActionsApp(name: 'Mira')
+library;
+import 'package:assistant_actions/assistant_actions.dart';
+
+@AssistantEntity(title: 'Recipe')
+class Recipe {
+  @EntityId()
+  final String id = '1';
+  @DisplayTitle()
+  final String name = 'Soup';
+  @EntityKeywords()
+  final String tags = 'soup';
+}
+'''),
+        throwsA(isA<InvalidGenerationSourceError>()),
+      );
+
+      await expectLater(
+        _readAppFromSource('''
+@AssistantActionsApp(name: 'Mira')
+library;
+import 'package:assistant_actions/assistant_actions.dart';
+import 'package:assistant_actions/schemas/reminders.dart';
+
+@RemindersReminder(list: RemindersListFixed(id: 'tasks', name: 'Tasks'))
+class TaskItem {
+  @EntityId()
+  final String id = '1';
+  @RemindersReminderTitle()
+  final String title = 'Buy milk';
+  @EntityBody()
+  final String notes = '2%';
+}
+'''),
+        throwsA(isA<InvalidGenerationSourceError>()),
+      );
+
+      await expectLater(
+        _readAppFromSource('''
+@AssistantActionsApp(name: 'Mira')
+library;
+import 'package:assistant_actions/assistant_actions.dart';
+
+@AssistantEntity(title: 'Recipe')
+class Recipe {
+  @EntityId()
+  final String id = '1';
+  @DisplayTitle()
+  final String name = 'Soup';
+  final int minutes = 10;
+}
+
+@AssistantAction(title: 'Bad Field')
+const bad = SnapshotAnswer<Recipe>(
+  filters: [SnapshotFilter.equals('missing', 10)],
+  item: '{title}',
+  dialog: '{items}',
+  empty: 'None.',
+);
+'''),
+        throwsA(isA<InvalidGenerationSourceError>()),
+      );
+
+      await expectLater(
+        _readAppFromSource('''
+@AssistantActionsApp(name: 'Mira')
+library;
+import 'package:assistant_actions/assistant_actions.dart';
+
+@AssistantEnum(title: 'Meal')
+enum Meal { dinner, snack }
+
+@AssistantEntity(title: 'Recipe')
+class Recipe {
+  @EntityId()
+  final String id = '1';
+  @DisplayTitle()
+  final String name = 'Soup';
+  final Meal meal = Meal.dinner;
+}
+
+@AssistantAction(title: 'Bad Enum Case')
+const bad = SnapshotAnswer<Recipe>(
+  filters: [SnapshotFilter.equals('meal', 'breakfast')],
+  item: '{title}',
+  dialog: '{items}',
+  empty: 'None.',
+);
+'''),
+        throwsA(isA<InvalidGenerationSourceError>()),
+      );
+
+      await expectLater(
+        _readAppFromSource('''
+@AssistantActionsApp(name: 'Mira')
+library;
+import 'package:assistant_actions/assistant_actions.dart';
+
+@AssistantEntity(title: 'Recipe')
+class Recipe {
+  @EntityId()
+  final String id = '1';
+  @DisplayTitle()
+  final String name = 'Soup';
+  final int minutes = 10;
+}
+
+@AssistantAction(title: 'Bad Relative Date')
+const bad = SnapshotAnswer<Recipe>(
+  filters: [SnapshotFilter.isToday('minutes')],
+  item: '{title}',
+  dialog: '{items}',
+  empty: 'None.',
+);
+'''),
+        throwsA(isA<InvalidGenerationSourceError>()),
+      );
+    });
+  });
+}
+
+class _TestBuildStep implements BuildStep {
+  final Directory _pkgDir = Directory('../assistant_actions').absolute;
+
+  File _file(AssetId id) => File(p.join(_pkgDir.path, id.path));
+
+  @override
+  Future<bool> canRead(AssetId id) async => id.package == 'assistant_actions' && _file(id).existsSync();
+
+  @override
+  Future<String> readAsString(AssetId id, {Encoding encoding = utf8}) async =>
+      _file(id).readAsStringSync(encoding: encoding);
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+Future<AppModel?> _readAppFromSource(String source) async {
+  final tempDir = Directory.systemTemp.createTempSync('assistant_actions_reader_');
+  try {
+    final runtimeConfigFile = File('../assistant_actions/.dart_tool/package_config.json').absolute;
+    final baseConfigFile = runtimeConfigFile.existsSync()
+        ? runtimeConfigFile
+        : File('.dart_tool/package_config.json').absolute;
+    final baseConfig = (jsonDecode(baseConfigFile.readAsStringSync()) as Map).cast<String, Object?>();
+    final baseRoot = Uri.directory(baseConfigFile.parent.path);
+    final packages = <Map<String, Object?>>[
+      for (final raw in (baseConfig['packages'] as List).cast<Map<Object?, Object?>>())
+        if (raw['name'] != 'assistant_actions' && raw['name'] != 'app')
+          {
+            ...raw.cast<String, Object?>(),
+            'rootUri': baseRoot.resolve(raw['rootUri'] as String).toString(),
+          },
+      {
+        'name': 'assistant_actions',
+        'rootUri': Directory('../assistant_actions').absolute.uri.toString(),
+        'packageUri': 'lib/',
+        'languageVersion': '3.6',
+      },
+      {
+        'name': 'app',
+        'rootUri': tempDir.uri.toString(),
+        'packageUri': 'lib/',
+        'languageVersion': '3.9',
+      },
+    ];
+    final dotDartTool = Directory(p.join(tempDir.path, '.dart_tool'))..createSync(recursive: true);
+    File(p.join(dotDartTool.path, 'package_config.json')).writeAsStringSync(jsonEncode({
+      'configVersion': 2,
+      'packages': packages,
+    }));
+    final libDir = Directory(p.join(tempDir.path, 'lib'))..createSync(recursive: true);
+    final entry = File(p.join(libDir.path, 'assistant_actions.dart'))..writeAsStringSync(source);
+
+    String? sdkPath;
+    if (baseConfig['flutterRoot'] case final String flutterRootUri) {
+      final candidate = p.join(Uri.parse(flutterRootUri).toFilePath(), 'bin', 'cache', 'dart-sdk');
+      if (Directory(candidate).existsSync()) sdkPath = candidate;
+    }
+
+    final collection = AnalysisContextCollection(
+      includedPaths: [p.normalize(tempDir.absolute.path)],
+      sdkPath: sdkPath,
+    );
+    final session = collection.contextFor(p.normalize(entry.absolute.path)).currentSession;
+    final resolved = await session.getResolvedLibrary(p.normalize(entry.absolute.path));
+    if (resolved is! ResolvedLibraryResult) {
+      throw StateError('Failed to resolve test library: $resolved');
+    }
+    return await ModelReader(_TestBuildStep()).read(resolved.element);
+  } finally {
+    tempDir.deleteSync(recursive: true);
+  }
 }

@@ -16,6 +16,7 @@ AssistantActionsRegistry appRegistry() {
   final store = Store.instance;
   return assistantActionsRegistry(
     findRecipe: (id) => store.recipes.where((r) => r.id == id).firstOrNull,
+    findTaskItem: (id) => store.tasks.where((t) => t.id == id).firstOrNull,
     taskItem: TaskHandler(),
     memoryItem: MemoryHandler(),
     journalItem: JournalHandler(),
@@ -35,8 +36,8 @@ class Store extends ChangeNotifier {
   static final instance = Store._();
 
   final recipes = [
-    const Recipe(id: 'pancakes', name: 'Pancakes', minutes: 20),
-    const Recipe(id: 'risotto', name: 'Mushroom Risotto', minutes: 45),
+    const Recipe(id: 'pancakes', name: 'Pancakes', minutes: 20, tags: ['breakfast', 'sweet']),
+    const Recipe(id: 'risotto', name: 'Mushroom Risotto', minutes: 45, tags: ['dinner']),
   ];
   final tasks = <TaskItem>[];
   final memories = <MemoryItem>[];
@@ -218,9 +219,12 @@ class JournalHandler implements JournalItemAssistantHandler {
     _store.recordingActivity ??= await AssistantLiveActivity.start(
       AssistantActivityContent(
         title: 'Recording a journal entry',
-        subtitle: 'Say "Stop recording" or open the app to stop.',
+        subtitle: 'Say "Stop recording" or tap Stop.',
         systemImage: 'mic.fill',
         timerStart: DateTime.now(),
+        buttons: const [
+          AssistantLiveActivityButton(label: 'Stop', actionId: 'stopRecording', systemImage: 'stop.fill'),
+        ],
       ),
       kind: 'recording',
     );

@@ -7,5 +7,6 @@ builders:
         - lib/assistant_actions.g.dart
         - packages/assistant_actions_app/darwin/assistant_actions_app/Sources/assistant_actions_app/AssistantActions.g.swift
         - apple/AssistantShortcuts.g.swift
+        - apple/AssistantWidgets.g.swift
     auto_apply: dependents
     build_to: source

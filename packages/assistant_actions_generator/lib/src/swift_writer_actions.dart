@@ -35,6 +35,8 @@ extension _Actions on SwiftWriter {
     _out
       ..writeln('  ]')
       ..writeln('}')
+      ..writeln()
+      ..writeln('extension $name: AssistantComparable {}')
       ..writeln();
   }
 
@@ -69,16 +71,11 @@ extension _Actions on SwiftWriter {
       ..writeln('  public static let title: LocalizedStringResource = "${SwiftWriter._escape(a.title)}"')
       ..write(_describe(a.title, a.description, a.searchKeywords, a.isDiscoverable))
       ..write(_unlockMember(_actionUnlock(a), access: 'public '))
-      ..write(_summaryMember(a.summary, [for (final p in a.params) p.name], access: 'public '))
+      ..write(_actionSummaryMember(a, access: 'public '))
       ..writeln();
     if (foreground) _out.write(_modesMember(modes, access: 'public '));
     for (final p in a.params) {
-      final options = [
-        'title: "${SwiftWriter._escape(p.title)}"',
-        if (p.swiftDefault case final d?) 'default: $d',
-        if (p.prompt case final prompt?) 'requestValueDialog: "${SwiftWriter._escape(prompt)}"',
-      ];
-      _out.writeln('  @Parameter(${options.join(', ')})\n  public var ${swiftName(p.name)}: ${_paramSwift(p)}\n');
+      _out.writeln('  ${_parameterAttr(a, p)}\n  public var ${swiftName(p.name)}: ${_paramSwift(p)}\n');
     }
     final reply = a.returnsReply;
     final base = result == null ? 'IntentResult' : 'IntentResult & ReturnsValue<${_resultSwift(result)}>';
@@ -94,15 +91,32 @@ extension _Actions on SwiftWriter {
     if (a.params.isNotEmpty) _out.writeln('    ]');
     // Asked before anything runs or is queued.
     if (a.confirm != null) _out.writeln('    try await assistantConfirm(${_spokenDialog(a.confirm!, a)})');
+    if (a.control != null && a.control!.isToggle) {
+      final cid = SwiftWriter._escape(a.control!.id);
+      _out
+        ..writeln('    AssistantAppGroup.userDefaults.set(value, forKey: "assistant_actions.control.$cid")')
+        ..writeln('    assistantReloadControl("$cid")');
+    }
     final dialog = a.dialog == null ? '"Done."' : _spokenDialog(a.dialog!, a);
+    String undoRegister(String? resultExpr) {
+      if (a.undo == null) return '';
+      if (resultExpr == null || !a.undo!.takesResult) {
+        return '${_undoLines(floor, a.title, 'AssistantUndo.call("${a.id}", args: args)')}\n';
+      }
+      return '    var undoArgs = args\n'
+          '    undoArgs["result"] = $resultExpr\n'
+          '${_undoLines(floor, a.title, 'AssistantUndo.call("${a.id}", args: undoArgs)')}\n';
+    }
+
     if (a.liveActivity) {
       // The reader allows no Shortcuts value here.
       _out.writeln(_liveActivityPerform(a, dialog, modes));
     } else if (!foreground) {
-      _out.writeln('''
-    AssistantInbox.call("${a.id}", args: args)
-    $_inboxChanged
-    return .result(dialog: IntentDialog(stringLiteral: $dialog))''');
+      _out
+        ..writeln('    AssistantInbox.call("${a.id}", args: args)')
+        ..writeln('    $_inboxChanged')
+        ..write(undoRegister(null))
+        ..writeln('    return .result(dialog: IntentDialog(stringLiteral: $dialog))');
     } else {
       final forward = _foregroundLines(modes,
           activateOnMac: a.opensApp,
@@ -113,19 +127,31 @@ extension _Actions on SwiftWriter {
       if (reply) {
         _out.writeln('    let reply = AssistantReply(json: try await callDart("${a.id}", args: args))');
         if (result != null) _out.write(_decodeResult(result, a, source: 'reply.value', reply: true));
-        _out.write(_replyReturn(
-            value: result == null ? null : 'value',
-            dialog: 'reply.dialog ?? $dialog',
-            floor: floor,
-            interactive: a.cardButtons));
+        final undoResult = result == null
+            ? null
+            : result.isEntity && !result.list
+                ? (result.nullable
+                    ? '(${_dartID(result.schemaEntity?.schema.id, 'value?')} ?? reply.ids.first as Any? ?? NSNull())'
+                    : _dartID(result.schemaEntity?.schema.id, 'value'))
+                : 'reply.value ?? NSNull()';
+        _out
+          ..write(undoRegister(undoResult))
+          ..write(_replyReturn(
+              value: result == null ? null : 'value',
+              dialog: 'reply.dialog ?? $dialog',
+              floor: floor,
+              interactive: a.cardButtons));
       } else {
         _out.writeln('    let reply = try await callDart("${a.id}", args: args)');
         if (result == null) {
-          _out.writeln('    return .result(dialog: IntentDialog(stringLiteral: reply ?? $dialog))');
+          _out
+            ..write(undoRegister(a.returnsString ? 'reply ?? NSNull()' : null))
+            ..writeln('    return .result(dialog: IntentDialog(stringLiteral: reply ?? $dialog))');
         } else {
           _out
             ..writeln('    let result = AssistantValues.result(reply)')
             ..write(_decodeResult(result, a, source: 'result.value'))
+            ..write(undoRegister('result.value ?? NSNull()'))
             ..writeln('    return .result(value: value, dialog: IntentDialog(stringLiteral: result.dialog ?? $dialog))');
         }
       }
@@ -134,11 +160,154 @@ extension _Actions on SwiftWriter {
       ..writeln('  }')
       ..writeln('}')
       ..writeln();
+    if (a.control != null && a.control!.isToggle) {
+      final toggleFloor = SwiftWriter._max(floor, const {'iOS': 18, 'macOS': 15});
+      _out
+        ..writeln(_availability(toggleFloor))
+        ..writeln('extension ${a.swiftName}: SetValueIntent {}')
+        ..writeln();
+    }
     if (a.liveActivity) _liveActivityConformance(a);
     // Live calls report progress and can be cancelled (swift_writer_modern.dart).
     if (foreground) _out.write(_continuableExtension(a.swiftName, modes, _above(floor) ? _availability(floor) : ''));
     if (foreground || a.liveActivity) {
       _out.writeln(_liveConformances(a.swiftName, _above(floor) ? floor : null, longRunning: a.longRunning));
+      if (a.params.isNotEmpty) {
+        _out
+          ..writeln(_actionPromptingConformance(a, _above(floor) ? floor : null))
+          ..writeln();
+      }
+    }
+    if (a.undo != null) {
+      _out
+        ..writeln(_actionUndoConformance(a.swiftName, floor))
+        ..writeln();
+    }
+    _optionsProviders(a, floor);
+  }
+
+  String _optionsProviderName(ActionModel a, ParamModel p) => '${a.swiftName}${pascal(p.name)}OptionsProvider';
+
+  static String _swiftDouble(num n) {
+    final s = '${n.toDouble()}';
+    return s.contains('.') || s.contains('e') ? s : '$s.0';
+  }
+
+  String? _swiftRange(ParamModel p) {
+    if (p.min == null || p.max == null) return null;
+    return p.value?.kind == ValueKind.integer
+        ? '(${p.min!.toInt()}, ${p.max!.toInt()})'
+        : '(${_swiftDouble(p.min!)}, ${_swiftDouble(p.max!)})';
+  }
+
+  String? _swiftInputOptions(ParamModel p) {
+    if (!p.hasInputOptions) return null;
+    final parts = [
+      if (p.keyboardType case final k?) 'keyboardType: ${k.swift}',
+      if (p.capitalization case final c?) 'capitalizationType: .${c.name}',
+      if (p.multiline) 'multiline: true',
+    ];
+    return 'String.IntentInputOptions(${parts.join(', ')})';
+  }
+
+  String _parameterAttr(ActionModel a, ParamModel p) {
+    final parts = [
+      'title: "${SwiftWriter._escape(p.title)}"',
+      if (p.swiftDefault != null && p.options == null) 'default: ${p.swiftDefault}',
+      if (p.controlStyle case final c?) 'controlStyle: .${c.name}',
+      if (_swiftRange(p) case final r?) 'inclusiveRange: $r',
+      if (_swiftInputOptions(p) case final io?) 'inputOptions: $io',
+      if (p.supportedContentTypes case final types?)
+        'supportedContentTypes: [${types.map((t) => 'UTType("${SwiftWriter._escape(t)}") ?? .item').join(', ')}]',
+      if (p.prompt != null) 'requestValueDialog: "${SwiftWriter._escape(p.prompt!)}"',
+      if (p.options != null) 'optionsProvider: ${_optionsProviderName(a, p)}()',
+    ];
+    return '@Parameter(${parts.join(', ')})';
+  }
+
+  String _encodeOptionsDep(ParamModel dep) {
+    if (dep.entity != null) return dep.entityList ? r'v.map(\.id)' : 'v.id';
+    if (dep.schemaEntity case final s?) {
+      return dep.entityList ? 'v.map(${_dartIDPath(s.schema.id)})' : _dartID(s.schema.id, 'v');
+    }
+    return dep.value!.list ? r'v.map { AssistantValues.encode($0) }' : 'AssistantValues.encode(v)';
+  }
+
+  void _optionsProviders(ActionModel a, Map<String, num> floor) {
+    for (final p in a.params) {
+      final opt = p.options;
+      if (opt == null) continue;
+      final elemSwift = p.isEntity ? p.entitySwiftName : _valueSwift(p.value!.element);
+      _out.writeln('/// Dynamic options for `${a.functionName}.${p.name}` (`${opt.functionName}`).');
+      if (_above(floor)) _out.writeln(_availability(floor));
+      _out.writeln('public struct ${_optionsProviderName(a, p)}: DynamicOptionsProvider {');
+      if (opt.dependencies.isNotEmpty) {
+        final deps = opt.dependencies.map((d) => '\\.\$${d.name}').join(', ');
+        _out
+          ..writeln('  @IntentParameterDependency<${a.swiftName}>($deps)')
+          ..writeln('  public var intent')
+          ..writeln();
+      }
+      _out.writeln('  public init() {}');
+      if (p.swiftDefault != null && !p.entityList && !(p.value?.list ?? false)) {
+        _out
+          ..writeln()
+          ..writeln('  public func defaultResult() async -> $elemSwift? { ${p.swiftDefault} }');
+      }
+      _out
+        ..writeln()
+        ..writeln('  public func results() async throws -> [$elemSwift] {');
+      if (opt.dependencies.isEmpty) {
+        _out.writeln('    let args: [String: Any] = [:]');
+      } else {
+        _out.writeln('    var args: [String: Any] = [:]');
+        for (final d in opt.dependencies) {
+          final dep = a.params.firstWhere((q) => q.name == d.name);
+          _out.writeln('    if let v = intent?.${swiftName(dep.name)} { args["${d.name}"] = ${_encodeOptionsDep(dep)} }');
+        }
+      }
+      _out
+        ..writeln('    if $_dartReady,')
+        ..writeln('      let reply = try? await AssistantBridge.shared.perform("options.${a.id}.${p.name}", args: args)')
+        ..writeln('    {');
+      if (p.isEntity) {
+        final schemaId = p.schemaEntity?.schema.id;
+        _out
+          ..writeln('      let ids = AssistantValues.stringList(reply)')
+          ..writeln('      let found = ${_lookup(elemSwift, schemaId, 'ids')}')
+          ..writeln('      return ids.compactMap { id in found.first { ${_dartID(schemaId, r'$0')} == id } }');
+      } else {
+        final decoder = p.value!.element.swiftDecoder;
+        _out.writeln('      return (AssistantValues.items(AssistantValues.json(reply)) ?? []).compactMap(AssistantValues.$decoder)');
+      }
+      _out.writeln('    }');
+      if (p.isEntity) {
+        final records = 'AssistantSnapshot.records("${p.entityClassName}")';
+        final filtered = opt.snapshotField == null
+            ? records
+            : '$records.filter { AssistantValues.bool(\$0.fields["${opt.snapshotField}"]) == true }';
+        _out.writeln('    return $filtered.map($elemSwift.init(record:))');
+      } else if (opt.snapshotCollection != null && opt.snapshotField != null) {
+        final decoder = p.value!.element.swiftDecoder;
+        final extract = opt.snapshotField == 'title'
+            ? 'record.title'
+            : 'AssistantValues.$decoder(record.fields["${opt.snapshotField}"])';
+        _out
+          ..writeln('    var seen = Set<$elemSwift>()')
+          ..writeln('    var out: [$elemSwift] = []')
+          ..writeln('    for record in AssistantSnapshot.records("${opt.snapshotCollection}") {')
+          ..writeln(opt.snapshotField == 'title'
+              ? '      let v = $extract\n      if !v.isEmpty && seen.insert(v).inserted { out.append(v) }'
+              : '      if let v = $extract, seen.insert(v).inserted { out.append(v) }')
+          ..writeln('    }')
+          ..writeln('    return out');
+      } else {
+        _out.writeln('    return []');
+      }
+      _out
+        ..writeln('  }')
+        ..writeln('}')
+        ..writeln();
     }
   }
 
@@ -157,6 +326,13 @@ extension _Actions on SwiftWriter {
       ValueKind.person => 'IntentPerson',
       ValueKind.place => 'PlaceDescriptor',
       ValueKind.file => 'IntentFile',
+      ValueKind.currency => 'IntentCurrencyAmount',
+      ValueKind.length => 'Measurement<UnitLength>',
+      ValueKind.mass => 'Measurement<UnitMass>',
+      ValueKind.temperature => 'Measurement<UnitTemperature>',
+      ValueKind.volume => 'Measurement<UnitVolume>',
+      ValueKind.speed => 'Measurement<UnitSpeed>',
+      ValueKind.energy => 'Measurement<UnitEnergy>',
       _ => throw StateError('No action type for ${v.kind}'),
     };
     return v.list ? '[$one]' : one;
@@ -167,7 +343,7 @@ extension _Actions on SwiftWriter {
   bool _optional(ParamModel p) => p.nullable || (p.defaultDart != null && p.swiftDefault == null);
 
   String _paramSwift(ParamModel p) {
-    final base = p.entity != null ? (p.entityList ? '[${p.entity!.swiftName}]' : p.entity!.swiftName) : _valueSwift(p.value!);
+    final base = p.isEntity ? (p.entityList ? '[${p.entitySwiftName}]' : p.entitySwiftName) : _valueSwift(p.value!);
     return '$base${_optional(p) ? '?' : ''}';
   }
 
@@ -178,6 +354,11 @@ extension _Actions on SwiftWriter {
     if (p.entity != null) {
       if (p.entityList) return optional ? 'AssistantValues.encode($n?.map(\\.id))' : '$n.map(\\.id)';
       return optional ? 'AssistantValues.encode($n?.id)' : '$n.id';
+    }
+    if (p.schemaEntity case final s?) {
+      final idPath = _dartIDPath(s.schema.id);
+      if (p.entityList) return optional ? 'AssistantValues.encode($n?.map($idPath))' : '$n.map($idPath)';
+      return optional ? 'AssistantValues.encode(${_dartID(s.schema.id, '$n?')})' : _dartID(s.schema.id, n);
     }
     if (p.value!.list) {
       return optional
@@ -198,13 +379,50 @@ extension _Actions on SwiftWriter {
         if (p.entityList) return optional ? '\\($n?.map(\\.title).formatted() ?? "")' : '\\($n.map(\\.title).formatted())';
         return optional ? '\\($n?.title ?? "")' : '\\($n.title)';
       }
+      if (p.schemaEntity != null) {
+        const display = r'String(localized: $0.displayRepresentation.title)';
+        if (p.entityList) {
+          return optional
+              ? '\\($n?.map { $display }.formatted() ?? "")'
+              : '\\($n.map { $display }.formatted())';
+        }
+        return optional
+            ? '\\($n.map { $display } ?? "")'
+            : '\\(String(localized: $n.displayRepresentation.title))';
+      }
       final v = p.value!;
-      if (v.list) return optional ? '\\($n?.formatted() ?? "")' : '\\($n.formatted())';
+      if (v.list) {
+        if (v.kind == ValueKind.currency) {
+          const fmt = r'$0.amount.formatted(.currency(code: $0.currencyCode))';
+          return optional ? '\\($n?.map { $fmt }.formatted() ?? "")' : '\\($n.map { $fmt }.formatted())';
+        }
+        if (const {
+          ValueKind.length,
+          ValueKind.mass,
+          ValueKind.temperature,
+          ValueKind.volume,
+          ValueKind.speed,
+          ValueKind.energy,
+        }.contains(v.kind)) {
+          return optional
+              ? '\\($n?.map { \$0.formatted() }.formatted() ?? "")'
+              : '\\($n.map { \$0.formatted() }.formatted())';
+        }
+        return optional ? '\\($n?.formatted() ?? "")' : '\\($n.formatted())';
+      }
       // A String for [x], or (unless [text]) any value that reads well.
       String said(String x, {bool text = false}) => switch (v.kind) {
             ValueKind.dateTime => '$x.formatted(date: .abbreviated, time: .shortened)',
             ValueKind.uri => '$x.absoluteString',
-            ValueKind.duration => '$x.formatted()',
+            ValueKind.duration ||
+            ValueKind.length ||
+            ValueKind.mass ||
+            ValueKind.temperature ||
+            ValueKind.volume ||
+            ValueKind.speed ||
+            ValueKind.energy =>
+              '$x.formatted()',
+            ValueKind.currency => '$x.amount.formatted(.currency(code: $x.currencyCode))',
             ValueKind.enumeration => 'String(localized: $x.localizedStringResource)',
             _ => text ? '"\\($x)"' : x,
           };
@@ -251,17 +469,18 @@ extension _Actions on SwiftWriter {
         ];
         return '${lines.join('\n')}\n';
       }
+      final itemId = _dartID(r.schemaEntity?.schema.id, r'$0');
       final lines = [
         if (r.nullable) ...[
           '    var value: [$name]? = nil',
           '    if let ids = AssistantValues.strings($source) {',
-          '      let found = try await $query.entities(for: ids)',
-          '      value = ids.compactMap { id in found.first { \$0.id == id } }',
+          '      let found = ${_lookup(name, r.schemaEntity?.schema.id, 'ids')}',
+          '      value = ids.compactMap { id in found.first { $itemId == id } }',
           '    }',
         ] else ...[
           '    let ids = AssistantValues.strings($source) ?? []',
-          '    let found = try await $query.entities(for: ids)',
-          '    let value = ids.compactMap { id in found.first { \$0.id == id } }',
+          '    let found = ${_lookup(name, r.schemaEntity?.schema.id, 'ids')}',
+          '    let value = ids.compactMap { id in found.first { $itemId == id } }',
         ],
       ];
       return '${lines.join('\n')}\n';
@@ -290,6 +509,13 @@ extension _Actions on SwiftWriter {
         ValueKind.person => 'AssistantValues.person($expr)',
         ValueKind.place => 'AssistantValues.place($expr)',
         ValueKind.file => 'AssistantValues.file($expr)',
+        ValueKind.currency => 'AssistantValues.currency($expr)',
+        ValueKind.length => 'AssistantValues.length($expr)',
+        ValueKind.mass => 'AssistantValues.mass($expr)',
+        ValueKind.temperature => 'AssistantValues.temperature($expr)',
+        ValueKind.volume => 'AssistantValues.volume($expr)',
+        ValueKind.speed => 'AssistantValues.speed($expr)',
+        ValueKind.energy => 'AssistantValues.energy($expr)',
         _ => throw StateError('No action result for ${v.kind}'),
       };
 
@@ -313,6 +539,8 @@ extension _Actions on SwiftWriter {
     var floor = _none;
     for (final p in a.params) {
       if (p.value case final v?) floor = SwiftWriter._max(floor, _valueFloor(v));
+      if (p.schemaEntity case final s?) floor = SwiftWriter._max(floor, _entityFloor(s.schema));
+      if (p.supportedContentTypes != null) floor = SwiftWriter._max(floor, const {'iOS': 18, 'macOS': 15});
     }
     if (a.result case final r?) {
       if (r.value case final v?) floor = SwiftWriter._max(floor, _valueFloor(v));
@@ -321,20 +549,30 @@ extension _Actions on SwiftWriter {
     return floor;
   }
 
-  /// Schema types plain actions use, which [_schemas] declares in Swift.
+  /// Schema types plain actions and widget configs use, which [_schemas] declares in Swift.
   List<SchemaType> get _actionSchemaTypes => [
         for (final a in app.actions) ...[
-          for (final p in a.params)
+          for (final p in a.params) ...[
             if (p.value?.enumRef case final ref?) SchemaType('enum', ref: ref),
+            if (p.schemaEntity case final s?) SchemaType('entity', ref: s.schema.id),
+          ],
           if (a.result?.value?.enumRef case final ref?) SchemaType('enum', ref: ref),
+          if (a.result?.schemaEntity case final s?) SchemaType('entity', ref: s.schema.id),
         ],
+        for (final w in app.widgetConfigs)
+          for (final p in w.params)
+            if (p.value?.enumRef case final ref?) SchemaType('enum', ref: ref),
       ];
 
-  /// Frameworks plain actions need: GeoToolbox for places.
+  /// Frameworks plain actions and controls need: GeoToolbox for places,
+  /// WidgetKit for controls/widgets, UniformTypeIdentifiers for file UTType filters.
   void _actionImports() {
     final places = app.actions.any((a) =>
         a.params.any((p) => p.value?.kind == ValueKind.place) || a.result?.value?.kind == ValueKind.place);
     if (places) _imports.add('GeoToolbox');
+    if (app.controls.isNotEmpty || app.widgetConfigs.isNotEmpty) _imports.add('WidgetKit');
+    final contentTypes = app.actions.any((a) => a.params.any((p) => p.supportedContentTypes != null));
+    if (contentTypes) _imports.add('UniformTypeIdentifiers');
   }
 
   // ── Public types ──────────────────────────────────────────────────────
@@ -471,7 +709,7 @@ extension _Actions on SwiftWriter {
     // Phrases naming entities learn new items when Dart publishes them.
     final entityPhrases = app.actions.any((a) =>
             a.shortcut != null &&
-            a.params.any((p) => p.entity != null && a.shortcut!.phrases.any((ph) => ph.contains('{${p.name}}')))) ||
+            a.params.any((p) => p.isEntity && a.shortcut!.phrases.any((ph) => ph.contains('{${p.name}}')))) ||
         app.intentShortcuts.any((s) => [
               if (s.openClass != null) 'target',
               for (final p in s.intent.parameters)

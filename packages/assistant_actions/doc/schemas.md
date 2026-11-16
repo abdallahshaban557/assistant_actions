@@ -94,9 +94,15 @@ The validation app also makes every adopted class `@AssistantUndoable()` and
   isn't used: Dart has one id per item.
 - **`IndexedEntityQuery`** (27): every entity query re-indexes its items in
   Spotlight when the system asks. Queries still answer from the snapshot.
-- **`UndoableIntent`** (26): with `@AssistantUndoable()`. Open intents
-  (`OpenIntent`) aren't made undoable. Plain `@AssistantAction`s can't be
-  undone yet (there's no Dart undo function to name).
+- **`UndoableIntent`** (26): with `@AssistantUndoable()` on schema classes, and
+  with `undo: myUndoFunction` on plain `@AssistantAction`s. Open intents
+  (`OpenIntent`) aren't made undoable.
+- **Schema entity parameters & donations**: adopted schema entity classes
+  (`@RemindersReminder`, `@JournalEntry`, `@FilesFile`, …) can also be taken
+  directly as parameters (`T`, `T?` or `List<T>`) on plain `@AssistantAction`
+  and `@AssistantFocusFilter` functions, and adopted schema `call`, `create`,
+  `update`, `append`, `delete` and `record` intents get typed donation methods
+  on the generated `AssistantDonations` class.
 - **`ProgressReportingIntent`** (17) and **`CancellableIntent`** (26.4) on
   every live intent, **`LongRunningIntent`** (27) with `longRunning: true` /
   `@AssistantLongRunning()`. Dart sees `AssistantCall.current`.

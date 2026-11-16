@@ -1,3 +1,36 @@
+## 0.0.18
+
+* Generates `apple/AssistantWidgets.g.swift` (`writeAppWidgets`) with
+  extension-safe `ControlWidget`s (`@AssistantControl`),
+  `WidgetConfigurationIntent`s (`@AssistantWidgetConfig`), and
+  `assistantControlsBundle` without `FlutterFramework` linkage, plus
+  `AssistantActionsAppGroup` (`appGroup:`) and `AssistantActionsAppIntents`
+  lookup for `AssistantSiriTip`.
+* Generates `FocusFilterAppContext` (`filterCriteriaParam:`) and the
+  `focusFilter.current` cold-start host handler (supporting schema entity
+  parameters and availability guards).
+* Generates `AssistantPromptingIntent` conformances and `decoders` registry
+  entries for mid-call `AssistantCall.requestValue` / `disambiguate` across
+  primitives, enums, currency, measurements, plain entities and schema
+  entities; generates `UndoableIntent` + `.undo` registry entries for plain
+  `@AssistantAction(undo: ...)` functions; and generates `AssistantDonations`
+  methods and `donate.action` cases for adopted schema intents alongside plain
+  actions.
+* Resolves adopted schema entity parameters (`T`, `T?`, `List<T>`) on
+  `@AssistantAction` and `@AssistantFocusFilter`, `@Param` numeric ranges /
+  control styles / string input options / file UTTypes / `DynamicOptionsProvider`
+  (with `@IntentParameterDependency` and snapshot fallbacks), `IntentCurrencyAmount`
+  and `Measurement<Unit...>` value types, and conditional `When` / `Switch`
+  `parameterSummary` builders.
+* Populates `CSSearchableItemAttributeSet` (`keywords`, `textContent`,
+  `contentCreationDate`, `contentModificationDate`) from Spotlight field
+  annotations, emits `AssistantQuery.Filter` predicates from `SnapshotFilter`,
+  expands plain `EntityPropertyQuery` comparators (`String` prefix/suffix/equal/notEqual,
+  `@AssistantEnum`, `Duration`), and generates `#if canImport(FoundationModels)`
+  `FoundationModels.Tool` structs and `AssistantFoundationTools.all` (including
+  currency, measurement and plain/schema entity parameters).
+* Needs assistant_actions 0.0.21.
+
 ## 0.0.17
 
 * Generates `authenticationPolicy` from `requiresUnlock`, raised to Apple's

@@ -1,6 +1,9 @@
 /// Annotations read by `assistant_actions_generator`.
 library;
 
+import 'param_options.dart';
+import 'snapshot_filter.dart';
+
 /// Marks the library that defines the app's assistant actions
 /// (`lib/assistant_actions.dart`).
 ///
@@ -9,7 +12,12 @@ library;
 /// library;
 /// ```
 class AssistantActionsApp {
-  const AssistantActionsApp({required this.name, this.shortcutTileColor, this.requiresUnlock = Unlock.notRequired});
+  const AssistantActionsApp({
+    required this.name,
+    this.shortcutTileColor,
+    this.requiresUnlock = Unlock.notRequired,
+    this.appGroup,
+  });
 
   /// The app's name, as used by `{app}` in shortcut phrases.
   final String name;
@@ -26,7 +34,16 @@ class AssistantActionsApp {
   /// Entity queries have no such setting in App Intents: Siri can still find
   /// published items by title on a locked device (see the README).
   final Unlock requiresUnlock;
+
+  /// Optional Apple App Group identifier (such as `'group.com.example.app'`)
+  /// shared with widget and control extensions. When set, published snapshots,
+  /// queued inbox items, and Spotlight state use the shared App Group container
+  /// and `UserDefaults(suiteName:)`.
+  final String? appGroup;
 }
+
+/// Short alias for [AssistantActionsApp].
+typedef AssistantApp = AssistantActionsApp;
 
 /// Whether an intent can run while the device is locked (App Intents'
 /// `IntentAuthenticationPolicy`).
@@ -118,7 +135,9 @@ class AssistantAction {
     this.longRunning = false,
     this.requiresUnlock,
     this.summary,
+    this.summaries = const [],
     this.cardButtons = false,
+    this.undo,
   });
 
   final String title;
@@ -190,6 +209,15 @@ class AssistantAction {
   /// `name`. Parameters the sentence leaves out are listed under it. Without
   /// it, Shortcuts lists every parameter as a field.
   final String? summary;
+
+  /// Conditional Shortcuts sentences ([SummaryWhen], [SummarySwitch]) showing
+  /// different sentences depending on parameter values.
+  final List<SummaryCondition> summaries;
+
+  /// Top-level function that undoes this action (`UndoableIntent`, iOS 26 /
+  /// macOS 26), taking the same parameters as the action plus an optional
+  /// named `result` parameter when the action returns a value.
+  final Function? undo;
 }
 
 /// A value an [AssistantAction] returns to Shortcuts, plus what Siri says.
@@ -219,13 +247,63 @@ class ActionResult<T> {
 
 /// Describes an [AssistantAction] parameter.
 class Param {
-  const Param({this.title, this.prompt});
+  const Param({
+    this.title,
+    this.prompt,
+    this.min,
+    this.max,
+    this.controlStyle,
+    this.multiline = false,
+    this.capitalization,
+    this.keyboardType,
+    this.supportedContentTypes,
+    this.options,
+    this.snapshotField,
+  });
 
   /// Shown in Shortcuts. Defaults to the parameter name in title case.
   final String? title;
 
   /// What Siri asks when the value is missing.
   final String? prompt;
+
+  /// Lower bound of an `inclusiveRange` on an `int` or `double` parameter
+  /// (set together with [max]).
+  final num? min;
+
+  /// Upper bound of an `inclusiveRange` on an `int` or `double` parameter
+  /// (set together with [min]).
+  final num? max;
+
+  /// How Shortcuts renders an `int` (`stepper`, `field`) or `double`
+  /// (`stepper`, `field`, `slider`) parameter.
+  final ParamControlStyle? controlStyle;
+
+  /// Allows multi-line text entry on a `String` parameter.
+  final bool multiline;
+
+  /// Text capitalization mode on a `String` parameter.
+  final TextCapitalizationMode? capitalization;
+
+  /// Keyboard type on a `String` parameter.
+  final ParamKeyboardType? keyboardType;
+
+  /// Uniform Type Identifiers (such as `'public.image'`, `'com.adobe.pdf'`,
+  /// `'public.audio'`) accepted by an `AssistantFile` or `List<AssistantFile>`
+  /// parameter (iOS 18 / macOS 15).
+  final List<String>? supportedContentTypes;
+
+  /// Top-level Dart function returning dynamic options (`List<T>` or
+  /// `Future<List<T>>`) for a `String`, `int`, `double`, `@AssistantEntity`,
+  /// or schema entity parameter (`DynamicOptionsProvider`).
+  ///
+  /// Parameters of [options] matching other parameter names on the action
+  /// become `@IntentParameterDependency` dependencies.
+  final Function? options;
+
+  /// Optional `'Collection.field'` fallback read from published snapshots when
+  /// [options] is set and Flutter is not running.
+  final String? snapshotField;
 }
 
 /// An App Shortcut: phrases Siri recognises for an action.
@@ -419,6 +497,7 @@ class SnapshotAnswer<T> {
     required this.dialog,
     required this.empty,
     this.where = const {},
+    this.filters = const [],
     this.sortBy,
     this.descending = false,
     this.limit = 5,
@@ -427,6 +506,11 @@ class SnapshotAnswer<T> {
 
   /// Only items whose field equals the value (a `bool`, `String` or `int`).
   final Map<String, Object> where;
+
+  /// Richer predicates evaluated in Swift alongside [where]: comparisons,
+  /// case/diacritic-insensitive string matching, null checks and relative
+  /// `DateTime` checks (`isToday`, `isPast`, `isFuture`).
+  final List<SnapshotFilter> filters;
 
   /// The field to order by; items without a value come last.
   final String? sortBy;

@@ -19,7 +19,12 @@
 /// call is queued, like a `Runs.deferred` action, and runs when the app
 /// next starts or resumes.
 class AssistantFocusFilter {
-  const AssistantFocusFilter({required this.title, this.description, this.summary});
+  const AssistantFocusFilter({
+    required this.title,
+    this.description,
+    this.summary,
+    this.filterCriteriaParam,
+  });
 
   /// The filter's name in Settings.
   final String title;
@@ -28,4 +33,9 @@ class AssistantFocusFilter {
   /// What Settings shows under [title] for the chosen values. `{name}` is
   /// parameter `name` (empty when null).
   final String? summary;
+
+  /// Optional parameter name whose value builds
+  /// `FocusFilterAppContext(notificationFilterPredicate: NSPredicate(format: "SELF IN %@", ...))`
+  /// to filter notifications matching `UNNotificationContent.filterCriteria`.
+  final String? filterCriteriaParam;
 }

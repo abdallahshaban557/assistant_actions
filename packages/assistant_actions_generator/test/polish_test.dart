@@ -75,7 +75,11 @@ SchemaEntityModel _journal({UnlockModel? unlock, FieldModel? image, String? syst
 }
 
 ActionModel _action(String name,
-        {List<ParamModel> params = const [], UnlockModel? unlock, String? summary, ResultModel? result}) =>
+        {List<ParamModel> params = const [],
+        UnlockModel? unlock,
+        String? summary,
+        SummaryNode? conditionalSummary,
+        ResultModel? result}) =>
     ActionModel(
       functionName: name,
       library: _lib,
@@ -86,6 +90,7 @@ ActionModel _action(String name,
       dialog: 'Done.',
       unlock: unlock,
       summary: summary,
+      conditionalSummary: conditionalSummary,
       result: result,
     );
 
@@ -306,6 +311,127 @@ void main() {
       expect(reminders, contains('super.systemImage,'));
       final system = generateSchemaLibrary(_load('system'));
       expect(system, contains('super.summaries, super.requiresUnlock,'));
+    });
+
+    test('schema entity parameters propagate their requiresUnlock to plain actions', () {
+      final tasks = _tasks(unlock: UnlockModel.onThisDevice);
+      final swift = SwiftWriter(_app(
+        schemaEntities: [tasks],
+        actions: [
+          _action('deferTask', params: [ParamModel(name: 'task', title: 'Task', named: false, schemaEntity: tasks)]),
+        ],
+      )).write();
+      expect(_block(swift, 'public struct DeferTaskAction'),
+          contains('$_auth.requiresLocalDeviceAuthentication'));
+    });
+
+    test('conditional When summaries emit When(... otherwise: ...) and list omitted params', () {
+      final params = [
+        ParamModel(name: 'recipe', title: 'Recipe', named: false, entity: _recipe()),
+        ParamModel(name: 'quick', title: 'Quick', named: true, value: const ValueType(ValueKind.boolean)),
+        ParamModel(name: 'servings', title: 'Servings', named: true, value: const ValueType(ValueKind.integer, nullable: true)),
+      ];
+      final cond = SummaryWhenModel(
+        param: 'quick',
+        comparison: SummaryComparisonModel.equalTo,
+        swiftValue: 'true',
+        then: const SummaryLeaf('Quickly cook {recipe}'),
+        otherwise: SummaryWhenModel(
+          param: 'servings',
+          comparison: SummaryComparisonModel.hasAnyValue,
+          then: const SummaryLeaf('Cook {recipe} for {servings}'),
+          otherwise: const SummaryLeaf('Cook {recipe}'),
+        ),
+      );
+      final swift = SwiftWriter(_app(actions: [
+        _action('cook', params: params, conditionalSummary: cond),
+      ])).write();
+      final block = _block(swift, 'public struct CookAction');
+      expect(
+          block,
+          contains('  public static var parameterSummary: some ParameterSummary {\n'
+              r'    When(\Self.$quick, .equalTo, true, {' '\n'
+              r'      Summary("Quickly cook \(\.$recipe)") {' '\n'
+              r'        \.$quick' '\n'
+              r'        \.$servings' '\n'
+              '      }\n'
+              '    }, otherwise: {\n'
+              r'      When(\Self.$servings, .hasAnyValue, {' '\n'
+              r'        Summary("Cook \(\.$recipe) for \(\.$servings)") {' '\n'
+              r'          \.$quick' '\n'
+              '        }\n'
+              '      }, otherwise: {\n'
+              r'        Summary("Cook \(\.$recipe)") {' '\n'
+              r'          \.$quick' '\n'
+              r'          \.$servings' '\n'
+              '        }\n'
+              '      })\n'
+              '    })\n'
+              '  }\n'));
+    });
+
+    test('conditional Switch summaries emit Case and DefaultCase blocks (including exhaustive switches)', () {
+      final meal = AppEnumModel(className: 'Meal', library: _models, title: 'Meal', cases: const [
+        AppEnumCase(name: 'dinner', title: 'Dinner'),
+        AppEnumCase(name: 'snack', title: 'Snack'),
+      ]);
+      final params = [
+        ParamModel(name: 'recipe', title: 'Recipe', named: false, entity: _recipe()),
+        ParamModel(name: 'meal', title: 'Meal', named: true, value: const ValueType(ValueKind.enumeration, appEnum: 'Meal')),
+      ];
+      const cond = SummarySwitchModel(
+        param: 'meal',
+        cases: {'dinner': 'Cook {recipe} for dinner'},
+        defaultSummary: 'Make {recipe} as a {meal}',
+      );
+      const exhaustive = SummarySwitchModel(
+        param: 'meal',
+        cases: {'dinner': 'Cook {recipe} for dinner', 'snack': 'Make {recipe} for a snack'},
+      );
+      final swift = SwiftWriter(_app(
+        appEnums: {'Meal': meal},
+        actions: [
+          _action('cook', params: params, conditionalSummary: cond),
+          _action('plate', params: params, conditionalSummary: exhaustive),
+        ],
+      )).write();
+      final block = _block(swift, 'public struct CookAction');
+      expect(
+          block,
+          contains('  public static var parameterSummary: some ParameterSummary {\n'
+              r'    Switch(\.$meal) {' '\n'
+              '      Case(.dinner) {\n'
+              r'        Summary("Cook \(\.$recipe) for dinner") {' '\n'
+              r'          \.$meal' '\n'
+              '        }\n'
+              '      }\n'
+              '      DefaultCase {\n'
+              r'        Summary("Make \(\.$recipe) as a \(\.$meal)")' '\n'
+              '      }\n'
+              '    }\n'
+              '  }\n'));
+      final plateBlock = _block(swift, 'public struct PlateAction');
+      expect(
+          plateBlock,
+          contains('  public static var parameterSummary: some ParameterSummary {\n'
+              r'    Switch(\.$meal) {' '\n'
+              '      Case(.dinner) {\n'
+              r'        Summary("Cook \(\.$recipe) for dinner") {' '\n'
+              r'          \.$meal' '\n'
+              '        }\n'
+              '      }\n'
+              '      Case(.snack) {\n'
+              r'        Summary("Make \(\.$recipe) for a snack") {' '\n'
+              r'          \.$meal' '\n'
+              '        }\n'
+              '      }\n'
+              '      DefaultCase {\n'
+              r'        Summary("Make \(\.$recipe) for a snack") {' '\n'
+              r'          \.$meal' '\n'
+              '        }\n'
+              '      }\n'
+              '    }\n'
+              '  }\n'));
     });
   });
 

@@ -5,12 +5,16 @@ import AppIntents
 import CoreSpotlight
 import CoreTransferable
 import Foundation
+#if canImport(FoundationModels)
+  import FoundationModels
+#endif
 import GeoToolbox
 import SwiftUI
 import UniformTypeIdentifiers
 #if canImport(VisualIntelligence)
   import VisualIntelligence
 #endif
+import WidgetKit
 import assistant_actions
 
 #if os(iOS)
@@ -35,6 +39,8 @@ public enum MealEnum: String, AppEnum {
   ]
 }
 
+extension MealEnum: AssistantComparable {}
+
 /// `Recipe`, published from Dart with `AssistantActions.publish`.
 public struct RecipeEntity: AppEntity {
   public static let typeDisplayRepresentation: TypeDisplayRepresentation = "Recipe"
@@ -44,8 +50,11 @@ public struct RecipeEntity: AppEntity {
   @Property(title: "Title")
   public var title: String
   public let subtitle: String?
+  public let assistantKeywords: [String]?
   @Property(title: "Minutes")
   public var minutes: Int?
+  @Property(title: "Notes")
+  public var notes: String?
 
   public var displayRepresentation: DisplayRepresentation {
     DisplayRepresentation(title: "\(title)", subtitle: subtitle.map { "\($0)" }, image: .init(systemName: "fork.knife"))
@@ -54,9 +63,11 @@ public struct RecipeEntity: AppEntity {
   init(record: AssistantRecord) {
     id = record.id
     subtitle = record.subtitle
+    assistantKeywords = AssistantValues.strings(record.fields["tags"])
     // `@Property` members last: setting one needs every stored property set.
     title = record.title
     minutes = AssistantValues.int(record.fields["minutes"])
+    notes = AssistantValues.string(record.fields["notes"])
   }
 }
 
@@ -94,6 +105,10 @@ public struct RecipeEntityQuery: EntityStringQuery, EnumerableEntityQuery, Entit
   public static let properties = QueryProperties {
     Property(\RecipeEntity.$title) {
       ContainsComparator { value in AssistantPredicate({ $0.title }, .contains, value) }
+      EqualToComparator { value in AssistantPredicate({ $0.title }, .equal, value) }
+      NotEqualToComparator { value in AssistantPredicate({ $0.title }, .notEqual, value) }
+      HasPrefixComparator { value in AssistantPredicate({ $0.title }, .hasPrefix, value) }
+      HasSuffixComparator { value in AssistantPredicate({ $0.title }, .hasSuffix, value) }
     }
     Property(\RecipeEntity.$minutes) {
       EqualToComparator { value in AssistantPredicate({ $0.minutes }, .equal, value) }
@@ -103,6 +118,13 @@ public struct RecipeEntityQuery: EntityStringQuery, EnumerableEntityQuery, Entit
       GreaterThanComparator { value in AssistantPredicate({ $0.minutes }, .greater, value) }
       GreaterThanOrEqualToComparator { value in AssistantPredicate({ $0.minutes }, .greaterOrEqual, value) }
       IsBetweenComparator { low, high in AssistantPredicate({ $0.minutes }, .between, low, high) }
+    }
+    Property(\RecipeEntity.$notes) {
+      ContainsComparator { value in AssistantPredicate({ $0.notes }, .contains, value) }
+      EqualToComparator { value in AssistantPredicate({ $0.notes }, .equal, value) }
+      NotEqualToComparator { value in AssistantPredicate({ $0.notes }, .notEqual, value) }
+      HasPrefixComparator { value in AssistantPredicate({ $0.notes }, .hasPrefix, value) }
+      HasSuffixComparator { value in AssistantPredicate({ $0.notes }, .hasSuffix, value) }
     }
   }
 
@@ -143,7 +165,7 @@ public struct AddToShoppingListAction: AppIntent {
   @Parameter(title: "Recipe")
   public var recipe: RecipeEntity
 
-  @Parameter(title: "Servings", requestValueDialog: "For how many people?")
+  @Parameter(title: "Servings", controlStyle: .stepper, inclusiveRange: (1, 20), requestValueDialog: "For how many people?")
   public var servings: Int?
 
   public init() {}
@@ -156,9 +178,15 @@ public struct AddToShoppingListAction: AppIntent {
     ]
     AssistantInbox.call("addToShoppingList", args: args)
     await AssistantBackground.shared.applyInbox()
+    if #available(iOS 26.0, macOS 26.0, *) {
+      AssistantUndo.register(undoManager, "Add to Shopping List", AssistantUndo.call("addToShoppingList", args: args)) { Task { await AssistantBackground.shared.applyInbox() } }
+    }
     return .result(dialog: IntentDialog(stringLiteral: "Added \(recipe.title) to your list."))
   }
 }
+
+@available(iOS 26.0, macOS 26.0, *)
+extension AddToShoppingListAction: UndoableIntent {}
 
 /// `removeFromShoppingList` in Dart (deferred).
 public struct RemoveFromShoppingListAction: AppIntent {
@@ -227,6 +255,25 @@ extension ShowRecipeCardAction: ProgressReportingIntent {}
 extension ShowRecipeCardAction: CancellableIntent {}
 #endif
 
+extension ShowRecipeCardAction: AssistantPromptingIntent {
+  public func registerPrompts(on call: AssistantLiveCall) {
+    let recipeParam = self.$recipe
+    call.onRequestValue("recipe") { prompt in
+      let resolved = try await recipeParam.requestValue(prompt.map { IntentDialog(stringLiteral: $0) })
+      return resolved.id
+    }
+    call.onDisambiguate("recipe") { rawChoices, prompt in
+      let ids = rawChoices.compactMap(AssistantValues.string)
+      let found = try await RecipeEntityQuery().entities(for: ids)
+      let candidates = ids.compactMap { id in found.first { $0.id == id } }
+      guard !candidates.isEmpty else { throw CancellationError() }
+      let resolved = try await recipeParam.requestDisambiguation(among: candidates, dialog: prompt.map { IntentDialog(stringLiteral: $0) })
+      return resolved.id
+    }
+  }
+}
+
+
 /// `toggleShoppingList` in Dart (runs with Flutter).
 public struct ToggleShoppingListAction: AppIntent, ForegroundContinuableIntent {
   public static let title: LocalizedStringResource = "Toggle on Shopping List"
@@ -274,6 +321,25 @@ extension ToggleShoppingListAction: ProgressReportingIntent {}
 extension ToggleShoppingListAction: CancellableIntent {}
 #endif
 
+extension ToggleShoppingListAction: AssistantPromptingIntent {
+  public func registerPrompts(on call: AssistantLiveCall) {
+    let recipeParam = self.$recipe
+    call.onRequestValue("recipe") { prompt in
+      let resolved = try await recipeParam.requestValue(prompt.map { IntentDialog(stringLiteral: $0) })
+      return resolved.id
+    }
+    call.onDisambiguate("recipe") { rawChoices, prompt in
+      let ids = rawChoices.compactMap(AssistantValues.string)
+      let found = try await RecipeEntityQuery().entities(for: ids)
+      let candidates = ids.compactMap { id in found.first { $0.id == id } }
+      guard !candidates.isEmpty else { throw CancellationError() }
+      let resolved = try await recipeParam.requestDisambiguation(among: candidates, dialog: prompt.map { IntentDialog(stringLiteral: $0) })
+      return resolved.id
+    }
+  }
+}
+
+
 /// `pickRecipe` in Dart (runs with Flutter).
 public struct PickRecipeAction: AppIntent, ForegroundContinuableIntent {
   public static let title: LocalizedStringResource = "Pick a Recipe"
@@ -319,6 +385,23 @@ extension PickRecipeAction: ProgressReportingIntent {}
 extension PickRecipeAction: CancellableIntent {}
 #endif
 
+extension PickRecipeAction: AssistantPromptingIntent {
+  public func registerPrompts(on call: AssistantLiveCall) {
+    let mealParam = self.$meal
+    call.onRequestValue("meal") { prompt in
+      let resolved = try await mealParam.requestValue(prompt.map { IntentDialog(stringLiteral: $0) })
+      return AssistantValues.encode(resolved)
+    }
+    call.onDisambiguate("meal") { rawChoices, prompt in
+      let candidates = rawChoices.compactMap { AssistantValues.string($0).flatMap(MealEnum.init(rawValue:)) }
+      guard !candidates.isEmpty else { throw CancellationError() }
+      let resolved = try await mealParam.requestDisambiguation(among: candidates, dialog: prompt.map { IntentDialog(stringLiteral: $0) })
+      return AssistantValues.encode(resolved)
+    }
+  }
+}
+
+
 /// `countOpenTasks` in Dart (runs with Flutter).
 public struct CountOpenTasksAction: AppIntent, ForegroundContinuableIntent {
   public static let title: LocalizedStringResource = "Count Open Tasks"
@@ -361,7 +444,16 @@ public struct PlanMealAction: AppIntent {
   public static let title: LocalizedStringResource = "Plan a Meal"
   public static let description = IntentDescription("Adds a recipe to the meal plan.", searchKeywords: ["menu", "meal plan"])
   public static var parameterSummary: some ParameterSummary {
-    Summary("Plan \(\.$recipe) for \(\.$meal)")
+    Switch(\.$meal) {
+      Case(.snack) {
+        Summary("Save \(\.$recipe) as a snack") {
+          \.$meal
+        }
+      }
+      DefaultCase {
+        Summary("Plan \(\.$recipe) for \(\.$meal)")
+      }
+    }
   }
 
   @Parameter(title: "Recipe")
@@ -429,6 +521,23 @@ extension QuickestRecipeAction: ProgressReportingIntent {}
 @available(iOS 26.4, macOS 26.4, *)
 extension QuickestRecipeAction: CancellableIntent {}
 #endif
+
+extension QuickestRecipeAction: AssistantPromptingIntent {
+  public func registerPrompts(on call: AssistantLiveCall) {
+    let underParam = self.$under
+    call.onRequestValue("under") { prompt in
+      let resolved = try await underParam.requestValue(prompt.map { IntentDialog(stringLiteral: $0) })
+      return AssistantValues.encode(resolved)
+    }
+    call.onDisambiguate("under") { rawChoices, prompt in
+      let candidates = rawChoices.compactMap { AssistantValues.measurement($0) }
+      guard !candidates.isEmpty else { throw CancellationError() }
+      let resolved = try await underParam.requestDisambiguation(among: candidates, dialog: prompt.map { IntentDialog(stringLiteral: $0) })
+      return AssistantValues.encode(resolved)
+    }
+  }
+}
+
 
 /// `shoppingList` in Dart (runs with Flutter).
 public struct ShoppingListAction: AppIntent, ForegroundContinuableIntent {
@@ -551,6 +660,198 @@ extension ArchiveDoneTasksAction: CancellableIntent {}
 extension ArchiveDoneTasksAction: LongRunningIntent {}
 #endif
 
+/// `completeTask` in Dart (runs with Flutter).
+@available(iOS 27.0, macOS 27.0, *)
+public struct CompleteTaskAction: AppIntent {
+  public static let title: LocalizedStringResource = "Complete Task"
+
+  #if os(iOS)
+  public static let supportedModes: IntentModes = [.background, .foreground(.dynamic)]
+  #endif
+
+  @Parameter(title: "Task")
+  public var task: TaskItemEntity?
+
+  @Parameter(title: "Note", inputOptions: String.IntentInputOptions(capitalizationType: .sentences, multiline: true))
+  public var note: String?
+
+  public init() {}
+
+  @MainActor
+  public func perform() async throws -> some IntentResult & ProvidesDialog {
+    let args: [String: Any] = [
+      "task": AssistantValues.encode(task?.id),
+      "note": AssistantValues.encode(note),
+    ]
+    #if os(iOS)
+      // Dart answers in the background (on a headless engine if the app has none);
+      // the app comes forward only if that fails.
+      if !(await AssistantBackground.shared.prepare()), UIApplication.shared.applicationState != .active {
+        try await continueInForeground()
+      }
+    #endif
+    let reply = try await callDart("completeTask", args: args)
+    return .result(dialog: IntentDialog(stringLiteral: reply ?? "Done."))
+  }
+}
+
+#if os(macOS)
+@available(iOS 27.0, macOS 27.0, *)
+extension CompleteTaskAction: ForegroundContinuableIntent {}
+#endif
+
+@available(iOS 27.0, macOS 27.0, *)
+extension CompleteTaskAction: ProgressReportingIntent {}
+
+#if compiler(>=6.4)
+@available(iOS 27.0, macOS 27.0, *)
+extension CompleteTaskAction: CancellableIntent {}
+#endif
+
+@available(iOS 27.0, macOS 27.0, *)
+extension CompleteTaskAction: AssistantPromptingIntent {
+  public func registerPrompts(on call: AssistantLiveCall) {
+    let taskParam = self.$task
+    call.onRequestValue("task") { prompt in
+      let resolved = try await taskParam.requestValue(prompt.map { IntentDialog(stringLiteral: $0) })
+      return resolved.id
+    }
+    call.onDisambiguate("task") { rawChoices, prompt in
+      let ids = rawChoices.compactMap(AssistantValues.string)
+      let found = try await TaskItemEntityQuery().entities(for: ids)
+      let candidates = ids.compactMap { id in found.first { $0.id == id } }
+      guard !candidates.isEmpty else { throw CancellationError() }
+      let resolved = try await taskParam.requestDisambiguation(among: candidates, dialog: prompt.map { IntentDialog(stringLiteral: $0) })
+      return resolved.id
+    }
+    let noteParam = self.$note
+    call.onRequestValue("note") { prompt in
+      let resolved = try await noteParam.requestValue(prompt.map { IntentDialog(stringLiteral: $0) })
+      return AssistantValues.encode(resolved)
+    }
+    call.onDisambiguate("note") { rawChoices, prompt in
+      let candidates = rawChoices.compactMap { AssistantValues.string($0) }
+      guard !candidates.isEmpty else { throw CancellationError() }
+      let resolved = try await noteParam.requestDisambiguation(among: candidates, dialog: prompt.map { IntentDialog(stringLiteral: $0) })
+      return AssistantValues.encode(resolved)
+    }
+  }
+}
+
+
+/// `logGroceryRun` in Dart (runs with Flutter).
+public struct LogGroceryRunAction: AppIntent, ForegroundContinuableIntent {
+  public static let title: LocalizedStringResource = "Log Grocery Run"
+
+  #if os(iOS)
+  @available(iOS 26.0, *)
+  public static var supportedModes: IntentModes { [.background, .foreground(.dynamic)] }
+  #endif
+
+  @Parameter(title: "Spent")
+  public var spent: IntentCurrencyAmount
+
+  @Parameter(title: "Distance")
+  public var distance: Measurement<UnitLength>?
+
+  @Parameter(title: "Store", optionsProvider: LogGroceryRunActionStoreOptionsProvider())
+  public var store: String
+
+  public init() {}
+
+  @MainActor
+  public func perform() async throws -> some IntentResult & ReturnsValue<IntentCurrencyAmount> & ProvidesDialog {
+    let args: [String: Any] = [
+      "spent": AssistantValues.encode(spent),
+      "distance": AssistantValues.encode(distance),
+      "store": AssistantValues.encode(store),
+    ]
+    #if os(iOS)
+      // Dart answers in the background (on a headless engine if the app has none);
+      // the app comes forward only if that fails.
+      if !(await AssistantBackground.shared.prepare()), UIApplication.shared.applicationState != .active {
+        if #available(iOS 26.0, *) {
+          try await continueInForeground()
+        } else {
+          try await requestToContinueInForeground()
+        }
+      }
+    #endif
+    let reply = try await callDart("logGroceryRun", args: args)
+    let result = AssistantValues.result(reply)
+    guard let value = AssistantValues.currency(result.value) else { throw AssistantActionError.failed("logGroceryRun returned nothing Siri can use") }
+    return .result(value: value, dialog: IntentDialog(stringLiteral: result.dialog ?? "Done."))
+  }
+}
+
+extension LogGroceryRunAction: ProgressReportingIntent {}
+
+#if compiler(>=6.4)
+@available(iOS 26.4, macOS 26.4, *)
+extension LogGroceryRunAction: CancellableIntent {}
+#endif
+
+extension LogGroceryRunAction: AssistantPromptingIntent {
+  public func registerPrompts(on call: AssistantLiveCall) {
+    let spentParam = self.$spent
+    call.onRequestValue("spent") { prompt in
+      let resolved = try await spentParam.requestValue(prompt.map { IntentDialog(stringLiteral: $0) })
+      return AssistantValues.encode(resolved)
+    }
+    call.onDisambiguate("spent") { rawChoices, prompt in
+      let candidates = rawChoices.compactMap { AssistantValues.currency($0) }
+      guard !candidates.isEmpty else { throw CancellationError() }
+      let resolved = try await spentParam.requestDisambiguation(among: candidates, dialog: prompt.map { IntentDialog(stringLiteral: $0) })
+      return AssistantValues.encode(resolved)
+    }
+    let distanceParam = self.$distance
+    call.onRequestValue("distance") { prompt in
+      let resolved = try await distanceParam.requestValue(prompt.map { IntentDialog(stringLiteral: $0) })
+      return AssistantValues.encode(resolved)
+    }
+    call.onDisambiguate("distance") { rawChoices, prompt in
+      let candidates = rawChoices.compactMap { AssistantValues.length($0) }
+      guard !candidates.isEmpty else { throw CancellationError() }
+      let resolved = try await distanceParam.requestDisambiguation(among: candidates, dialog: prompt.map { IntentDialog(stringLiteral: $0) })
+      return AssistantValues.encode(resolved)
+    }
+    let storeParam = self.$store
+    call.onRequestValue("store") { prompt in
+      let resolved = try await storeParam.requestValue(prompt.map { IntentDialog(stringLiteral: $0) })
+      return AssistantValues.encode(resolved)
+    }
+    call.onDisambiguate("store") { rawChoices, prompt in
+      let candidates = rawChoices.compactMap { AssistantValues.string($0) }
+      guard !candidates.isEmpty else { throw CancellationError() }
+      let resolved = try await storeParam.requestDisambiguation(among: candidates, dialog: prompt.map { IntentDialog(stringLiteral: $0) })
+      return AssistantValues.encode(resolved)
+    }
+  }
+}
+
+
+/// Dynamic options for `logGroceryRun.store` (`suggestGroceryStores`).
+public struct LogGroceryRunActionStoreOptionsProvider: DynamicOptionsProvider {
+  public init() {}
+
+  public func defaultResult() async -> String? { "Farmers Market" }
+
+  public func results() async throws -> [String] {
+    let args: [String: Any] = [:]
+    if await AssistantBackground.shared.prepare(),
+      let reply = try? await AssistantBridge.shared.perform("options.logGroceryRun.store", args: args)
+    {
+      return (AssistantValues.items(AssistantValues.json(reply)) ?? []).compactMap(AssistantValues.string)
+    }
+    var seen = Set<String>()
+    var out: [String] = []
+    for record in AssistantSnapshot.records("Recipe") {
+      if let v = AssistantValues.string(record.fields["name"]), seen.insert(v).inserted { out.append(v) }
+    }
+    return out
+  }
+}
+
 /// `stopRecording` in Dart (deferred).
 public struct StopRecordingAction: AppIntent {
   public static let title: LocalizedStringResource = "Stop Recording"
@@ -599,6 +900,13 @@ public struct ApplyFocusFocusFilter: SetFocusFilterIntent {
   public var displayRepresentation: DisplayRepresentation {
     let summary: String = "Hide tasks: \(hideTasks)"
     return DisplayRepresentation(title: Self.title, subtitle: "\(summary)")
+  }
+
+  public var appContext: FocusFilterAppContext {
+    if let allowed: [String] = note.map({ [$0] }), !allowed.isEmpty {
+      return FocusFilterAppContext(notificationFilterPredicate: NSPredicate(format: "SELF IN %@", allowed))
+    }
+    return FocusFilterAppContext()
   }
 
   @MainActor
@@ -652,6 +960,7 @@ public struct QuickRecipesAction: AppIntent {
     let answer = AssistantQuery.answer(
       "Recipe",
       where: [:],
+      filters: [.lessOrEqual("minutes", 30)],
       sortBy: "minutes",
       descending: false,
       limit: 3,
@@ -663,6 +972,20 @@ public struct QuickRecipesAction: AppIntent {
       separator: ", ")
     return .result(value: answer.items, dialog: IntentDialog(stringLiteral: answer.dialog))
   }
+}
+
+/// `configureRecipeWidget` (`@AssistantWidgetConfig`): configurable widget intent.
+public struct ConfigureRecipeWidgetWidgetIntent: WidgetConfigurationIntent {
+  public static let title: LocalizedStringResource = "Pinned Recipe"
+  public static let description = IntentDescription("Pick a recipe to show in the widget.")
+
+  @Parameter(title: "Recipe")
+  public var recipe: RecipeEntity?
+
+  @Parameter(title: "Meal", default: .dinner)
+  public var meal: MealEnum
+
+  public init() {}
 }
 
 @available(iOS 27.0, macOS 27.0, *)
@@ -1851,6 +2174,26 @@ extension DocItemOpenFileIntent: ProgressReportingIntent {}
 extension DocItemOpenFileIntent: CancellableIntent {}
 #endif
 
+@available(iOS 18.0, macOS 15.0, *)
+extension DocItemOpenFileIntent: AssistantPromptingIntent {
+  func registerPrompts(on call: AssistantLiveCall) {
+    let targetParam = self.$target
+    call.onRequestValue("target") { prompt in
+      let resolved = try await targetParam.requestValue(prompt.map { IntentDialog(stringLiteral: $0) })
+      return resolved.dartID
+    }
+    call.onDisambiguate("target") { rawChoices, prompt in
+      let ids = rawChoices.compactMap(AssistantValues.string)
+      let found = DocItemEntityQuery().entities(dartIDs: ids)
+      let candidates = ids.compactMap { id in found.first { $0.dartID == id } }
+      guard !candidates.isEmpty else { throw CancellationError() }
+      let resolved = try await targetParam.requestDisambiguation(among: candidates, dialog: prompt.map { IntentDialog(stringLiteral: $0) })
+      return resolved.dartID
+    }
+  }
+}
+
+
 /// `files.moveFiles` → queues a call to `moveFiles` on `DocItemAssistantHandler`, applied when the app next runs.
 @available(iOS 18.0, macOS 15.0, *)
 @AppIntent(schema: .files.moveFiles)
@@ -1914,6 +2257,37 @@ extension DocItemCreateFolderIntent: ProgressReportingIntent {}
 @available(iOS 26.4, macOS 26.4, *)
 extension DocItemCreateFolderIntent: CancellableIntent {}
 #endif
+
+@available(iOS 18.0, macOS 15.0, *)
+extension DocItemCreateFolderIntent: AssistantPromptingIntent {
+  func registerPrompts(on call: AssistantLiveCall) {
+    let fileNameParam = self.$fileName
+    call.onRequestValue("fileName") { prompt in
+      let resolved = try await fileNameParam.requestValue(prompt.map { IntentDialog(stringLiteral: $0) })
+      return AssistantValues.encode(resolved)
+    }
+    call.onDisambiguate("fileName") { rawChoices, prompt in
+      let candidates = rawChoices.compactMap { AssistantValues.string($0) }
+      guard !candidates.isEmpty else { throw CancellationError() }
+      let resolved = try await fileNameParam.requestDisambiguation(among: candidates, dialog: prompt.map { IntentDialog(stringLiteral: $0) })
+      return AssistantValues.encode(resolved)
+    }
+    let targetParam = self.$target
+    call.onRequestValue("target") { prompt in
+      let resolved = try await targetParam.requestValue(prompt.map { IntentDialog(stringLiteral: $0) })
+      return resolved.dartID
+    }
+    call.onDisambiguate("target") { rawChoices, prompt in
+      let ids = rawChoices.compactMap(AssistantValues.string)
+      let found = DocItemEntityQuery().entities(dartIDs: ids)
+      let candidates = ids.compactMap { id in found.first { $0.dartID == id } }
+      guard !candidates.isEmpty else { throw CancellationError() }
+      let resolved = try await targetParam.requestDisambiguation(among: candidates, dialog: prompt.map { IntentDialog(stringLiteral: $0) })
+      return resolved.dartID
+    }
+  }
+}
+
 
 /// `files.renameFile` → queues a call to `renameFile` on `DocItemAssistantHandler`, applied when the app next runs.
 @available(iOS 18.0, macOS 15.0, *)
@@ -2066,6 +2440,24 @@ extension SystemSearchInAppIntent: ProgressReportingIntent {}
 extension SystemSearchInAppIntent: CancellableIntent {}
 #endif
 
+@available(iOS 27.0, macOS 27.0, *)
+extension SystemSearchInAppIntent: AssistantPromptingIntent {
+  func registerPrompts(on call: AssistantLiveCall) {
+    let criteriaParam = self.$criteria
+    call.onRequestValue("criteria") { prompt in
+      let resolved = try await criteriaParam.requestValue(prompt.map { IntentDialog(stringLiteral: $0) })
+      return resolved.term
+    }
+    call.onDisambiguate("criteria") { rawChoices, prompt in
+      let candidates = rawChoices.compactMap { AssistantValues.string($0).map(StringSearchCriteria.init(term:)) }
+      guard !candidates.isEmpty else { throw CancellationError() }
+      let resolved = try await criteriaParam.requestDisambiguation(among: candidates, dialog: prompt.map { IntentDialog(stringLiteral: $0) })
+      return resolved.term
+    }
+  }
+}
+
+
 /// `camera.startCapture` → calls `startCapture` on `CameraAssistantHandler`.
 @available(iOS 18.0, macOS 15.0, *)
 @AppIntent(schema: .camera.startCapture)
@@ -2101,6 +2493,46 @@ extension CameraStartCaptureIntent: ProgressReportingIntent {}
 @available(iOS 26.4, macOS 26.4, *)
 extension CameraStartCaptureIntent: CancellableIntent {}
 #endif
+
+@available(iOS 18.0, macOS 15.0, *)
+extension CameraStartCaptureIntent: AssistantPromptingIntent {
+  public func registerPrompts(on call: AssistantLiveCall) {
+    let captureModeParam = self.$captureMode
+    call.onRequestValue("captureMode") { prompt in
+      let resolved = try await captureModeParam.requestValue(prompt.map { IntentDialog(stringLiteral: $0) })
+      return AssistantValues.encode(resolved)
+    }
+    call.onDisambiguate("captureMode") { rawChoices, prompt in
+      let candidates = rawChoices.compactMap { AssistantValues.string($0).flatMap(CameraCaptureModeEnum.init(rawValue:)) }
+      guard !candidates.isEmpty else { throw CancellationError() }
+      let resolved = try await captureModeParam.requestDisambiguation(among: candidates, dialog: prompt.map { IntentDialog(stringLiteral: $0) })
+      return AssistantValues.encode(resolved)
+    }
+    let deviceParam = self.$device
+    call.onRequestValue("device") { prompt in
+      let resolved = try await deviceParam.requestValue(prompt.map { IntentDialog(stringLiteral: $0) })
+      return AssistantValues.encode(resolved)
+    }
+    call.onDisambiguate("device") { rawChoices, prompt in
+      let candidates = rawChoices.compactMap { AssistantValues.string($0).flatMap(CameraCaptureDeviceEnum.init(rawValue:)) }
+      guard !candidates.isEmpty else { throw CancellationError() }
+      let resolved = try await deviceParam.requestDisambiguation(among: candidates, dialog: prompt.map { IntentDialog(stringLiteral: $0) })
+      return AssistantValues.encode(resolved)
+    }
+    let timerDurationParam = self.$timerDuration
+    call.onRequestValue("timerDuration") { prompt in
+      let resolved = try await timerDurationParam.requestValue(prompt.map { IntentDialog(stringLiteral: $0) })
+      return AssistantValues.encode(resolved)
+    }
+    call.onDisambiguate("timerDuration") { rawChoices, prompt in
+      let candidates = rawChoices.compactMap { AssistantValues.string($0).flatMap(CameraCaptureDurationEnum.init(rawValue:)) }
+      guard !candidates.isEmpty else { throw CancellationError() }
+      let resolved = try await timerDurationParam.requestDisambiguation(among: candidates, dialog: prompt.map { IntentDialog(stringLiteral: $0) })
+      return AssistantValues.encode(resolved)
+    }
+  }
+}
+
 
 /// `camera.stopCapture` → queues a call to `stopCapture` on `CameraAssistantHandler`, applied when the app next runs.
 @available(iOS 18.0, macOS 15.0, *)
@@ -2150,6 +2582,8 @@ extension RecipeEntity: IndexedEntity {
     attributes.title = title
     attributes.displayName = title
     attributes.contentDescription = subtitle
+    attributes.keywords = assistantKeywords
+    attributes.textContent = notes
     return attributes
   }
 }
@@ -2416,7 +2850,7 @@ extension RecipeEntity: Transferable {
   }
 
   /// The item as text: its title, subtitle and text fields.
-  public var transferText: String { AssistantValues.text([title, AssistantValues.encode(subtitle)]) }
+  public var transferText: String { AssistantValues.text([title, AssistantValues.encode(subtitle), AssistantValues.encode(notes)]) }
 }
 
 /// Items link to `assistantactions://recipes/{id}`, which the app opens as a deep link.
@@ -2588,6 +3022,27 @@ extension ArchiveDoneTasksAction: PredictableIntent {
   }
 }
 
+@available(iOS 27.0, macOS 27.0, *)
+extension CompleteTaskAction: PredictableIntent {
+  public static var predictionConfiguration: some IntentPredictionConfiguration {
+    IntentPrediction(parameters: (\.$task, \.$note)) { task, note in
+      DisplayRepresentation(
+        title: "Complete Task",
+        subtitle: "\(AssistantValues.text([task.map { String(localized: $0.displayRepresentation.title) } ?? "", note ?? ""], separator: ", "))")
+    }
+  }
+}
+
+extension LogGroceryRunAction: PredictableIntent {
+  public static var predictionConfiguration: some IntentPredictionConfiguration {
+    IntentPrediction(parameters: (\.$spent, \.$distance, \.$store)) { spent, distance, store in
+      DisplayRepresentation(
+        title: "Log Grocery Run",
+        subtitle: "\(AssistantValues.text([spent.amount.formatted(.currency(code: spent.currencyCode)), distance.map { $0.formatted() } ?? "", store], separator: ", "))")
+    }
+  }
+}
+
 extension StopRecordingAction: PredictableIntent {
   public static var predictionConfiguration: some IntentPredictionConfiguration {
     IntentPrediction(displayRepresentation: { DisplayRepresentation(title: "Stop Recording") })
@@ -2690,6 +3145,7 @@ public final class AssistantActionsAppHostCalls: NSObject, AssistantHostCallsPro
     }
     AssistantHostCalls.register("donate.entity") { args in donateEntity(args) }
     AssistantHostCalls.register("donate.action") { args in donateAction(args) }
+    AssistantHostCalls.register("focusFilter.current") { args in queryFocusFilter(args) }
   }
 
   /// Donates the open intent of the item Dart named: the user opened it.
@@ -2807,6 +3263,22 @@ public final class AssistantActionsAppHostCalls: NSObject, AssistantHostCallsPro
       let intent = ArchiveDoneTasksAction()
       IntentDonationManager.shared.donate(intent: intent)
       return true
+    case "completeTask":
+      guard #available(iOS 27.0, macOS 27.0, *) else { return false }
+      let intent = CompleteTaskAction()
+      intent.task = AssistantValues.string(values["task"]).flatMap({ id in AssistantSnapshot.records("TaskItem").first(where: { $0.id == id }) }).map(TaskItemEntity.init(record:))
+      intent.note = AssistantValues.string(values["note"])
+      IntentDonationManager.shared.donate(intent: intent)
+      return true
+    case "logGroceryRun":
+      guard let spentValue = AssistantValues.currency(values["spent"]) else { return false }
+      guard let storeValue = AssistantValues.string(values["store"]) else { return false }
+      let intent = LogGroceryRunAction()
+      intent.spent = spentValue
+      intent.distance = AssistantValues.length(values["distance"])
+      intent.store = storeValue
+      IntentDonationManager.shared.donate(intent: intent)
+      return true
     case "stopRecording":
       let intent = StopRecordingAction()
       IntentDonationManager.shared.donate(intent: intent)
@@ -2819,8 +3291,304 @@ public final class AssistantActionsAppHostCalls: NSObject, AssistantHostCallsPro
       let intent = QuickRecipesAction()
       IntentDonationManager.shared.donate(intent: intent)
       return true
+    case "TaskItem.createReminder":
+      guard #available(iOS 27.0, macOS 27.0, *) else { return false }
+      let intent = TaskItemCreateReminderIntent()
+      intent.title = AssistantValues.string(values["title"]) ?? ""
+      intent.list = RemindersListEntity.fixed
+      intent.images = []
+      intent.tags = []
+      intent.urls = []
+      if let raw = values["due"], !(raw is NSNull) { intent.dueDate = AssistantValues.dateComponents(raw) }
+      IntentDonationManager.shared.donate(intent: intent)
+      return true
+    case "TaskItem.deleteReminders":
+      guard #available(iOS 27.0, macOS 27.0, *) else { return false }
+      guard let id = AssistantValues.string(values["id"]) else { return false }
+      let intent = TaskItemDeleteRemindersIntent()
+      intent.entities = [TaskItemEntity.reference(id, resolve: true)]
+      IntentDonationManager.shared.donate(intent: intent)
+      return true
+    case "TaskItem.updateReminder":
+      guard #available(iOS 27.0, macOS 27.0, *) else { return false }
+      guard let id = AssistantValues.string(values["id"]) else { return false }
+      let fields = values["fields"] as? [String: Any] ?? [:]
+      let intent = TaskItemUpdateReminderIntent()
+      intent.target = TaskItemEntity.reference(id, resolve: true)
+      if let raw = fields["title"], !(raw is NSNull) { intent.title = AssistantValues.string(raw) }
+      if let raw = fields["due"], !(raw is NSNull) { intent.dueDate = AssistantValues.dateComponents(raw) }
+      if let raw = fields["done"], !(raw is NSNull) { intent.isCompleted = AssistantValues.bool(raw) }
+      intent.list = RemindersListEntity.fixed
+      IntentDonationManager.shared.donate(intent: intent)
+      return true
+    case "MemoryItem.createNote":
+      guard #available(iOS 27.0, macOS 27.0, *) else { return false }
+      let intent = MemoryItemCreateNoteIntent()
+      intent.name = AssistantValues.attributed(values["text"]) ?? AttributedString("")
+      if let raw = values["text"], !(raw is NSNull) { intent.content = AssistantValues.attributed(raw) }
+      intent.attachments = []
+      intent.isPinned = AssistantValues.bool(values["pinned"]) ?? false
+      intent.folder = NotesFolderEntity.fixed
+      IntentDonationManager.shared.donate(intent: intent)
+      return true
+    case "MemoryItem.updateNote":
+      guard #available(iOS 27.0, macOS 27.0, *) else { return false }
+      guard let id = AssistantValues.string(values["id"]) else { return false }
+      let fields = values["fields"] as? [String: Any] ?? [:]
+      let intent = MemoryItemUpdateNoteIntent()
+      intent.target = MemoryItemEntity.reference(id, resolve: true)
+      if let raw = fields["text"], !(raw is NSNull) { intent.name = AssistantValues.attributed(raw) }
+      if let raw = fields["pinned"], !(raw is NSNull) { intent.isPinned = AssistantValues.bool(raw) }
+      intent.folder = NotesFolderEntity.fixed
+      IntentDonationManager.shared.donate(intent: intent)
+      return true
+    case "MemoryItem.appendText":
+      guard #available(iOS 27.0, macOS 27.0, *) else { return false }
+      guard let id = AssistantValues.string(values["id"]) else { return false }
+      let fields = values["fields"] as? [String: Any] ?? [:]
+      let intent = MemoryItemAppendTextIntent()
+      intent.target = MemoryItemEntity.reference(id, resolve: true)
+      intent.content = AssistantValues.attributed(fields["text"]) ?? AttributedString("")
+      IntentDonationManager.shared.donate(intent: intent)
+      return true
+    case "JournalItem.createEntry":
+      guard #available(iOS 26.0, macOS 26.0, *) else { return false }
+      let intent = JournalItemCreateEntryIntent()
+      intent.message = AssistantValues.attributed(values["text"]) ?? AttributedString("")
+      if let raw = values["title"], !(raw is NSNull) { intent.title = AssistantValues.string(raw) }
+      if let raw = values["place"], !(raw is NSNull) { intent.location = AssistantValues.place(raw) }
+      intent.mediaItems = (AssistantValues.items(values["media"]) ?? []).compactMap { AssistantValues.file($0) }
+      if let raw = values["date"], !(raw is NSNull) { intent.entryDate = AssistantValues.date(raw) }
+      IntentDonationManager.shared.donate(intent: intent)
+      return true
+    case "JournalItem.startAudioEntry":
+      guard #available(iOS 26.0, macOS 26.0, *) else { return false }
+      let intent = JournalItemCreateAudioEntryIntent()
+      IntentDonationManager.shared.donate(intent: intent)
+      return true
+    case "JournalItem.updateEntry":
+      guard #available(iOS 26.0, macOS 26.0, *) else { return false }
+      guard let id = AssistantValues.string(values["id"]) else { return false }
+      let fields = values["fields"] as? [String: Any] ?? [:]
+      let intent = JournalItemUpdateEntryIntent()
+      intent.target = JournalItemEntity.reference(id, resolve: true)
+      if let raw = fields["title"], !(raw is NSNull) { intent.title = AssistantValues.string(raw) }
+      if let raw = fields["text"], !(raw is NSNull) { intent.message = AssistantValues.attributed(raw) }
+      if let raw = fields["media"], !(raw is NSNull) { intent.mediaItems = AssistantValues.items(raw)?.compactMap { AssistantValues.file($0) } }
+      if let raw = fields["date"], !(raw is NSNull) { intent.entryDate = AssistantValues.date(raw) }
+      if let raw = fields["place"], !(raw is NSNull) { intent.location = AssistantValues.place(raw) }
+      IntentDonationManager.shared.donate(intent: intent)
+      return true
+    case "JournalItem.deleteEntry":
+      guard #available(iOS 26.0, macOS 26.0, *) else { return false }
+      guard let id = AssistantValues.string(values["id"]) else { return false }
+      let intent = JournalItemDeleteEntryIntent()
+      intent.entities = [JournalItemEntity.reference(id, resolve: true)]
+      IntentDonationManager.shared.donate(intent: intent)
+      return true
+    case "Countdown.createTimer":
+      guard #available(iOS 27.0, macOS 27.0, *) else { return false }
+      let intent = CountdownCreateTimerIntent()
+      intent.duration = AssistantValues.duration(values["length"]) ?? .zero
+      if let raw = values["label"], !(raw is NSNull) { intent.label = AssistantValues.string(raw) }
+      intent.isSleepTimer = false
+      IntentDonationManager.shared.donate(intent: intent)
+      return true
+    case "Countdown.pauseTimer":
+      guard #available(iOS 27.0, macOS 27.0, *) else { return false }
+      guard let timerValue = AssistantValues.string(values["timer"]).map({ CountdownEntity.reference($0, resolve: true) }) else { return false }
+      let intent = CountdownPauseTimerIntent()
+      intent.timer = timerValue
+      IntentDonationManager.shared.donate(intent: intent)
+      return true
+    case "Countdown.resumeTimer":
+      guard #available(iOS 27.0, macOS 27.0, *) else { return false }
+      guard let timerValue = AssistantValues.string(values["timer"]).map({ CountdownEntity.reference($0, resolve: true) }) else { return false }
+      let intent = CountdownResumeTimerIntent()
+      intent.timer = timerValue
+      IntentDonationManager.shared.donate(intent: intent)
+      return true
+    case "DocItem.openFile":
+      guard #available(iOS 18.0, macOS 15.0, *) else { return false }
+      guard let targetValue = AssistantValues.string(values["target"]).map({ DocItemEntity.reference($0, resolve: true) }) else { return false }
+      let intent = DocItemOpenFileIntent()
+      intent.target = targetValue
+      IntentDonationManager.shared.donate(intent: intent)
+      return true
+    case "DocItem.moveFiles":
+      guard #available(iOS 18.0, macOS 15.0, *) else { return false }
+      guard let entitiesValue = AssistantValues.strings(values["entities"])?.map({ DocItemEntity.reference($0, resolve: true) }) else { return false }
+      guard let destinationFolderValue = AssistantValues.string(values["destinationFolder"]).map({ DocItemEntity.reference($0, resolve: true) }) else { return false }
+      let intent = DocItemMoveFilesIntent()
+      intent.entities = entitiesValue
+      intent.destinationFolder = destinationFolderValue
+      IntentDonationManager.shared.donate(intent: intent)
+      return true
+    case "DocItem.createFolder":
+      guard #available(iOS 18.0, macOS 15.0, *) else { return false }
+      guard let targetValue = AssistantValues.string(values["target"]).map({ DocItemEntity.reference($0, resolve: true) }) else { return false }
+      let intent = DocItemCreateFolderIntent()
+      intent.fileName = AssistantValues.string(values["fileName"])
+      intent.target = targetValue
+      IntentDonationManager.shared.donate(intent: intent)
+      return true
+    case "DocItem.renameFile":
+      guard #available(iOS 18.0, macOS 15.0, *) else { return false }
+      guard let targetValue = AssistantValues.string(values["target"]).map({ DocItemEntity.reference($0, resolve: true) }) else { return false }
+      guard let newNameValue = AssistantValues.string(values["newName"]) else { return false }
+      let intent = DocItemRenameFileIntent()
+      intent.target = targetValue
+      intent.newName = newNameValue
+      IntentDonationManager.shared.donate(intent: intent)
+      return true
+    case "DocItem.deleteFiles":
+      guard #available(iOS 18.0, macOS 15.0, *) else { return false }
+      guard let id = AssistantValues.string(values["id"]) else { return false }
+      let intent = DocItemDeleteFilesIntent()
+      intent.entities = [DocItemEntity.reference(id, resolve: true)]
+      IntentDonationManager.shared.donate(intent: intent)
+      return true
+    case "system.searchInApp":
+      guard #available(iOS 27.0, macOS 27.0, *) else { return false }
+      guard let criteriaValue = AssistantValues.string(values["criteria"]).map(StringSearchCriteria.init(term:)) else { return false }
+      let intent = SystemSearchInAppIntent()
+      intent.criteria = criteriaValue
+      IntentDonationManager.shared.donate(intent: intent)
+      return true
+    case "camera.startCapture":
+      guard #available(iOS 18.0, macOS 15.0, *) else { return false }
+      guard let captureModeValue = AssistantValues.string(values["captureMode"]).flatMap(CameraCaptureModeEnum.init(rawValue:)) else { return false }
+      let intent = CameraStartCaptureIntent()
+      intent.captureMode = captureModeValue
+      intent.device = AssistantValues.string(values["device"]).flatMap(CameraCaptureDeviceEnum.init(rawValue:))
+      intent.timerDuration = AssistantValues.string(values["timerDuration"]).flatMap(CameraCaptureDurationEnum.init(rawValue:))
+      IntentDonationManager.shared.donate(intent: intent)
+      return true
+    case "camera.stopCapture":
+      guard #available(iOS 18.0, macOS 15.0, *) else { return false }
+      let intent = CameraStopCaptureIntent()
+      IntentDonationManager.shared.donate(intent: intent)
+      return true
     default:
       return false
+    }
+  }
+
+  /// Queries `ApplyFocusFocusFilter.current` on cold start.
+  @MainActor
+  private static func queryFocusFilter(_ args: [String: Any]) -> [String: Any] {
+    let requestId = args["requestId"] as? String ?? ""
+    Task { @MainActor in
+      do {
+        let current = try await ApplyFocusFocusFilter.current
+        let params: [String: Any] = [
+          "hideTasks": AssistantValues.encode(current.hideTasks),
+          "note": AssistantValues.encode(current.note),
+        ]
+        _ = try? await AssistantBridge.shared.perform(
+          "assistant_actions.focusFilterResult",
+          args: ["requestId": requestId, "action": "applyFocus", "params": params])
+      } catch {
+        _ = try? await AssistantBridge.shared.perform(
+          "assistant_actions.focusFilterResult",
+          args: ["requestId": requestId, "none": true])
+      }
+    }
+    return ["pending": true]
+  }
+}
+
+/// Found by name by `AssistantPlatformViews` in the runtime so
+/// `AssistantSiriTip` can resolve generated intents by `actionId`.
+@objc(AssistantActionsAppIntents)
+public final class AssistantActionsAppIntents: NSObject, AssistantIntentProvider {
+  @MainActor
+  public static func intent(forActionId actionId: String) -> Any? {
+    switch actionId {
+    case "addToShoppingList":
+      return AddToShoppingListAction()
+    case "removeFromShoppingList":
+      return RemoveFromShoppingListAction()
+    case "showRecipeCard":
+      return ShowRecipeCardAction()
+    case "toggleShoppingList":
+      return ToggleShoppingListAction()
+    case "pickRecipe":
+      return PickRecipeAction()
+    case "countOpenTasks":
+      return CountOpenTasksAction()
+    case "planMeal":
+      return PlanMealAction()
+    case "quickestRecipe":
+      return QuickestRecipeAction()
+    case "shoppingList":
+      return ShoppingListAction()
+    case "nextTask":
+      guard #available(iOS 27.0, macOS 27.0, *) else { return nil }
+      return NextTaskAction()
+    case "archiveDoneTasks":
+      return ArchiveDoneTasksAction()
+    case "completeTask":
+      guard #available(iOS 27.0, macOS 27.0, *) else { return nil }
+      return CompleteTaskAction()
+    case "logGroceryRun":
+      return LogGroceryRunAction()
+    case "stopRecording":
+      return StopRecordingAction()
+    case "showOpenTasks":
+      return ShowOpenTasksAction()
+    case "quickRecipes":
+      return QuickRecipesAction()
+    case "system.open.Recipe":
+      guard #available(iOS 27.0, macOS 27.0, *) else { return nil }
+      return OpenRecipeIntent()
+    case "TaskItem.createReminder":
+      guard #available(iOS 27.0, macOS 27.0, *) else { return nil }
+      return TaskItemCreateReminderIntent()
+    case "camera.startCapture":
+      guard #available(iOS 18.0, macOS 15.0, *) else { return nil }
+      return CameraStartCaptureIntent()
+    default:
+      return nil
+    }
+  }
+
+  @MainActor
+  public static func shortcutPhrase(forActionId actionId: String) -> String? {
+    switch actionId {
+    case "countOpenTasks": return "How many tasks in Assistant Actions Example"
+    case "planMeal": return "Cook recipe for meal in Assistant Actions Example"
+    case "showOpenTasks": return "What's on my Assistant Actions Example list"
+    case "system.open.Recipe": return "Open target in Assistant Actions Example"
+    case "TaskItem.createReminder": return "Add a task in Assistant Actions Example"
+    case "camera.startCapture": return "Take a captureMode with Assistant Actions Example"
+    default: return nil
+    }
+  }
+
+  @MainActor
+  public static func actionTitle(forActionId actionId: String) -> String? {
+    switch actionId {
+    case "addToShoppingList": return "Add to Shopping List"
+    case "removeFromShoppingList": return "Remove from Shopping List"
+    case "showRecipeCard": return "Show Recipe Card"
+    case "toggleShoppingList": return "Toggle on Shopping List"
+    case "pickRecipe": return "Pick a Recipe"
+    case "countOpenTasks": return "Count Open Tasks"
+    case "planMeal": return "Plan a Meal"
+    case "quickestRecipe": return "Quickest Recipe"
+    case "shoppingList": return "Shopping List"
+    case "nextTask": return "Next Task"
+    case "archiveDoneTasks": return "Archive Done Tasks"
+    case "completeTask": return "Complete Task"
+    case "logGroceryRun": return "Log Grocery Run"
+    case "stopRecording": return "Stop Recording"
+    case "showOpenTasks": return "Show Open Tasks"
+    case "quickRecipes": return "Quick Recipes"
+    case "system.open.Recipe": return "Open Recipe"
+    case "TaskItem.createReminder": return "New Task"
+    case "camera.startCapture": return "Camera"
+    default: return nil
     }
   }
 }
@@ -2850,7 +3618,7 @@ public struct AssistantCardSnippetIntent: SnippetIntent {
   @MainActor
   public func perform() async throws -> some IntentResult & ShowsSnippetView {
     let card = AssistantCardStore.card(id, initial: card)
-    return .result(view: AssistantCardView(card) { AssistantCardButtonIntent($0, card: id) })
+    return .result(view: AssistantCardView(card) { AssistantCardButtonIntent($0, card: id) } toggle: { AssistantCardButtonIntent($0, card: id) })
   }
 }
 
@@ -2888,6 +3656,12 @@ public struct AssistantCardButtonIntent: AppIntent {
     self.card = card
   }
 
+  public init(_ toggle: AssistantCard.Toggle, card: String) {
+    action = toggle.action
+    args = toggle.args
+    self.card = card
+  }
+
   @MainActor
   public func perform() async throws -> some IntentResult {
     #if os(iOS)
@@ -2909,5 +3683,603 @@ extension AssistantCardButtonIntent: ProgressReportingIntent {}
 #if compiler(>=6.4)
 @available(iOS 26.4, macOS 26.4, *)
 extension AssistantCardButtonIntent: CancellableIntent {}
+#endif
+
+#if canImport(FoundationModels)
+@available(iOS 26.0, macOS 26.0, *)
+@Generable
+public enum MealEnumToolValue: String, Sendable {
+  case breakfast
+  case lunch
+  case dinner
+  case snack
+}
+
+@available(iOS 26.0, macOS 26.0, *)
+@Generable
+public struct AssistantCurrencyToolValue: Sendable {
+  @Guide(description: "Numeric amount")
+  public var amount: Double
+  @Guide(description: "ISO 4217 currency code, e.g. USD")
+  public var currencyCode: String
+}
+
+@available(iOS 26.0, macOS 26.0, *)
+@Generable
+public struct AssistantMeasurementToolValue: Sendable {
+  @Guide(description: "Numeric measurement value")
+  public var value: Double
+  @Guide(description: "Unit name (e.g. meters, kilometers, kilograms, celsius, liters, metersPerSecond, kilocalories)")
+  public var unit: String
+}
+
+/// Resolves an entity argument from an exact ID or a forgiving title match.
+@available(iOS 26.0, macOS 26.0, *)
+private func assistantResolveEntity<E>(
+  _ query: String,
+  collection: String,
+  typeWords: Set<String>,
+  make: (AssistantRecord) -> E
+) throws -> E {
+  let records = AssistantSnapshot.records(collection)
+  let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+  if let exact = records.first(where: { $0.id == trimmed }) {
+    return make(exact)
+  }
+  if let matched = AssistantMatch.records(records, matching: trimmed, ignoring: typeWords).first {
+    return make(matched)
+  }
+  throw AssistantActionError.failed("No \(collection) matching \"\(trimmed)\"")
+}
+
+@available(iOS 26.0, macOS 26.0, *)
+private func assistantDescribeToolValue(_ value: Any?) -> String? {
+  guard let value, !(value is NSNull) else { return nil }
+  if let text = value as? String { return text }
+  if let map = value as? [String: Any] {
+    if let amount = map["amount"], let code = map["currencyCode"] as? String {
+      return "\(amount) \(code)"
+    }
+    if let val = map["value"], let unit = map["unit"] as? String {
+      return "\(val) \(unit)"
+    }
+  }
+  if let items = value as? [Any] {
+    return items.compactMap(assistantDescribeToolValue).joined(separator: ", ")
+  }
+  return "\(value)"
+}
+
+/// `FoundationModels.Tool` wrapper for `addToShoppingList` (`AddToShoppingListAction`).
+@available(iOS 26.0, macOS 26.0, *)
+public struct AddToShoppingListActionTool: FoundationModels.Tool {
+  public let name = "addToShoppingList"
+  public let description = "Adds a recipe’s ingredients to the shopping list."
+
+  @Generable
+  public struct Arguments: Sendable {
+    @Guide(description: "Recipe (ID or title)")
+    public var recipe: String
+    @Guide(description: "For how many people?")
+    public var servings: Int?
+  }
+
+  public init() {}
+
+  public func call(arguments: Arguments) async throws -> String {
+    try await run(arguments)
+  }
+
+  @MainActor
+  private func run(_ toolArguments: Arguments) async throws -> String {
+    let (toolPayload, fallbackDialog): ([String: Any], String) = try {
+      let recipe = try assistantResolveEntity(toolArguments.recipe, collection: "Recipe", typeWords: RecipeEntityQuery.typeWords, make: RecipeEntity.init(record:))
+      let servings = toolArguments.servings
+      let encodedArgs: [String: Any] = [
+        "recipe": recipe.id,
+        "servings": AssistantValues.encode(servings),
+      ]
+      return (encodedArgs, "Added \(recipe.title) to your list.")
+    }()
+    AssistantInbox.call("addToShoppingList", args: toolPayload)
+    await AssistantBackground.shared.applyInbox()
+    return fallbackDialog
+  }
+}
+
+/// `FoundationModels.Tool` wrapper for `removeFromShoppingList` (`RemoveFromShoppingListAction`).
+@available(iOS 26.0, macOS 26.0, *)
+public struct RemoveFromShoppingListActionTool: FoundationModels.Tool {
+  public let name = "removeFromShoppingList"
+  public let description = "Remove from Shopping List"
+
+  @Generable
+  public struct Arguments: Sendable {
+    @Guide(description: "Recipe (ID or title)")
+    public var recipe: String
+  }
+
+  public init() {}
+
+  public func call(arguments: Arguments) async throws -> String {
+    try await run(arguments)
+  }
+
+  @MainActor
+  private func run(_ toolArguments: Arguments) async throws -> String {
+    let (toolPayload, fallbackDialog): ([String: Any], String) = try {
+      let recipe = try assistantResolveEntity(toolArguments.recipe, collection: "Recipe", typeWords: RecipeEntityQuery.typeWords, make: RecipeEntity.init(record:))
+      let encodedArgs: [String: Any] = [
+        "recipe": recipe.id,
+      ]
+      return (encodedArgs, "Removed \(recipe.title).")
+    }()
+    AssistantInbox.call("removeFromShoppingList", args: toolPayload)
+    await AssistantBackground.shared.applyInbox()
+    return fallbackDialog
+  }
+}
+
+/// `FoundationModels.Tool` wrapper for `showRecipeCard` (`ShowRecipeCardAction`).
+@available(iOS 26.0, macOS 26.0, *)
+public struct ShowRecipeCardActionTool: FoundationModels.Tool {
+  public let name = "showRecipeCard"
+  public let description = "Show Recipe Card"
+
+  @Generable
+  public struct Arguments: Sendable {
+    @Guide(description: "Recipe (ID or title)")
+    public var recipe: String
+  }
+
+  public init() {}
+
+  public func call(arguments: Arguments) async throws -> String {
+    try await run(arguments)
+  }
+
+  @MainActor
+  private func run(_ toolArguments: Arguments) async throws -> String {
+    let (toolPayload, fallbackDialog): ([String: Any], String) = try {
+      let recipe = try assistantResolveEntity(toolArguments.recipe, collection: "Recipe", typeWords: RecipeEntityQuery.typeWords, make: RecipeEntity.init(record:))
+      let encodedArgs: [String: Any] = [
+        "recipe": recipe.id,
+      ]
+      return (encodedArgs, "Done.")
+    }()
+    _ = await AssistantBackground.shared.prepare()
+    let rawReply = try await AssistantBridge.shared.perform("showRecipeCard", args: toolPayload)
+    let reply = AssistantReply(json: rawReply)
+    var parts: [String] = []
+    if let dialog = reply.dialog, !dialog.isEmpty { parts.append(dialog) }
+    if let card = reply.card {
+      if !parts.contains(card.title) { parts.append(card.title) }
+      if let subtitle = card.subtitle { parts.append(subtitle) }
+      for row in card.rows { parts.append("\(row.label): \(row.value)") }
+    }
+    return parts.isEmpty ? fallbackDialog : parts.joined(separator: "\n")
+  }
+}
+
+/// `FoundationModels.Tool` wrapper for `pickRecipe` (`PickRecipeAction`).
+@available(iOS 26.0, macOS 26.0, *)
+public struct PickRecipeActionTool: FoundationModels.Tool {
+  public let name = "pickRecipe"
+  public let description = "Pick a Recipe"
+
+  @Generable
+  public struct Arguments: Sendable {
+    @Guide(description: "Meal")
+    public var meal: MealEnumToolValue?
+  }
+
+  public init() {}
+
+  public func call(arguments: Arguments) async throws -> String {
+    try await run(arguments)
+  }
+
+  @MainActor
+  private func run(_ toolArguments: Arguments) async throws -> String {
+    let (toolPayload, fallbackDialog): ([String: Any], String) = {
+      let meal: MealEnum = toolArguments.meal.flatMap { MealEnum(rawValue: $0.rawValue) } ?? .dinner
+      let encodedArgs: [String: Any] = [
+        "meal": AssistantValues.encode(meal),
+      ]
+      return (encodedArgs, "Done.")
+    }()
+    _ = await AssistantBackground.shared.prepare()
+    let rawReply = try await AssistantBridge.shared.perform("pickRecipe", args: toolPayload)
+    let reply = AssistantReply(json: rawReply)
+    let found = try await RecipeEntityQuery().entities(for: reply.ids)
+    let valueText = found.map { String(localized: $0.displayRepresentation.title) }.joined(separator: ", ")
+    var parts: [String] = []
+    if let dialog = reply.dialog, !dialog.isEmpty { parts.append(dialog) }
+    if !valueText.isEmpty && !parts.contains(valueText) { parts.append(valueText) }
+    if let card = reply.card {
+      if !parts.contains(card.title) { parts.append(card.title) }
+      if let subtitle = card.subtitle { parts.append(subtitle) }
+      for row in card.rows { parts.append("\(row.label): \(row.value)") }
+    }
+    return parts.isEmpty ? fallbackDialog : parts.joined(separator: "\n")
+  }
+}
+
+/// `FoundationModels.Tool` wrapper for `countOpenTasks` (`CountOpenTasksAction`).
+@available(iOS 26.0, macOS 26.0, *)
+public struct CountOpenTasksActionTool: FoundationModels.Tool {
+  public let name = "countOpenTasks"
+  public let description = "Count Open Tasks"
+
+  @Generable
+  public struct Arguments: Sendable {
+    public init() {}
+  }
+
+  public init() {}
+
+  public func call(arguments: Arguments) async throws -> String {
+    try await run(arguments)
+  }
+
+  @MainActor
+  private func run(_ toolArguments: Arguments) async throws -> String {
+    let toolPayload: [String: Any] = [:]
+    let fallbackDialog = "Done."
+    _ = await AssistantBackground.shared.prepare()
+    let rawReply = try await AssistantBridge.shared.perform("countOpenTasks", args: toolPayload)
+    return rawReply ?? fallbackDialog
+  }
+}
+
+/// `FoundationModels.Tool` wrapper for `planMeal` (`PlanMealAction`).
+@available(iOS 26.0, macOS 26.0, *)
+public struct PlanMealActionTool: FoundationModels.Tool {
+  public let name = "planMeal"
+  public let description = "Adds a recipe to the meal plan."
+
+  @Generable
+  public struct Arguments: Sendable {
+    @Guide(description: "Recipe (ID or title)")
+    public var recipe: String
+    @Guide(description: "Meal")
+    public var meal: MealEnumToolValue?
+  }
+
+  public init() {}
+
+  public func call(arguments: Arguments) async throws -> String {
+    try await run(arguments)
+  }
+
+  @MainActor
+  private func run(_ toolArguments: Arguments) async throws -> String {
+    let (toolPayload, fallbackDialog): ([String: Any], String) = try {
+      let recipe = try assistantResolveEntity(toolArguments.recipe, collection: "Recipe", typeWords: RecipeEntityQuery.typeWords, make: RecipeEntity.init(record:))
+      let meal: MealEnum = toolArguments.meal.flatMap { MealEnum(rawValue: $0.rawValue) } ?? .dinner
+      let encodedArgs: [String: Any] = [
+        "recipe": recipe.id,
+        "meal": AssistantValues.encode(meal),
+      ]
+      return (encodedArgs, "Planned \(recipe.title) for \(String(localized: meal.localizedStringResource)).")
+    }()
+    AssistantInbox.call("planMeal", args: toolPayload)
+    await AssistantBackground.shared.applyInbox()
+    return fallbackDialog
+  }
+}
+
+/// `FoundationModels.Tool` wrapper for `shoppingList` (`ShoppingListAction`).
+@available(iOS 26.0, macOS 26.0, *)
+public struct ShoppingListActionTool: FoundationModels.Tool {
+  public let name = "shoppingList"
+  public let description = "Shopping List"
+
+  @Generable
+  public struct Arguments: Sendable {
+    public init() {}
+  }
+
+  public init() {}
+
+  public func call(arguments: Arguments) async throws -> String {
+    try await run(arguments)
+  }
+
+  @MainActor
+  private func run(_ toolArguments: Arguments) async throws -> String {
+    let toolPayload: [String: Any] = [:]
+    let fallbackDialog = "Here is your list."
+    _ = await AssistantBackground.shared.prepare()
+    let rawReply = try await AssistantBridge.shared.perform("shoppingList", args: toolPayload)
+    let result = AssistantValues.result(rawReply)
+    let valueText = assistantDescribeToolValue(result.value)
+    if let dialog = result.dialog, !dialog.isEmpty {
+      if let valueText, !valueText.isEmpty, valueText != dialog {
+        return "\(dialog)\n\(valueText)"
+      }
+      return dialog
+    }
+    if let valueText, !valueText.isEmpty {
+      return valueText
+    }
+    return fallbackDialog
+  }
+}
+
+/// `FoundationModels.Tool` wrapper for `nextTask` (`NextTaskAction`).
+@available(iOS 27.0, macOS 27.0, *)
+public struct NextTaskActionTool: FoundationModels.Tool {
+  public let name = "nextTask"
+  public let description = "Next Task"
+
+  @Generable
+  public struct Arguments: Sendable {
+    public init() {}
+  }
+
+  public init() {}
+
+  public func call(arguments: Arguments) async throws -> String {
+    try await run(arguments)
+  }
+
+  @MainActor
+  private func run(_ toolArguments: Arguments) async throws -> String {
+    let toolPayload: [String: Any] = [:]
+    let fallbackDialog = "Done."
+    _ = await AssistantBackground.shared.prepare()
+    let rawReply = try await AssistantBridge.shared.perform("nextTask", args: toolPayload)
+    let result = AssistantValues.result(rawReply)
+    let ids = AssistantValues.string(result.value).map { [$0] } ?? []
+    let value = try await TaskItemEntityQuery().entities(for: ids).first
+    let valueText: String? = value.map { String(localized: $0.displayRepresentation.title) }
+    if let dialog = result.dialog, !dialog.isEmpty {
+      if let valueText, !valueText.isEmpty, valueText != dialog {
+        return "\(dialog)\n\(valueText)"
+      }
+      return dialog
+    }
+    if let valueText, !valueText.isEmpty {
+      return valueText
+    }
+    return fallbackDialog
+  }
+}
+
+/// `FoundationModels.Tool` wrapper for `archiveDoneTasks` (`ArchiveDoneTasksAction`).
+@available(iOS 26.0, macOS 26.0, *)
+public struct ArchiveDoneTasksActionTool: FoundationModels.Tool {
+  public let name = "archiveDoneTasks"
+  public let description = "Archive Done Tasks"
+
+  @Generable
+  public struct Arguments: Sendable {
+    public init() {}
+  }
+
+  public init() {}
+
+  public func call(arguments: Arguments) async throws -> String {
+    try await run(arguments)
+  }
+
+  @MainActor
+  private func run(_ toolArguments: Arguments) async throws -> String {
+    let toolPayload: [String: Any] = [:]
+    let fallbackDialog = "Done."
+    _ = await AssistantBackground.shared.prepare()
+    let rawReply = try await AssistantBridge.shared.perform("archiveDoneTasks", args: toolPayload)
+    return rawReply ?? fallbackDialog
+  }
+}
+
+/// `FoundationModels.Tool` wrapper for `completeTask` (`CompleteTaskAction`).
+@available(iOS 27.0, macOS 27.0, *)
+public struct CompleteTaskActionTool: FoundationModels.Tool {
+  public let name = "completeTask"
+  public let description = "Complete Task"
+
+  @Generable
+  public struct Arguments: Sendable {
+    @Guide(description: "Task (ID or title)")
+    public var task: String?
+    @Guide(description: "Note")
+    public var note: String?
+  }
+
+  public init() {}
+
+  public func call(arguments: Arguments) async throws -> String {
+    try await run(arguments)
+  }
+
+  @MainActor
+  private func run(_ toolArguments: Arguments) async throws -> String {
+    let (toolPayload, fallbackDialog): ([String: Any], String) = try {
+      let task = try toolArguments.task.map { try assistantResolveEntity($0, collection: "TaskItem", typeWords: TaskItemEntityQuery.typeWords, make: TaskItemEntity.init(record:)) }
+      let note = toolArguments.note
+      let encodedArgs: [String: Any] = [
+        "task": AssistantValues.encode(task?.id),
+        "note": AssistantValues.encode(note),
+      ]
+      return (encodedArgs, "Done.")
+    }()
+    _ = await AssistantBackground.shared.prepare()
+    let rawReply = try await AssistantBridge.shared.perform("completeTask", args: toolPayload)
+    return rawReply ?? fallbackDialog
+  }
+}
+
+/// `FoundationModels.Tool` wrapper for `logGroceryRun` (`LogGroceryRunAction`).
+@available(iOS 26.0, macOS 26.0, *)
+public struct LogGroceryRunActionTool: FoundationModels.Tool {
+  public let name = "logGroceryRun"
+  public let description = "Log Grocery Run"
+
+  @Generable
+  public struct Arguments: Sendable {
+    @Guide(description: "Spent")
+    public var spent: AssistantCurrencyToolValue
+    @Guide(description: "Distance")
+    public var distance: AssistantMeasurementToolValue?
+    @Guide(description: "Store")
+    public var store: String?
+  }
+
+  public init() {}
+
+  public func call(arguments: Arguments) async throws -> String {
+    try await run(arguments)
+  }
+
+  @MainActor
+  private func run(_ toolArguments: Arguments) async throws -> String {
+    let (toolPayload, fallbackDialog): ([String: Any], String) = {
+      let spent = AssistantValues.currency(["amount": toolArguments.spent.amount, "currencyCode": toolArguments.spent.currencyCode]) ?? IntentCurrencyAmount(amount: Decimal(toolArguments.spent.amount), currencyCode: toolArguments.spent.currencyCode.uppercased())
+      let distance: Measurement<UnitLength>? = toolArguments.distance.map { AssistantValues.length(["value": $0.value, "unit": $0.unit]) ?? Measurement(value: $0.value, unit: UnitLength.meters) }
+      let store: String = toolArguments.store ?? "Farmers Market"
+      let encodedArgs: [String: Any] = [
+        "spent": AssistantValues.encode(spent),
+        "distance": AssistantValues.encode(distance),
+        "store": AssistantValues.encode(store),
+      ]
+      return (encodedArgs, "Done.")
+    }()
+    _ = await AssistantBackground.shared.prepare()
+    let rawReply = try await AssistantBridge.shared.perform("logGroceryRun", args: toolPayload)
+    let result = AssistantValues.result(rawReply)
+    let valueText = assistantDescribeToolValue(result.value)
+    if let dialog = result.dialog, !dialog.isEmpty {
+      if let valueText, !valueText.isEmpty, valueText != dialog {
+        return "\(dialog)\n\(valueText)"
+      }
+      return dialog
+    }
+    if let valueText, !valueText.isEmpty {
+      return valueText
+    }
+    return fallbackDialog
+  }
+}
+
+/// `FoundationModels.Tool` wrapper for `stopRecording` (`StopRecordingAction`).
+@available(iOS 26.0, macOS 26.0, *)
+public struct StopRecordingActionTool: FoundationModels.Tool {
+  public let name = "stopRecording"
+  public let description = "Stops recording the journal entry."
+
+  @Generable
+  public struct Arguments: Sendable {
+    public init() {}
+  }
+
+  public init() {}
+
+  public func call(arguments: Arguments) async throws -> String {
+    try await run(arguments)
+  }
+
+  @MainActor
+  private func run(_ toolArguments: Arguments) async throws -> String {
+    let toolPayload: [String: Any] = [:]
+    let fallbackDialog = "Stopped recording."
+    if await AssistantBackground.shared.prepare() {
+      _ = try await AssistantBridge.shared.perform("stopRecording", args: toolPayload)
+    } else {
+      AssistantInbox.call("stopRecording", args: toolPayload)
+    }
+    return fallbackDialog
+  }
+}
+
+/// `FoundationModels.Tool` wrapper for `showOpenTasks` (`ShowOpenTasksAction`).
+@available(iOS 26.0, macOS 26.0, *)
+public struct ShowOpenTasksActionTool: FoundationModels.Tool {
+  public let name = "showOpenTasks"
+  public let description = "Hear your open tasks, soonest first."
+
+  @Generable
+  public struct Arguments: Sendable {
+    public init() {}
+  }
+
+  public init() {}
+
+  public func call(arguments: Arguments) async throws -> String {
+    let answer = AssistantQuery.answer(
+      "TaskItem",
+      where: ["done": false],
+      sortBy: "due",
+      descending: false,
+      limit: 5,
+      dateFields: ["due"],
+      titleField: "title",
+      item: "{title}[ ({due})]",
+      dialog: "You have {count} {count|task|tasks}: {items}[, and {rest} more].",
+      empty: "Your list is clear.",
+      separator: ", ")
+    return answer.dialog
+  }
+}
+
+/// `FoundationModels.Tool` wrapper for `quickRecipes` (`QuickRecipesAction`).
+@available(iOS 26.0, macOS 26.0, *)
+public struct QuickRecipesActionTool: FoundationModels.Tool {
+  public let name = "quickRecipes"
+  public let description = "Quick Recipes"
+
+  @Generable
+  public struct Arguments: Sendable {
+    public init() {}
+  }
+
+  public init() {}
+
+  public func call(arguments: Arguments) async throws -> String {
+    let answer = AssistantQuery.answer(
+      "Recipe",
+      where: [:],
+      filters: [.lessOrEqual("minutes", 30)],
+      sortBy: "minutes",
+      descending: false,
+      limit: 3,
+      dateFields: [],
+      titleField: nil,
+      item: "{title} ({minutes} min)",
+      dialog: "Quickest: {items}.",
+      empty: "No recipes yet.",
+      separator: ", ")
+    return answer.dialog
+  }
+}
+
+/// Every generated `FoundationModels.Tool`, ready for `LanguageModelSession(tools: AssistantFoundationTools.all)`.
+@available(iOS 26.0, macOS 26.0, *)
+public enum AssistantFoundationTools {
+  public static var all: [any FoundationModels.Tool] {
+    var tools: [any FoundationModels.Tool] = [
+      AddToShoppingListActionTool(),
+      RemoveFromShoppingListActionTool(),
+      ShowRecipeCardActionTool(),
+      PickRecipeActionTool(),
+      CountOpenTasksActionTool(),
+      PlanMealActionTool(),
+      ShoppingListActionTool(),
+      ArchiveDoneTasksActionTool(),
+      LogGroceryRunActionTool(),
+      StopRecordingActionTool(),
+      ShowOpenTasksActionTool(),
+      QuickRecipesActionTool(),
+    ]
+    if #available(iOS 27.0, macOS 27.0, *) {
+      tools.append(NextTaskActionTool())
+    }
+    if #available(iOS 27.0, macOS 27.0, *) {
+      tools.append(CompleteTaskActionTool())
+    }
+    return tools
+  }
+}
 #endif
 

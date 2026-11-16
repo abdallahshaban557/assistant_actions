@@ -5,7 +5,9 @@ const _widgets = 'AssistantWidgets';
 
 /// Files copied from the runtime on every run, so they follow upgrades.
 const _ownedWidgetFiles = {
+  'AssistantAppGroup.swift': 'darwin/assistant_actions/Sources/assistant_actions/AssistantAppGroup.swift',
   'AssistantActivityAttributes.swift': 'darwin/assistant_actions/Sources/assistant_actions/AssistantActivityAttributes.swift',
+  'AssistantLiveActivityIntent.swift': 'darwin/assistant_actions/Sources/assistant_actions/AssistantLiveActivityIntent.swift',
   'AssistantLiveActivityWidget.swift': 'darwin/widgets/AssistantLiveActivityWidget.swift',
 };
 
@@ -111,7 +113,7 @@ class WidgetTargetResult {
 /// what. [id] makes object ids.
 WidgetTargetResult addWidgetTarget(String pbx, String Function() id) {
   if (RegExp('/\\* $_widgets \\*/ = \\{\\s*isa = PBXNativeTarget;').hasMatch(pbx)) {
-    return WidgetTargetResult(pbx: pbx);
+    return WidgetTargetResult(pbx: _upgradeWidgetTarget(pbx, id));
   }
   WidgetTargetResult fail(String what) => WidgetTargetResult(problem: 'could not find $what in project.pbxproj');
 
@@ -148,17 +150,19 @@ WidgetTargetResult addWidgetTarget(String pbx, String Function() id) {
   final ids = {
     for (final key in [
       'target', 'product', 'group', 'sources', 'frameworks', 'resources', 'configList', 'proxy', 'dependency',
-      'embed', 'embedFile', 'plist', 'xcconfig', for (final f in _ownedWidgetFiles.keys) f, 'AssistantWidgets.swift',
+      'embed', 'embedFile', 'plist', 'xcconfig', _generatedWidgets, '$_generatedWidgets build',
+      for (final f in _ownedWidgetFiles.keys) f, 'AssistantWidgets.swift',
       for (final f in [..._ownedWidgetFiles.keys, 'AssistantWidgets.swift']) '$f build', for (final c in configs) 'config ${c.$1}',
     ])
       key: id(),
   };
   final swift = [..._ownedWidgetFiles.keys, 'AssistantWidgets.swift']..sort();
+  final sourceFiles = [...swift, _generatedWidgets]..sort();
   const t3 = '\t\t\t', t4 = '\t\t\t\t';
 
   final sections = <String, String>{
     'PBXBuildFile': [
-      for (final f in swift)
+      for (final f in sourceFiles)
         '\t\t${ids['$f build']} /* $f in Sources */ = {isa = PBXBuildFile; fileRef = ${ids[f]} /* $f */; };\n',
       '\t\t${ids['embedFile']} /* $_widgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; '
           'fileRef = ${ids['product']} /* $_widgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };\n',
@@ -186,6 +190,8 @@ WidgetTargetResult addWidgetTarget(String pbx, String Function() id) {
           'includeInIndex = 0; path = $_widgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };\n',
       for (final f in swift)
         '\t\t${ids[f]} /* $f */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = $f; sourceTree = "<group>"; };\n',
+      '\t\t${ids[_generatedWidgets]} /* $_generatedWidgets */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; '
+          'name = $_generatedWidgets; path = ../apple/$_generatedWidgets; sourceTree = SOURCE_ROOT; };\n',
       '\t\t${ids['plist']} /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };\n',
       '\t\t${ids['xcconfig']} /* $_widgets.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; '
           'path = $_widgets.xcconfig; sourceTree = "<group>"; };\n',
@@ -194,10 +200,10 @@ WidgetTargetResult addWidgetTarget(String pbx, String Function() id) {
     'PBXGroup': '\t\t${ids['group']} /* $_widgets */ = {\n'
         '${t3}isa = PBXGroup;\n'
         '${t3}children = (\n'
-        '${[for (final f in swift) '$t4${ids[f]} /* $f */,\n'].join()}'
+        '${[for (final f in sourceFiles) '$t4${ids[f]} /* $f */,\n'].join()}'
         '$t4${ids['plist']} /* Info.plist */,\n'
         '$t4${ids['xcconfig']} /* $_widgets.xcconfig */,\n'
-        '$t3);\n'
+        '\t\t\t);\n'
         '${t3}path = $_widgets;\n'
         '${t3}sourceTree = "<group>";\n'
         '\t\t};\n',
@@ -218,7 +224,7 @@ WidgetTargetResult addWidgetTarget(String pbx, String Function() id) {
         '\t\t};\n',
     'PBXResourcesBuildPhase': _phase(ids['resources']!, 'Resources', 'PBXResourcesBuildPhase', const []),
     'PBXSourcesBuildPhase': _phase(ids['sources']!, 'Sources', 'PBXSourcesBuildPhase',
-        [for (final f in swift) '${ids['$f build']} /* $f in Sources */']),
+        [for (final f in sourceFiles) '${ids['$f build']} /* $f in Sources */']),
     'PBXTargetDependency': '\t\t${ids['dependency']} /* PBXTargetDependency */ = {\n'
         '${t3}isa = PBXTargetDependency;\n'
         '${t3}target = ${ids['target']} /* $_widgets */;\n'
@@ -287,6 +293,78 @@ WidgetTargetResult addWidgetTarget(String pbx, String Function() id) {
     }
   }
   return WidgetTargetResult(pbx: out);
+}
+
+/// Adds any new Swift sources introduced in newer `assistant_actions` releases
+/// (such as `AssistantAppGroup.swift`, `AssistantLiveActivityIntent.swift` and
+/// `../apple/AssistantWidgets.g.swift`) to an existing `AssistantWidgets`
+/// target, leaving an up-to-date project untouched.
+String _upgradeWidgetTarget(String pbx, String Function() id) {
+  final targetMatch = RegExp(
+    r'\w{24} /\* ' + _widgets + r' \*/ = \{\s*isa = PBXNativeTarget;[\s\S]*?buildPhases = \(\n([\s\S]*?)\t\t\t\);',
+  ).firstMatch(pbx);
+  if (targetMatch == null) return pbx;
+  final sourcesPhaseId = RegExp(r'(\w{24}) /\* Sources \*/').firstMatch(targetMatch.group(1)!)?.group(1);
+  if (sourcesPhaseId == null) return pbx;
+
+  final sourcesPhase = RegExp(
+    '$sourcesPhaseId /\\* Sources \\*/ = \\{\\s*isa = PBXSourcesBuildPhase;[\\s\\S]*?files = \\(\\n([\\s\\S]*?)\\t\\t\\t\\);',
+  ).firstMatch(pbx);
+  final widgetGroup = RegExp(
+    r'\w{24} /\* ' + _widgets + r' \*/ = \{\s*isa = PBXGroup;\s*children = \(\n([\s\S]*?)\t\t\t\);',
+  ).firstMatch(pbx);
+  if (sourcesPhase == null || widgetGroup == null) return pbx;
+
+  final existingSources = sourcesPhase.group(1)!;
+  final requiredFiles = [..._ownedWidgetFiles.keys, 'AssistantWidgets.swift', _generatedWidgets]..sort();
+  final missing = [
+    for (final f in requiredFiles)
+      if (!existingSources.contains('/* $f in Sources */')) f,
+  ];
+  if (missing.isEmpty) return pbx;
+
+  const t4 = '\t\t\t\t';
+  final buildFileLines = StringBuffer();
+  final fileRefLines = StringBuffer();
+  final groupChildLines = StringBuffer();
+  final sourceEntryLines = StringBuffer();
+
+  for (final f in missing) {
+    final fileId = id();
+    final buildId = id();
+    buildFileLines.writeln('\t\t$buildId /* $f in Sources */ = {isa = PBXBuildFile; fileRef = $fileId /* $f */; };');
+    if (f == _generatedWidgets) {
+      fileRefLines.writeln(
+          '\t\t$fileId /* $f */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = $f; path = ../apple/$f; sourceTree = SOURCE_ROOT; };');
+    } else {
+      fileRefLines
+          .writeln('\t\t$fileId /* $f */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = $f; sourceTree = "<group>"; };');
+    }
+    groupChildLines.writeln('$t4$fileId /* $f */,');
+    sourceEntryLines.writeln('$t4$buildId /* $f in Sources */,');
+  }
+
+  var out = pbx;
+  final sourcesInsertAt = sourcesPhase.end - '\t\t\t);'.length;
+  out = out.replaceRange(sourcesInsertAt, sourcesInsertAt, sourceEntryLines.toString());
+
+  final updatedGroup = RegExp(
+    r'\w{24} /\* ' + _widgets + r' \*/ = \{\s*isa = PBXGroup;\s*children = \(\n([\s\S]*?)\t\t\t\);',
+  ).firstMatch(out)!;
+  final groupInsertAt = updatedGroup.end - '\t\t\t);'.length;
+  out = out.replaceRange(groupInsertAt, groupInsertAt, groupChildLines.toString());
+
+  for (final (section, text) in [
+    ('PBXBuildFile', buildFileLines.toString()),
+    ('PBXFileReference', fileRefLines.toString()),
+  ]) {
+    final begin = '/* Begin $section section */\n';
+    final at = out.indexOf(begin);
+    if (at >= 0) {
+      out = out.replaceRange(at + begin.length, at + begin.length, text);
+    }
+  }
+  return out;
 }
 
 String _phase(String id, String name, String isa, List<String> files) => '\t\t$id /* $name */ = {\n'

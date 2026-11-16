@@ -414,6 +414,59 @@ MainActor.assumeIsolated {
     "finished calls take no progress")
 }
 
+// User-facing errors and mid-call conversational prompts.
+MainActor.assumeIsolated {
+  let userErr = AssistantBridge.mapError(
+    PigeonError(code: AssistantBridge.userErrorCode, message: "Sign in to send messages.", details: nil))
+  check(String(localized: userErr.localizedStringResource), "Sign in to send messages.",
+    "AssistantError maps to a verbatim user-facing LocalizedStringResource")
+  let crashErr = AssistantBridge.mapError(
+    PigeonError(code: "error", message: "Exception: boom", details: nil))
+  check(String(localized: crashErr.localizedStringResource), "Something went wrong: Exception: boom",
+    "unexpected Dart exceptions keep the failure prefix")
+
+  let call = AssistantLiveCall(progress: nil)
+  var replies: [[String: Any]] = []
+  call.replySender = { payload in replies.append(payload) }
+  call.onConfirm { prompt, label in prompt == "Delete?" && label == "Delete" }
+  call.onChoose { choices, prompt in
+    prompt == "Which?" ? choices.first(where: { $0["destructive"] as? Bool == true })?["id"] as? String : nil
+  }
+  call.onRequestValue("servings") { prompt in prompt == "How many?" ? 4 : 0 }
+  call.onDisambiguate("recipe") { choices, _ in choices.last ?? NSNull() }
+
+  let done = DispatchSemaphore(value: 0)
+  Task { @MainActor in
+    _ = try? await call.run("cook", args: [:]) { _, _ in
+      _ = try? AssistantHostCalls.invoke("call.prompt",
+        argsJson: #"{"call":"\#(call.id)","promptId":"p1","kind":"confirm","prompt":"Delete?","actionLabel":"Delete"}"#)
+      _ = try? AssistantHostCalls.invoke("call.prompt",
+        argsJson: #"{"call":"\#(call.id)","promptId":"p2","kind":"choose","prompt":"Which?","choices":[{"id":"a","title":"A"},{"id":"b","title":"B","destructive":true}]}"#)
+      _ = try? AssistantHostCalls.invoke("call.prompt",
+        argsJson: #"{"call":"\#(call.id)","promptId":"p3","kind":"requestValue","param":"servings","prompt":"How many?"}"#)
+      _ = try? AssistantHostCalls.invoke("call.prompt",
+        argsJson: #"{"call":"\#(call.id)","promptId":"p4","kind":"disambiguate","param":"recipe","choices":["r1","r2"]}"#)
+      _ = try? AssistantHostCalls.invoke("call.prompt",
+        argsJson: #"{"call":"\#(call.id)","promptId":"p5","kind":"requestValue","param":"missing"}"#)
+      while replies.count < 5 {
+        try? await Task.sleep(nanoseconds: 5_000_000)
+      }
+      return "ok"
+    }
+    done.signal()
+  }
+  while done.wait(timeout: .now()) == .timedOut { RunLoop.main.run(until: Date().addingTimeInterval(0.01)) }
+  func replyFor(_ id: String) -> [String: Any] { replies.first { $0["promptId"] as? String == id } ?? [:] }
+  check("\(replyFor("p1")["value"] as? Bool ?? false)", "true", "mid-call confirm resolves through onConfirm")
+  check(replyFor("p2")["value"] as? String ?? "nil", "b", "mid-call choose returns the selected choice id")
+  check("\(replyFor("p3")["value"] as? Int ?? -1)", "4", "mid-call requestValue resolves parameter handler")
+  check(replyFor("p4")["value"] as? String ?? "nil", "r2", "mid-call disambiguate resolves among choices")
+  check((replyFor("p5")["error"] as? String)?.contains("missing") == true ? "error" : "ok", "error",
+    "unknown prompt parameters report an error")
+  check((try? AssistantHostCalls.invoke("call.prompt", argsJson: #"{"call":"\#(call.id)","promptId":"p6","kind":"confirm"}"#)) ?? "nil",
+    #"{"cancelled":true}"#, "prompts after a call ends report cancelled")
+}
+
 // File entities: Dart paths ↔ FileEntityIdentifier.
 if #available(macOS 15.0, *) {
   let dir = FileManager.default.temporaryDirectory.appendingPathComponent("aa-files-\(UUID().uuidString)")
@@ -494,6 +547,234 @@ check(AssistantMatch.records(spots, matchingPlace: ["name": "blue cafe"], field:
 check("\(AssistantMatch.records(spots, matchingPlace: [String: Any](), field: "where", ignoring: []).count)", "0",
   "an empty place matches nothing")
 check("\(Int(AssistantMatch.distance((47.6, -122.3), (47.61, -122.3))))", "1111", "distances are in metres")
+
+// Shared App Group container discovery and fallback (`AssistantAppGroup`).
+do {
+  AssistantAppGroup.reset()
+  check(AssistantAppGroup.identifier ?? "nil", "nil", "no App Group by default")
+  check(AssistantAppGroup.containerURL() == nil ? "nil" : "url", "nil", "no shared container URL without an App Group")
+  let defaultDir = try! AssistantAppGroup.directoryURL()
+  check(defaultDir.lastPathComponent, "assistant_actions", "default directory is named assistant_actions")
+
+  let tempContainer = FileManager.default.temporaryDirectory
+    .appendingPathComponent("assistant_app_group_\(UUID().uuidString)", isDirectory: true)
+  let suiteName = "dev.assistantactions.tests.\(UUID().uuidString)"
+  defer {
+    AssistantAppGroup.reset()
+    UserDefaults.standard.removePersistentDomain(forName: suiteName)
+    try? FileManager.default.removeItem(at: tempContainer)
+  }
+
+  AssistantAppGroup.configure(suiteName, containerURL: tempContainer)
+  check(AssistantAppGroup.identifier ?? "nil", suiteName, "configured App Group identifier is active")
+  check(AssistantAppGroup.containerURL()?.path ?? "nil", tempContainer.path, "configured container URL is used")
+
+  try! AssistantSnapshot.write(
+    collection: "GroupTask",
+    json: #"{"records":[{"id":"t1","title":"Shared task","fields":{"done":false}}]}"#)
+  let snapshotFile = tempContainer.appendingPathComponent("assistant_actions/GroupTask.json")
+  check(FileManager.default.fileExists(atPath: snapshotFile.path) ? "yes" : "no", "yes",
+    "snapshots write into the App Group container")
+  check(AssistantSnapshot.records("GroupTask").map(\.title).joined(), "Shared task",
+    "snapshots read from the App Group container")
+
+  AssistantInbox.create("GroupTask", id: "t2", fields: ["done": true])
+  check(AssistantSnapshot.records("GroupTask").map(\.id).joined(separator: ","), "t2,t1",
+    "queued App Group inbox items layer onto App Group snapshots")
+  check((UserDefaults.standard.stringArray(forKey: "assistant_actions.inbox") ?? []).isEmpty ? "empty" : "leaked",
+    "empty", "App Group inbox stays isolated from UserDefaults.standard")
+  let drained = AssistantInbox.drain()
+  check("\(drained.count)", "1", "drain reads and clears the App Group suite")
+  check("\(AssistantInbox.drain().count)", "0", "App Group inbox is empty after drain")
+
+  // Live Activity button fallback enqueues into the configured App Group suite.
+  AssistantLiveActivityButtonIntent.enqueueFallback(actionId: "pauseTimer", argsJson: #"{"seconds":15}"#)
+  let buttonQueued = AssistantInbox.drain()
+  check("\(buttonQueued.count)", "1", "Live Activity button fallback queues a call in the App Group inbox")
+  check(buttonQueued.first?.contains(#""action":"pauseTimer""#) == true ? "yes" : "no", "yes",
+    "queued Live Activity button call carries actionId")
+
+  AssistantAppGroup.reset()
+  check(AssistantAppGroup.identifier ?? "nil", "nil", "reset restores automatic discovery")
+}
+
+// Interactive Live Activity buttons in ContentState + APNs push host calls.
+do {
+  let state = AssistantActivityAttributes.ContentState(json: [
+    "title": "Workout",
+    "buttons": [
+      ["label": "Pause", "actionId": "pauseWorkout", "systemImage": "pause.fill", "args": #"{"id":"w1"}"#],
+      ["label": "", "actionId": "ignored"],
+    ],
+  ])
+  check("\(state.buttons.count)", "1", "valid Live Activity buttons decode and empty ones are dropped")
+  check("\(state.buttons[0].label):\(state.buttons[0].actionId):\(state.buttons[0].systemImage ?? "")",
+    "Pause:pauseWorkout:pause.fill", "button fields decode")
+  check(state.buttons[0].argsObject["id"] as? String ?? "", "w1", "button argsObject decodes JSON")
+
+  let encoded = try! JSONEncoder().encode(state)
+  let roundTripped = try! JSONDecoder().decode(AssistantActivityAttributes.ContentState.self, from: encoded)
+  check("\(roundTripped.buttons.count)", "1", "ContentState buttons round-trip through Codable")
+
+  let apnsPayload = #"{"title":"Remote Push"}"#.data(using: .utf8)!
+  let fromApns = try! JSONDecoder().decode(AssistantActivityAttributes.ContentState.self, from: apnsPayload)
+  check("\(fromApns.title):\(fromApns.buttons.count)", "Remote Push:0",
+    "APNs payloads omitting buttons decode with an empty array")
+
+  MainActor.assumeIsolated {
+    AssistantLiveActivities.register()
+    check((try? AssistantHostCalls.invoke("liveActivity.pushToken", argsJson: #"{"id":"a1"}"#)) ?? "nil",
+      "nil", "pushToken returns nil on macOS")
+    check((try? AssistantHostCalls.invoke("liveActivity.observePushToStart", argsJson: "{}")) ?? "nil",
+      "nil", "observePushToStart returns nil on macOS")
+    check((try? AssistantHostCalls.invoke("liveActivity.stopPushToStart", argsJson: "{}")) ?? "nil",
+      "nil", "stopPushToStart succeeds on macOS")
+    check(AssistantPlatformViews.siriTipViewType, "assistant_actions/siri_tip", "SiriTip platform view id")
+    check(AssistantPlatformViews.shortcutsLinkViewType, "assistant_actions/shortcuts_link",
+      "ShortcutsLink platform view id")
+  }
+}
+
+// Currency, typed measurements and interactive card toggles / remote images.
+let price = IntentCurrencyAmount(amount: Decimal(string: "42.50")!, currencyCode: "USD")
+let priceMap = AssistantValues.encode(price) as! [String: Any]
+check("\(priceMap["amount"]!) \(priceMap["currencyCode"]!)", "42.5 USD", "currency encodes amount and currencyCode")
+let decodedPrice = AssistantValues.currency(["amount": 19.99, "currencyCode": "eur"])!
+check("\(decodedPrice.amount) \(decodedPrice.currencyCode)", "19.99 EUR", "currency decodes and uppercases code")
+check(AssistantValues.currency(["amount": 5]) == nil ? "nil" : "some", "nil", "currency requires currencyCode")
+
+let km = Measurement<UnitLength>(value: 3.5, unit: .kilometers)
+let kmMap = AssistantValues.encode(km) as! [String: Any]
+check("\(kmMap["value"]!) \(kmMap["unit"]!)", "3.5 kilometers", "length preserves supported unit")
+check(AssistantValues.length(kmMap) == km ? "same" : "diff", "same", "length round-trips")
+let nmMap = AssistantValues.encode(Measurement<UnitLength>(value: 1, unit: .nauticalMiles)) as! [String: Any]
+check("\(Int((nmMap["value"] as! Double).rounded())) \(nmMap["unit"]!)", "1852 meters",
+  "unlisted length unit converts to base meters")
+
+let grams = Measurement<UnitMass>(value: 250, unit: .grams)
+check(AssistantValues.mass(AssistantValues.encode(grams)) == grams ? "same" : "diff", "same", "mass round-trips")
+let fahr = Measurement<UnitTemperature>(value: 72, unit: .fahrenheit)
+check(AssistantValues.temperature(AssistantValues.encode(fahr)) == fahr ? "same" : "diff", "same", "temperature round-trips")
+let ml = Measurement<UnitVolume>(value: 500, unit: .milliliters)
+check(AssistantValues.volume(AssistantValues.encode(ml)) == ml ? "same" : "diff", "same", "volume round-trips")
+let mph = Measurement<UnitSpeed>(value: 60, unit: .milesPerHour)
+check(AssistantValues.speed(AssistantValues.encode(mph)) == mph ? "same" : "diff", "same", "speed round-trips")
+let kcal = Measurement<UnitEnergy>(value: 420, unit: .kilocalories)
+check(AssistantValues.energy(AssistantValues.encode(kcal)) == kcal ? "same" : "diff", "same", "energy round-trips")
+
+let toggleReply = AssistantReply(json: #"""
+  {"dialog":"Updated","card":{"title":"Shopping","imageUrl":"https://example.com/a.png","toggles":[{"label":"Milk","value":true,"action":"setDone","args":{"id":"m1","value":false},"systemImage":"cart"}]}}
+  """#)
+check(toggleReply.card?.imageUrl ?? "nil", "https://example.com/a.png", "card decodes remote imageUrl")
+check("\(toggleReply.card?.toggles.count ?? 0)", "1", "card decodes interactive toggles")
+let firstToggle = toggleReply.card!.toggles[0]
+check("\(firstToggle.label)|\(firstToggle.value)|\(firstToggle.action)|\(firstToggle.systemImage ?? "")",
+  "Milk|true|setDone|cart", "toggle fields decode")
+let _ = AssistantCardView(toggleReply.card)
+
+// Richer SnapshotFilter predicates and relative DateTime checks.
+do {
+  let refNow = Calendar.current.date(from: DateComponents(year: 2026, month: 11, day: 3, hour: 12))!
+  let yesterday = Calendar.current.date(from: DateComponents(year: 2026, month: 11, day: 2, hour: 15))!
+  let morningToday = Calendar.current.date(from: DateComponents(year: 2026, month: 11, day: 3, hour: 9))!
+  let eveningToday = Calendar.current.date(from: DateComponents(year: 2026, month: 11, day: 3, hour: 18))!
+  let tomorrow = Calendar.current.date(from: DateComponents(year: 2026, month: 11, day: 4, hour: 10))!
+
+  let rich = records("""
+    [
+      {"id":"t1","title":"Crème Brûlée","fields":{"title":"Crème Brûlée","done":false,"priority":"high","minutes":45,"rating":4.8,"prep":900.0,"due":\(yesterday.timeIntervalSince1970),"note":"Caramelize sugar"}},
+      {"id":"t2","title":"Café Latte","fields":{"title":"Café Latte","done":false,"priority":"medium","minutes":10,"rating":4.2,"prep":180.0,"due":\(morningToday.timeIntervalSince1970),"note":null}},
+      {"id":"t3","title":"Zoë's Soup","fields":{"title":"Zoë's Soup","done":false,"priority":"high","minutes":30,"rating":4.5,"prep":600.0,"due":\(eveningToday.timeIntervalSince1970)}},
+      {"id":"t4","title":"Overnight Oats","fields":{"title":"Overnight Oats","done":true,"priority":"low","minutes":5,"rating":3.9,"prep":60.0,"due":\(tomorrow.timeIntervalSince1970),"note":"Chill"}}
+    ]
+    """)
+
+  func filterIDs(_ filters: [AssistantQuery.Filter], where eq: [String: Any] = [:]) -> String {
+    AssistantQuery.answer(
+      records: rich, where: eq, filters: filters, sortBy: nil, descending: false, limit: 10,
+      dateFields: ["due"], titleField: "title", item: "{title}", dialog: "{items}", empty: "-", separator: "|",
+      now: refNow
+    ).items.joined(separator: "|")
+  }
+
+  check(filterIDs([.equals("done", false), .equals("priority", "high")]), "Crème Brûlée|Zoë's Soup",
+    "SnapshotFilter.equals on bool and enum case name")
+  check(filterIDs([.notEquals("done", true), .notEquals("priority", "medium")]), "Crème Brûlée|Zoë's Soup",
+    "SnapshotFilter.notEquals on bool and enum case name")
+  check(filterIDs([.equals("minutes", 30)]), "Zoë's Soup", "SnapshotFilter.equals on int")
+  check(filterIDs([.notEquals("minutes", 30)]), "Crème Brûlée|Café Latte|Overnight Oats", "SnapshotFilter.notEquals on int")
+  check(filterIDs([.equals("rating", 4.5)]), "Zoë's Soup", "SnapshotFilter.equals on double")
+  check(filterIDs([.notEquals("rating", 4.5)]), "Crème Brûlée|Café Latte|Overnight Oats", "SnapshotFilter.notEquals on double")
+  check(filterIDs([.equals("due", morningToday)]), "Café Latte", "SnapshotFilter.equals on Date")
+  check(filterIDs([.notEquals("due", morningToday)]), "Crème Brûlée|Zoë's Soup|Overnight Oats", "SnapshotFilter.notEquals on Date")
+
+  check(filterIDs([.lessThan("minutes", 30)]), "Café Latte|Overnight Oats", "SnapshotFilter.lessThan on int")
+  check(filterIDs([.lessOrEqual("minutes", 30)]), "Café Latte|Zoë's Soup|Overnight Oats", "SnapshotFilter.lessOrEqual on int")
+  check(filterIDs([.greaterThan("rating", 4.2)]), "Crème Brûlée|Zoë's Soup", "SnapshotFilter.greaterThan on double")
+  check(filterIDs([.greaterOrEqual("prep", 600.0)]), "Crème Brûlée|Zoë's Soup", "SnapshotFilter.greaterOrEqual on Duration seconds")
+  check(filterIDs([.lessThan("due", refNow)]), "Crème Brûlée|Café Latte", "SnapshotFilter.lessThan on Date")
+  check(filterIDs([.lessOrEqual("due", morningToday)]), "Crème Brûlée|Café Latte", "SnapshotFilter.lessOrEqual on Date")
+  check(filterIDs([.greaterThan("due", eveningToday)]), "Overnight Oats", "SnapshotFilter.greaterThan on Date")
+  check(filterIDs([.greaterOrEqual("due", eveningToday)]), "Zoë's Soup|Overnight Oats", "SnapshotFilter.greaterOrEqual on Date")
+
+  check(filterIDs([.contains("title", "brulee")]), "Crème Brûlée", "SnapshotFilter.contains folds case and diacritics")
+  check(filterIDs([.startsWith("title", "creme")]), "Crème Brûlée", "SnapshotFilter.startsWith folds case and diacritics")
+  check(filterIDs([.startsWith("title", "zoe")]), "Zoë's Soup", "SnapshotFilter.startsWith matches Zoë")
+
+  check(filterIDs([.isNull("note")]), "Café Latte|Zoë's Soup", "SnapshotFilter.isNull matches null and missing fields")
+  check(filterIDs([.isNotNull("note")]), "Crème Brûlée|Overnight Oats", "SnapshotFilter.isNotNull matches present fields")
+
+  check(filterIDs([.isToday("due")]), "Café Latte|Zoë's Soup", "SnapshotFilter.isToday evaluates calendar day against now")
+  check(filterIDs([.isPast("due")]), "Crème Brûlée|Café Latte", "SnapshotFilter.isPast finds items strictly before now")
+  check(filterIDs([.isFuture("due")]), "Zoë's Soup|Overnight Oats", "SnapshotFilter.isFuture finds items strictly after now")
+  check(filterIDs([.isToday("due")], where: ["done": false, "priority": "high"]), "Zoë's Soup",
+    "where map and SnapshotFilter compose together")
+}
+
+// Richer plain EntityPropertyQuery comparators: String prefix/suffix/equal/notEqual, AppEnum, Measurement<UnitDuration> & Duration.
+do {
+  enum PriorityEnum: String, AssistantComparable { case low, medium, high }
+  struct PlainRecipe {
+    let id: String
+    var title: String
+    var cuisine: String?
+    var priority: PriorityEnum?
+    var prepTime: Measurement<UnitDuration>?
+    var rest: Duration?
+  }
+  let recipes = [
+    PlainRecipe(id: "r1", title: "Crème Brûlée", cuisine: "Français", priority: .high,
+      prepTime: Measurement(value: 2, unit: .minutes), rest: .seconds(120)),
+    PlainRecipe(id: "r2", title: "Café au Lait", cuisine: "Bistro", priority: .low,
+      prepTime: Measurement(value: 45, unit: .seconds), rest: .seconds(30)),
+    PlainRecipe(id: "r3", title: "Tacos", cuisine: nil, priority: nil,
+      prepTime: Measurement(value: 10, unit: .minutes), rest: nil),
+  ]
+  typealias RP = AssistantPredicate<PlainRecipe>
+  func rids(_ preds: [RP], sortedBy sorts: [(key: (PlainRecipe) -> AssistantKey?, ascending: Bool)] = []) -> String {
+    RP.apply(preds, all: true, to: recipes, sortedBy: sorts, limit: nil).map(\.id).joined(separator: ",")
+  }
+
+  check(rids([RP({ $0.title }, .hasPrefix, "creme")]), "r1", "String HasPrefixComparator folds case and accents")
+  check(rids([RP({ $0.title }, .hasSuffix, "brulee")]), "r1", "String HasSuffixComparator folds case and accents")
+  check(rids([RP({ $0.cuisine }, .equal, "francais")]), "r1", "String EqualToComparator folds case and accents")
+  check(rids([RP({ $0.cuisine }, .notEqual, "bistro")]), "r1,r3", "String NotEqualToComparator keeps other and nil values")
+  check(rids([RP({ $0.priority }, .equal, PriorityEnum.high)]), "r1", "@AssistantEnum EqualToComparator")
+  check(rids([RP({ $0.priority }, .notEqual, PriorityEnum.low)]), "r1,r3", "@AssistantEnum NotEqualToComparator")
+  check(rids([RP({ $0.prepTime }, .equal, Measurement(value: 120, unit: UnitDuration.seconds))]), "r1",
+    "Measurement<UnitDuration> EqualToComparator normalizes units to seconds")
+  check(rids([RP({ $0.prepTime }, .less, Measurement(value: 2, unit: UnitDuration.minutes))]), "r2",
+    "Measurement<UnitDuration> LessThanComparator")
+  check(rids([RP({ $0.prepTime }, .lessOrEqual, Measurement(value: 2, unit: UnitDuration.minutes))]), "r1,r2",
+    "Measurement<UnitDuration> LessThanOrEqualToComparator")
+  check(rids([RP({ $0.prepTime }, .greater, Measurement(value: 2, unit: UnitDuration.minutes))]), "r3",
+    "Measurement<UnitDuration> GreaterThanComparator")
+  check(rids([RP({ $0.prepTime }, .greaterOrEqual, Measurement(value: 2, unit: UnitDuration.minutes))]), "r1,r3",
+    "Measurement<UnitDuration> GreaterThanOrEqualToComparator")
+  check(rids([], sortedBy: [({ $0.prepTime?.assistantKey }, true)]), "r2,r1,r3",
+    "Measurement<UnitDuration> sorts by duration in seconds")
+  check(rids([RP({ $0.rest }, .greaterOrEqual, Duration.seconds(60))]), "r1", "Swift Duration comparator support")
+}
 
 if failures > 0 {
   print("\(failures) failed")

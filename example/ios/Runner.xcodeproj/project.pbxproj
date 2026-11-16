@@ -7,6 +7,9 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		0C193DD35D4C2713C17FEA9E /* AssistantAppGroup.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9664C265B6118BC0B7BA3A52 /* AssistantAppGroup.swift */; };
+		674FC3D804362AD182C49F87 /* AssistantLiveActivityIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 365D039E13AEE84E1A2345FD /* AssistantLiveActivityIntent.swift */; };
+		E2DF675C3E5B06808C03ED5A /* AssistantWidgets.g.swift in Sources */ = {isa = PBXBuildFile; fileRef = 18F9B603C420694FB00D5861 /* AssistantWidgets.g.swift */; };
 		91AAA0D3923D74AA85BF1F95 /* AssistantActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = FCE568BEE585AC70A950B110 /* AssistantActivityAttributes.swift */; };
 		3F334861D4DF61CCF41F137B /* AssistantLiveActivityWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8AAD04DE1B0B663C1B32FF9A /* AssistantLiveActivityWidget.swift */; };
 		BC0C5BDEFC6267E77A231543 /* AssistantWidgets.swift in Sources */ = {isa = PBXBuildFile; fileRef = 102512FC94A55C99130F7603 /* AssistantWidgets.swift */; };
@@ -65,6 +68,9 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		9664C265B6118BC0B7BA3A52 /* AssistantAppGroup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistantAppGroup.swift; sourceTree = "<group>"; };
+		365D039E13AEE84E1A2345FD /* AssistantLiveActivityIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistantLiveActivityIntent.swift; sourceTree = "<group>"; };
+		18F9B603C420694FB00D5861 /* AssistantWidgets.g.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AssistantWidgets.g.swift; path = ../apple/AssistantWidgets.g.swift; sourceTree = SOURCE_ROOT; };
 		75F7D12CDA4A5D17393713AE /* AssistantWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = AssistantWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		FCE568BEE585AC70A950B110 /* AssistantActivityAttributes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistantActivityAttributes.swift; sourceTree = "<group>"; };
 		8AAD04DE1B0B663C1B32FF9A /* AssistantLiveActivityWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistantLiveActivityWidget.swift; sourceTree = "<group>"; };
@@ -118,6 +124,9 @@
 				102512FC94A55C99130F7603 /* AssistantWidgets.swift */,
 				63CBC13C12AF58148E7A97D1 /* Info.plist */,
 				BE14B2CC8D9184EE51194F95 /* AssistantWidgets.xcconfig */,
+				9664C265B6118BC0B7BA3A52 /* AssistantAppGroup.swift */,
+				365D039E13AEE84E1A2345FD /* AssistantLiveActivityIntent.swift */,
+				18F9B603C420694FB00D5861 /* AssistantWidgets.g.swift */,
 			);
 			path = AssistantWidgets;
 			sourceTree = "<group>";
@@ -358,6 +367,9 @@
 				91AAA0D3923D74AA85BF1F95 /* AssistantActivityAttributes.swift in Sources */,
 				3F334861D4DF61CCF41F137B /* AssistantLiveActivityWidget.swift in Sources */,
 				BC0C5BDEFC6267E77A231543 /* AssistantWidgets.swift in Sources */,
+				0C193DD35D4C2713C17FEA9E /* AssistantAppGroup.swift in Sources */,
+				674FC3D804362AD182C49F87 /* AssistantLiveActivityIntent.swift in Sources */,
+				E2DF675C3E5B06808C03ED5A /* AssistantWidgets.g.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
